@@ -2,7 +2,7 @@ import express from 'express';
 import Character from '../models/Character.js';
 import User from '../models/User.js';
 import HiddenClassOwnership from '../models/HiddenClassOwnership.js';
-import TradingListing from '../models/Tavern.js';
+import { TradingListing } from '../models/Tavern.js';
 import { authenticate } from '../middleware/auth.js';
 import { getItemById } from '../data/itemDatabase.js';
 
