@@ -47,8 +47,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
       return;
     }
     setSelectedTower(tower);
-    await fetchFloors(tower.id);
-    setGameState('floor_select');
+    // Don't auto-navigate to floor_select, let user see details first
   };
 
   const handleEnterTower = async () => {
@@ -329,34 +328,160 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
     return costs[skillId] || 10;
   };
 
-  // Render tower selection
+  // Render tower selection with compact [1-10] buttons
   const renderTowerSelect = () => (
     <div className="space-y-4">
       <h3 className="text-xl font-bold text-yellow-400">🏰 Select Tower</h3>
-      <div className="grid gap-3">
-        {towers.map(tower => (
-          <button
-            key={tower.id}
-            onClick={() => handleSelectTower(tower)}
-            disabled={!tower.isUnlocked}
-            className={'p-4 rounded-lg text-left transition ' + (tower.isUnlocked ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-800 opacity-50 cursor-not-allowed')}
-          >
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="font-bold text-lg">{tower.name}</span>
-                <span className="ml-2 text-sm text-gray-400">Lv.{tower.levelRange.min}-{tower.levelRange.max}</span>
-              </div>
-              {!tower.isUnlocked && <span className="text-red-400">🔒</span>}
-              {tower.isUnlocked && tower.highestFloor > 1 && (
-                <span className="text-green-400 text-sm">Floor {tower.highestFloor}/15</span>
-              )}
-            </div>
-            <p className="text-sm text-gray-400 mt-1">{tower.description}</p>
-          </button>
-        ))}
+      
+      {/* Compact Tower Buttons [1-10] */}
+      <div className="flex flex-wrap gap-2">
+        {towers.map(tower => {
+          const towerNum = tower.id;
+          const isSelected = selectedTower?.id === tower.id;
+          const hasProgress = tower.highestFloor > 1;
+          
+          return (
+            <button
+              key={tower.id}
+              onClick={() => handleSelectTower(tower)}
+              disabled={!tower.isUnlocked}
+              className={`w-10 h-10 rounded-lg font-bold text-sm relative transition-all ${
+                isSelected 
+                  ? 'bg-yellow-500 text-black ring-2 ring-yellow-300' 
+                  : tower.isUnlocked 
+                    ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                    : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+              }`}
+              title={tower.name}
+            >
+              {!tower.isUnlocked && <span className="absolute -top-1 -right-1 text-xs">🔒</span>}
+              {tower.isUnlocked && hasProgress && <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full"></span>}
+              {towerNum}
+            </button>
+          );
+        })}
       </div>
+      
+      {/* Selected Tower Details */}
+      {selectedTower && (
+        <div className="bg-gray-700/50 rounded-lg p-4 space-y-3 border border-gray-600">
+          <div className="flex justify-between items-start">
+            <div>
+              <h4 className="font-bold text-lg text-yellow-400">{selectedTower.name}</h4>
+              <p className="text-sm text-gray-400">Level {selectedTower.levelRange.min}-{selectedTower.levelRange.max}</p>
+            </div>
+            {selectedTower.highestFloor > 1 && (
+              <span className="text-green-400 text-sm bg-green-900/30 px-2 py-1 rounded">
+                Floor {selectedTower.highestFloor}/15
+              </span>
+            )}
+          </div>
+          
+          {/* Tower Story */}
+          <div className="text-sm text-gray-300 italic border-l-2 border-purple-500 pl-3">
+            {getTowerStory(selectedTower.id)}
+          </div>
+          
+          {/* Tower Info Grid */}
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            {/* Enemies */}
+            <div className="bg-gray-800/50 rounded p-2">
+              <div className="text-red-400 font-semibold mb-1">👹 Enemies</div>
+              <div className="text-gray-300 text-xs space-y-1">
+                {getTowerEnemies(selectedTower.id).map((enemy, i) => (
+                  <div key={i}>{enemy}</div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Drops */}
+            <div className="bg-gray-800/50 rounded p-2">
+              <div className="text-yellow-400 font-semibold mb-1">💎 Drops</div>
+              <div className="text-gray-300 text-xs space-y-1">
+                {getTowerDrops(selectedTower.id).map((drop, i) => (
+                  <div key={i}>{drop}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          {/* Drop Rates */}
+          <div className="bg-gray-800/50 rounded p-2 text-xs">
+            <div className="text-blue-400 font-semibold mb-1">📊 Drop Rates</div>
+            <div className="grid grid-cols-3 gap-2 text-gray-300">
+              <div>Normal: 15% equip</div>
+              <div>Elite: 40% equip</div>
+              <div>Boss: 80% equip</div>
+            </div>
+          </div>
+          
+          {/* Enter Button */}
+          <button
+            onClick={() => fetchFloors(selectedTower.id).then(() => setGameState('floor_select'))}
+            className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-bold"
+          >
+            ⚔️ Select Floor
+          </button>
+        </div>
+      )}
+      
+      {/* No tower selected hint */}
+      {!selectedTower && (
+        <p className="text-gray-500 text-center py-4">Select a tower above to see details</p>
+      )}
     </div>
   );
+  
+  // Tower story data
+  const getTowerStory = (towerId) => {
+    const stories = {
+      1: "The Crimson Spire rises from cursed ground, home to restless undead who guard ancient treasures. Many hunters have entered, few have returned.",
+      2: "Deep beneath the waves lies the Azure Depths, where aquatic horrors lurk in the crushing darkness. The pressure alone has driven many mad.",
+      3: "The Volcanic Core burns eternally, its magma chambers housing fire elementals and molten beasts. Only the brave dare face its searing heat.",
+      4: "Frozen Peak stands eternal, its icy halls home to frost creatures and the dreaded Ice Emperor. The cold seeps into your very soul.",
+      5: "The Shadow Realm exists between worlds, where darkness itself hunts the living. Reality bends and nightmares walk freely.",
+      6: "Celestial Sanctum floats among the clouds, guarded by beings of pure light. But even angels can fall to corruption.",
+      7: "The Abyssal Void consumes all light and hope. Here, void creatures feed on the essence of existence itself.",
+      8: "Dragon's Domain echoes with ancient roars. The last dragons make their stand here, and they do not suffer intruders.",
+      9: "The Eternal Citadel defies time itself. Its guardians have watched over forbidden knowledge for millennia.",
+      10: "The Throne of Gods awaits only the mightiest hunters. Here, divine beings test those who dare challenge their supremacy."
+    };
+    return stories[towerId] || "A mysterious tower awaits...";
+  };
+  
+  // Tower enemies data
+  const getTowerEnemies = (towerId) => {
+    const enemies = {
+      1: ["Skeleton Warrior", "Zombie", "Ghost", "💀 Boss: Hollow King"],
+      2: ["Sea Serpent", "Drowned One", "Coral Golem", "💀 Boss: Leviathan"],
+      3: ["Fire Imp", "Magma Golem", "Flame Wraith", "💀 Boss: Molten King"],
+      4: ["Frost Wolf", "Ice Elemental", "Yeti", "💀 Boss: Ice Emperor"],
+      5: ["Shadow Stalker", "Nightmare", "Void Walker", "💀 Boss: Void Emperor"],
+      6: ["Fallen Angel", "Light Golem", "Seraphim", "💀 Boss: Archangel"],
+      7: ["Void Spawn", "Abyssal Horror", "Null Beast", "💀 Boss: Void God"],
+      8: ["Drake", "Wyvern", "Elder Dragon", "💀 Boss: Ancient Dragon"],
+      9: ["Time Keeper", "Eternal Guard", "Chrono Beast", "💀 Boss: Eternal King"],
+      10: ["Divine Soldier", "God's Hand", "Celestial", "💀 Boss: God King"]
+    };
+    return enemies[towerId] || ["Unknown creatures"];
+  };
+  
+  // Tower drops data
+  const getTowerDrops = (towerId) => {
+    const drops = {
+      1: ["Bone Fragment", "Ectoplasm", "Gridz Set (1%/5%/15%)"],
+      2: ["Sea Crystal", "Pearl", "Tempest Set (1%/5%/15%)"],
+      3: ["Magma Core", "Ash", "Inferno Set (1%/5%/15%)"],
+      4: ["Frost Shard", "Ice Crystal", "Glacial Set (1%/5%/15%)"],
+      5: ["Shadow Essence", "Void Dust", "Nightmare Set (1%/5%/15%)"],
+      6: ["Holy Light", "Angel Feather", "Celestial Set (1%/5%/15%)"],
+      7: ["Void Core", "Null Fragment", "Abyssal Set (1%/5%/15%)"],
+      8: ["Dragon Scale", "Dragon Fang", "Dragonborn Set (1%/5%/15%)"],
+      9: ["Time Crystal", "Eternal Dust", "Eternal Set (1%/5%/15%)"],
+      10: ["Divine Essence", "God Fragment", "Divine Set (1%/5%/15%)"]
+    };
+    return drops[towerId] || ["Unknown drops"];
+  };
 
   // Render floor selection
   const renderFloorSelect = () => (
