@@ -331,7 +331,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
   // Render tower selection with compact [1-10] buttons
   const renderTowerSelect = () => (
     <div className="space-y-4">
-      <h3 className="text-xl font-bold text-yellow-400">🏰 Select Tower</h3>
+      <h3 className="text-xl font-bold text-blue-400">🏰 Select Tower</h3>
       
       {/* Compact Tower Buttons [1-10] */}
       <div className="flex flex-wrap gap-2">
@@ -347,7 +347,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
               disabled={!tower.isUnlocked}
               className={`w-10 h-10 rounded-lg font-bold text-sm relative transition-all ${
                 isSelected 
-                  ? 'bg-yellow-500 text-black ring-2 ring-yellow-300' 
+                  ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg shadow-blue-500/50' 
                   : tower.isUnlocked 
                     ? 'bg-gray-700 hover:bg-gray-600 text-white' 
                     : 'bg-gray-800 text-gray-500 cursor-not-allowed'
@@ -367,7 +367,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
         <div className="bg-gray-700/50 rounded-lg p-4 space-y-3 border border-gray-600">
           <div className="flex justify-between items-start">
             <div>
-              <h4 className="font-bold text-lg text-yellow-400">{selectedTower.name}</h4>
+              <h4 className="font-bold text-lg text-blue-400">{selectedTower.name}</h4>
               <p className="text-sm text-gray-400">Level {selectedTower.levelRange.min}-{selectedTower.levelRange.max}</p>
             </div>
             {selectedTower.highestFloor > 1 && (
@@ -418,7 +418,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
           {/* Enter Button */}
           <button
             onClick={() => fetchFloors(selectedTower.id).then(() => setGameState('floor_select'))}
-            className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-bold"
+            className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold shadow-lg shadow-blue-500/30"
           >
             ⚔️ Select Floor
           </button>
@@ -487,7 +487,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
   const renderFloorSelect = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-yellow-400">🏰 {selectedTower?.name}</h3>
+        <h3 className="text-xl font-bold text-blue-400">🏰 {selectedTower?.name}</h3>
         <button onClick={() => setGameState('tower_select')} className="text-gray-400 hover:text-white">← Back</button>
       </div>
       <p className="text-gray-400">Select floor to explore:</p>
@@ -497,7 +497,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
             key={floor.floor}
             onClick={() => handleSelectFloor(floor)}
             className={'p-3 rounded text-center transition ' + 
-              (floor.floor === selectedFloor ? 'bg-yellow-600 text-white' : 
+              (floor.floor === selectedFloor ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg shadow-blue-500/50' : 
                floor.unlocked ? (floor.isBoss ? 'bg-red-700 hover:bg-red-600' : 
                                  floor.isSafeZone ? 'bg-green-700 hover:bg-green-600' : 
                                  floor.isEliteZone ? 'bg-purple-700 hover:bg-purple-600' :
@@ -520,7 +520,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
       <button
         onClick={handleEnterTower}
         disabled={isLoading}
-        className="w-full py-3 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-bold text-lg"
+        className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-lg shadow-lg shadow-blue-500/30"
       >
         ⚔️ Enter Floor {selectedFloor}
       </button>
@@ -544,7 +544,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
   const renderInTower = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-yellow-400">🏰 {selectedTower?.name || 'Tower'} - Floor {character?.currentFloor}</h3>
+        <h3 className="text-xl font-bold text-blue-400">🏰 {selectedTower?.name || 'Tower'} - Floor {character?.currentFloor}</h3>
         <span className="text-sm text-gray-400">⚡ {character?.energy}/100</span>
       </div>
       {storyText && <p className="text-gray-300 italic whitespace-pre-line">{storyText}</p>}
@@ -730,9 +730,9 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
   const renderTowerComplete = () => (
     <div className="space-y-4 text-center">
       <div className="text-4xl">🏆</div>
-      <h3 className="text-xl font-bold text-yellow-400">Tower Conquered!</h3>
+      <h3 className="text-xl font-bold text-blue-400">Tower Conquered!</h3>
       <p className="text-gray-300">{storyText}</p>
-      <button onClick={() => { setGameState('tower_select'); fetchTowers(); }} className="px-6 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-bold">
+      <button onClick={() => { setGameState('tower_select'); fetchTowers(); }} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold shadow-lg shadow-blue-500/30">
         Continue
       </button>
     </div>
@@ -740,7 +740,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
 
   // Main render
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
+    <div className="bg-gray-800 rounded-lg p-4 neon-border">
       {gameState === 'tower_select' && renderTowerSelect()}
       {gameState === 'floor_select' && renderFloorSelect()}
       {gameState === 'in_tower' && renderInTower()}
