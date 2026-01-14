@@ -8,14 +8,6 @@ const CLASS_BASE_STATS = {
   mage: { hp: 80, mp: 120, str: 5, agi: 7, dex: 8, int: 15, vit: 5 }
 };
 
-// Hidden classes configuration
-const HIDDEN_CLASSES = {
-  flameblade: { baseClass: 'swordsman', tier: 'rare', element: 'fire' },
-  shadowDancer: { baseClass: 'thief', tier: 'rare', element: 'dark' },
-  stormRanger: { baseClass: 'archer', tier: 'rare', element: 'lightning' },
-  frostWeaver: { baseClass: 'mage', tier: 'rare', element: 'ice' }
-};
-
 const skillSchema = new mongoose.Schema({
   skillId: String,
   name: String,
@@ -32,15 +24,6 @@ const inventoryItemSchema = new mongoose.Schema({
   rarity: { type: String, enum: ['common', 'uncommon', 'rare', 'epic', 'legendary'], default: 'common' },
   quantity: { type: Number, default: 1 },
   stackable: { type: Boolean, default: true },
-  stats: mongoose.Schema.Types.Mixed
-});
-
-const equipmentSlotSchema = new mongoose.Schema({
-  itemId: { type: String, default: null },
-  name: { type: String, default: null },
-  icon: { type: String, default: null },
-  type: String,
-  rarity: String,
   stats: mongoose.Schema.Types.Mixed
 });
 
@@ -64,15 +47,6 @@ const characterSchema = new mongoose.Schema({
     type: String,
     enum: ['swordsman', 'thief', 'archer', 'mage'],
     required: true
-  },
-  hiddenClass: {
-    type: String,
-    enum: ['none', 'flameblade', 'shadowDancer', 'stormRanger', 'frostWeaver'],
-    default: 'none'
-  },
-  hiddenClassUnlocked: {
-    type: Boolean,
-    default: false
   },
   
   // Level & Experience
@@ -110,25 +84,10 @@ const characterSchema = new mongoose.Schema({
     default: 0
   },
   
-  // Energy System
-  energy: {
-    type: Number,
-    default: 100,
-    max: 100
-  },
-  lastEnergyUpdate: {
-    type: Date,
-    default: Date.now
-  },
-  
   // Currency
   gold: {
     type: Number,
     default: 100
-  },
-  gems: {
-    type: Number,
-    default: 0
   },
   
   // Progress
@@ -140,81 +99,8 @@ const characterSchema = new mongoose.Schema({
     type: Number,
     default: 1
   },
-  highestTowerCleared: {
-    type: Number,
-    default: 0
-  },
-  highestFloorReached: {
-    towerId: { type: Number, default: 1 },
-    floor: { type: Number, default: 1 }
-  },
-  // Per-tower progress tracking
-  towerProgress: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
-  },
-  // Tower lockout (curse effect)
-  towerLockoutUntil: {
-    type: Date,
-    default: null
-  },
-  
-  // Skills
-  skills: [skillSchema],
-  
-  // Inventory (max 50 slots for Phase 1)
-  inventory: [inventoryItemSchema],
-  inventorySize: {
-    type: Number,
-    default: 50
-  },
-  
-  // Equipment - 8 slots
-  equipment: {
-    head: equipmentSlotSchema,
-    body: equipmentSlotSchema,
-    leg: equipmentSlotSchema,
-    shoes: equipmentSlotSchema,
-    leftHand: equipmentSlotSchema,  // Main weapon
-    rightHand: equipmentSlotSchema, // Offhand/Shield
-    ring: equipmentSlotSchema,
-    necklace: equipmentSlotSchema
-  },
-  
-  // Hidden Class Quest Progress
-  hiddenClassQuest: {
-    scrollObtained: { type: String, default: null },
-    questStarted: { type: Boolean, default: false },
-    questStep: { type: Number, default: 0 },
-    killCount: { type: Number, default: 0 },
-    itemFound: { type: Boolean, default: false },
-    miniBossDefeated: { type: Boolean, default: false },
-    completed: { type: Boolean, default: false }
-  },
-  
-  // Special Items
-  memoryCrystals: {
-    type: Number,
-    default: 0
-  },
-  
-  // Statistics
-  statistics: {
-    totalKills: { type: Number, default: 0 },
-    bossKills: { type: Number, default: 0 },
-    eliteKills: { type: Number, default: 0 },
-    deaths: { type: Number, default: 0 },
-    totalDamageDealt: { type: Number, default: 0 },
-    totalGoldEarned: { type: Number, default: 0 },
-    scrollsFound: { type: Number, default: 0 },
-    floorsCleared: { type: Number, default: 0 }
-  },
   
   createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  lastPlayed: {
     type: Date,
     default: Date.now
   }
@@ -225,32 +111,24 @@ characterSchema.methods.calculateExpToLevel = function(level) {
   return Math.floor(100 * Math.pow(1.5, level - 1));
 };
 
-// Level up check
-characterSchema.methods.checkLevelUp = function() {
+// Level up check (adjusting stat points to 3)
+characterSchema.methods.levelUp = function() {
   let leveledUp = false;
   while (this.experience >= this.experienceToNextLevel && this.level < 50) {
     this.experience -= this.experienceToNextLevel;
     this.level += 1;
-    this.statPoints += 5;
+    this.statPoints += 3;  // Adjusting stat points to 3 per level-up
     this.experienceToNextLevel = this.calculateExpToLevel(this.level);
     leveledUp = true;
   }
   return leveledUp;
 };
 
-// Update energy based on time
-characterSchema.methods.updateEnergy = function() {
-  const now = new Date();
-  const timeDiff = now - this.lastEnergyUpdate;
-  const hoursElapsed = timeDiff / (1000 * 60 * 60);
-  const energyGained = Math.floor(hoursElapsed * 25);
-  
-  if (energyGained > 0) {
-    this.energy = Math.min(100, this.energy + energyGained);
-    this.lastEnergyUpdate = now;
+// Add GM stat adjustment functionality
+characterSchema.methods.adjustStats = function(statName, value) {
+  if (this.stats.hasOwnProperty(statName)) {
+    this.stats[statName] = value;
   }
-  
-  return this.energy;
 };
 
 // Set initial stats based on class
@@ -275,31 +153,22 @@ function getClassSkills(baseClass) {
   const skillSets = {
     swordsman: [
       { skillId: 'slash', name: 'Slash', level: 1, unlocked: true },
-      { skillId: 'heavyStrike', name: 'Heavy Strike', level: 1, unlocked: true },
-      { skillId: 'shieldBash', name: 'Shield Bash', level: 1, unlocked: false },
-      { skillId: 'warCry', name: 'War Cry', level: 1, unlocked: false }
+      { skillId: 'heavyStrike', name: 'Heavy Strike', level: 1, unlocked: true }
     ],
     thief: [
       { skillId: 'backstab', name: 'Backstab', level: 1, unlocked: true },
-      { skillId: 'poisonBlade', name: 'Poison Blade', level: 1, unlocked: true },
-      { skillId: 'smokeScreen', name: 'Smoke Screen', level: 1, unlocked: false },
-      { skillId: 'steal', name: 'Steal', level: 1, unlocked: false }
+      { skillId: 'poisonBlade', name: 'Poison Blade', level: 1, unlocked: true }
     ],
     archer: [
       { skillId: 'preciseShot', name: 'Precise Shot', level: 1, unlocked: true },
-      { skillId: 'multiShot', name: 'Multi Shot', level: 1, unlocked: true },
-      { skillId: 'eagleEye', name: 'Eagle Eye', level: 1, unlocked: false },
-      { skillId: 'arrowRain', name: 'Arrow Rain', level: 1, unlocked: false }
+      { skillId: 'multiShot', name: 'Multi Shot', level: 1, unlocked: true }
     ],
     mage: [
       { skillId: 'fireball', name: 'Fireball', level: 1, unlocked: true },
-      { skillId: 'iceSpear', name: 'Ice Spear', level: 1, unlocked: true },
-      { skillId: 'manaShield', name: 'Mana Shield', level: 1, unlocked: false },
-      { skillId: 'thunderbolt', name: 'Thunderbolt', level: 1, unlocked: false }
+      { skillId: 'iceSpear', name: 'Ice Spear', level: 1, unlocked: true }
     ]
   };
   return skillSets[baseClass] || [];
 }
 
-export { CLASS_BASE_STATS, HIDDEN_CLASSES };
 export default mongoose.model('Character', characterSchema);
