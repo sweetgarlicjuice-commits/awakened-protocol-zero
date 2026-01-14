@@ -12,14 +12,14 @@ const router = express.Router();
 
 // Add item to inventory with stacking
 function addItemToInventory(character, itemId, quantity, itemData) {
-  const item = itemData || getItemById(itemId);
+  var item = itemData || getItemById(itemId);
   if (!item) return { success: false, error: 'Item not found' };
 
   // Check if stackable and exists
   if (item.stackable) {
-    const existingIndex = character.inventory.findIndex(i => i.itemId === itemId);
+    var existingIndex = character.inventory.findIndex(function(i) { return i.itemId === itemId; });
     if (existingIndex >= 0) {
-      const newQty = character.inventory[existingIndex].quantity + quantity;
+      var newQty = character.inventory[existingIndex].quantity + quantity;
       if (newQty <= (item.maxStack || 999)) {
         character.inventory[existingIndex].quantity = newQty;
         return { success: true, stacked: true };
@@ -33,14 +33,14 @@ function addItemToInventory(character, itemId, quantity, itemData) {
   }
 
   character.inventory.push({
-    itemId: item.id,
+    itemId: item.id || itemId,
     name: item.name,
-    icon: item.icon,
+    icon: item.icon || '📦',
     type: item.type,
     subtype: item.subtype,
     rarity: item.rarity || 'common',
     quantity: quantity,
-    stackable: item.stackable,
+    stackable: item.stackable || false,
     stats: item.stats || {}
   });
 
@@ -49,10 +49,10 @@ function addItemToInventory(character, itemId, quantity, itemData) {
 
 // Remove item from inventory
 function removeItemFromInventory(character, itemId, quantity) {
-  const index = character.inventory.findIndex(i => i.itemId === itemId);
+  var index = character.inventory.findIndex(function(i) { return i.itemId === itemId; });
   if (index === -1) return { success: false, error: 'Item not found' };
 
-  const item = character.inventory[index];
+  var item = character.inventory[index];
   if (item.quantity < quantity) return { success: false, error: 'Not enough items' };
 
   if (item.quantity === quantity) {
@@ -64,24 +64,77 @@ function removeItemFromInventory(character, itemId, quantity) {
   return { success: true };
 }
 
+// Helper function to get item data from inventory or database
+function getItemDataFromInventoryOrDB(itemId, invItem) {
+  // First try database
+  var dbItem = getItemById(itemId);
+  if (dbItem) return dbItem;
+  
+  // If not in database, use inventory item data (for dynamically generated equipment)
+  if (invItem) {
+    return {
+      id: invItem.itemId,
+      name: invItem.name,
+      icon: invItem.icon || '📦',
+      type: invItem.type,
+      subtype: invItem.subtype,
+      rarity: invItem.rarity || 'common',
+      stackable: invItem.stackable || false,
+      stats: invItem.stats || {},
+      sellPrice: calculateSellPrice(invItem),
+      buyPrice: 0
+    };
+  }
+  
+  return null;
+}
+
+// Calculate sell price for items not in database
+function calculateSellPrice(item) {
+  if (!item) return 0;
+  
+  // Base price by rarity
+  var rarityPrices = {
+    common: 5,
+    uncommon: 15,
+    rare: 50,
+    epic: 150,
+    legendary: 500
+  };
+  
+  var basePrice = rarityPrices[item.rarity] || 5;
+  
+  // Add stat value
+  if (item.stats) {
+    var statTotal = 0;
+    var statKeys = Object.keys(item.stats);
+    for (var i = 0; i < statKeys.length; i++) {
+      statTotal += item.stats[statKeys[i]] || 0;
+    }
+    basePrice += statTotal * 2;
+  }
+  
+  return basePrice;
+}
+
 // ============ ITEM DATABASE ROUTES ============
 
 // GET /api/tavern/items/search - Search items
-router.get('/items/search', authenticate, async (req, res) => {
+router.get('/items/search', authenticate, async function(req, res) {
   try {
-    const { q } = req.query;
+    var q = req.query.q;
     if (!q || q.length < 1) {
       return res.json({ items: getAllItems().slice(0, 20) });
     }
-    const items = searchItems(q);
-    res.json({ items });
+    var items = searchItems(q);
+    res.json({ items: items });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // GET /api/tavern/items/all - Get all items
-router.get('/items/all', authenticate, async (req, res) => {
+router.get('/items/all', authenticate, async function(req, res) {
   try {
     res.json({ items: getAllItems() });
   } catch (error) {
@@ -92,34 +145,35 @@ router.get('/items/all', authenticate, async (req, res) => {
 // ============ TAVERN SHOP ROUTES ============
 
 // GET /api/tavern/shop - Get shop items
-router.get('/shop', authenticate, async (req, res) => {
+router.get('/shop', authenticate, async function(req, res) {
   try {
-    let shop = await TavernShop.findOne();
+    var shop = await TavernShop.findOne();
     if (!shop) {
       shop = await TavernShop.initializeShop();
     }
-    res.json({ items: shop.items.filter(i => i.isActive) });
+    res.json({ items: shop.items.filter(function(i) { return i.isActive; }) });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // POST /api/tavern/shop/buy - Buy from shop
-router.post('/shop/buy', authenticate, async (req, res) => {
+router.post('/shop/buy', authenticate, async function(req, res) {
   try {
-    const { itemId, quantity } = req.body;
+    var itemId = req.body.itemId;
+    var quantity = req.body.quantity;
     if (!itemId || !quantity || quantity < 1) {
       return res.status(400).json({ error: 'Invalid request' });
     }
 
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    const shop = await TavernShop.findOne();
-    const shopItem = shop.items.find(i => i.itemId === itemId && i.isActive);
+    var shop = await TavernShop.findOne();
+    var shopItem = shop.items.find(function(i) { return i.itemId === itemId && i.isActive; });
     if (!shopItem) return res.status(404).json({ error: 'Item not in shop' });
 
-    const totalCost = shopItem.price * quantity;
+    var totalCost = shopItem.price * quantity;
     if (character.gold < totalCost) {
       return res.status(400).json({ error: 'Not enough gold. Need ' + totalCost + ', have ' + character.gold });
     }
@@ -130,8 +184,8 @@ router.post('/shop/buy', authenticate, async (req, res) => {
     }
 
     // Add item with stacking
-    const itemData = getItemById(itemId);
-    const result = addItemToInventory(character, itemId, quantity, itemData);
+    var itemData = getItemById(itemId);
+    var result = addItemToInventory(character, itemId, quantity, itemData);
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
@@ -159,27 +213,40 @@ router.post('/shop/buy', authenticate, async (req, res) => {
 });
 
 // POST /api/tavern/shop/sell - Sell to shop
-router.post('/shop/sell', authenticate, async (req, res) => {
+router.post('/shop/sell', authenticate, async function(req, res) {
   try {
-    const { itemId, quantity } = req.body;
+    var itemId = req.body.itemId;
+    var quantity = req.body.quantity;
     if (!itemId || !quantity || quantity < 1) {
       return res.status(400).json({ error: 'Invalid request' });
     }
 
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    const itemData = getItemById(itemId);
-    if (!itemData || itemData.sellPrice === 0) {
+    // Find item in inventory first
+    var invItem = character.inventory.find(function(i) { return i.itemId === itemId; });
+    if (!invItem) {
+      return res.status(400).json({ error: 'Item not found in inventory' });
+    }
+
+    // Get item data from DB or inventory
+    var itemData = getItemDataFromInventoryOrDB(itemId, invItem);
+    if (!itemData) {
+      return res.status(400).json({ error: 'Item data not found' });
+    }
+
+    // Check if item can be sold
+    if (itemData.sellPrice === 0 || itemData.type === 'scroll' || itemData.type === 'special') {
       return res.status(400).json({ error: 'This item cannot be sold' });
     }
 
-    const result = removeItemFromInventory(character, itemId, quantity);
+    var result = removeItemFromInventory(character, itemId, quantity);
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
 
-    const totalGold = itemData.sellPrice * quantity;
+    var totalGold = itemData.sellPrice * quantity;
     character.gold += totalGold;
     await character.save();
 
@@ -189,6 +256,7 @@ router.post('/shop/sell', authenticate, async (req, res) => {
       inventory: character.inventory
     });
   } catch (error) {
+    console.error('Shop sell error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -196,58 +264,63 @@ router.post('/shop/sell', authenticate, async (req, res) => {
 // ============ TRADING STALL ROUTES ============
 
 // GET /api/tavern/trading - Get all active listings
-router.get('/trading', authenticate, async (req, res) => {
+router.get('/trading', authenticate, async function(req, res) {
   try {
-    const listings = await TradingListing.find({ isActive: true })
+    var listings = await TradingListing.find({ isActive: true })
       .sort({ listedAt: -1 })
       .limit(100);
-    res.json({ listings });
+    res.json({ listings: listings });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // GET /api/tavern/trading/my - Get my listings
-router.get('/trading/my', authenticate, async (req, res) => {
+router.get('/trading/my', authenticate, async function(req, res) {
   try {
-    const listings = await TradingListing.find({ sellerId: req.userId, isActive: true });
-    res.json({ listings });
+    var listings = await TradingListing.find({ sellerId: req.userId, isActive: true });
+    res.json({ listings: listings });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // POST /api/tavern/trading/list - List item for sale
-router.post('/trading/list', authenticate, async (req, res) => {
+router.post('/trading/list', authenticate, async function(req, res) {
   try {
-    const { itemId, quantity, pricePerUnit } = req.body;
+    var itemId = req.body.itemId;
+    var quantity = req.body.quantity;
+    var pricePerUnit = req.body.pricePerUnit;
+    
     if (!itemId || !quantity || !pricePerUnit || quantity < 1 || pricePerUnit < 1) {
-      return res.status(400).json({ error: 'Invalid request' });
+      return res.status(400).json({ error: 'Invalid request - missing itemId, quantity, or price' });
     }
 
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
     // Check if player has the item
-    const invItem = character.inventory.find(i => i.itemId === itemId);
+    var invItem = character.inventory.find(function(i) { return i.itemId === itemId; });
     if (!invItem || invItem.quantity < quantity) {
       return res.status(400).json({ error: 'Not enough items in inventory' });
     }
 
+    // Get item data from DB or inventory
+    var itemData = getItemDataFromInventoryOrDB(itemId, invItem);
+    
     // Cannot sell scrolls or memory crystals
-    const itemData = getItemById(itemId);
-    if (itemData && (itemData.type === 'scroll' || itemData.id === 'memory_crystal')) {
+    if (itemData && (itemData.type === 'scroll' || itemData.id === 'memory_crystal' || itemData.type === 'special')) {
       return res.status(400).json({ error: 'This item cannot be traded' });
     }
 
     // Remove from inventory
-    const result = removeItemFromInventory(character, itemId, quantity);
+    var result = removeItemFromInventory(character, itemId, quantity);
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
 
-    // Create listing
-    const listing = await TradingListing.create({
+    // Create listing using inventory item data (more reliable than DB for dynamic items)
+    var listing = await TradingListing.create({
       sellerId: req.userId,
       sellerName: req.user.username,
       characterName: character.name,
@@ -255,9 +328,11 @@ router.post('/trading/list', authenticate, async (req, res) => {
       itemName: invItem.name,
       itemIcon: invItem.icon || '📦',
       itemType: invItem.type,
+      itemSubtype: invItem.subtype || '',
       itemRarity: invItem.rarity || 'common',
-      quantity,
-      pricePerUnit,
+      itemStats: invItem.stats || {},
+      quantity: quantity,
+      pricePerUnit: pricePerUnit,
       totalPrice: quantity * pricePerUnit
     });
 
@@ -265,20 +340,20 @@ router.post('/trading/list', authenticate, async (req, res) => {
 
     res.json({
       message: 'Listed ' + quantity + 'x ' + invItem.name + ' for ' + (quantity * pricePerUnit) + ' gold',
-      listing,
+      listing: listing,
       inventory: character.inventory
     });
   } catch (error) {
     console.error('Trading list error:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + error.message });
   }
 });
 
 // POST /api/tavern/trading/buy/:listingId - Buy from player
-router.post('/trading/buy/:listingId', authenticate, async (req, res) => {
+router.post('/trading/buy/:listingId', authenticate, async function(req, res) {
   try {
-    const { quantity } = req.body;
-    const listing = await TradingListing.findById(req.params.listingId);
+    var quantity = req.body.quantity;
+    var listing = await TradingListing.findById(req.params.listingId);
 
     if (!listing || !listing.isActive) {
       return res.status(404).json({ error: 'Listing not found' });
@@ -288,21 +363,21 @@ router.post('/trading/buy/:listingId', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Cannot buy your own listing' });
     }
 
-    const buyQty = quantity || listing.quantity;
+    var buyQty = quantity || listing.quantity;
     if (buyQty > listing.quantity) {
       return res.status(400).json({ error: 'Not enough quantity available' });
     }
 
-    const buyer = await Character.findOne({ userId: req.userId });
+    var buyer = await Character.findOne({ userId: req.userId });
     if (!buyer) return res.status(404).json({ error: 'Character not found' });
 
-    const totalCost = listing.pricePerUnit * buyQty;
+    var totalCost = listing.pricePerUnit * buyQty;
     if (buyer.gold < totalCost) {
       return res.status(400).json({ error: 'Not enough gold' });
     }
 
     // Get seller
-    const seller = await Character.findOne({ userId: listing.sellerId });
+    var seller = await Character.findOne({ userId: listing.sellerId });
 
     // Transfer gold
     buyer.gold -= totalCost;
@@ -311,17 +386,19 @@ router.post('/trading/buy/:listingId', authenticate, async (req, res) => {
       await seller.save();
     }
 
-    // Add item to buyer with stacking
-    const itemData = getItemById(listing.itemId) || {
+    // Build item data from listing (includes dynamically generated items)
+    var itemData = {
       id: listing.itemId,
       name: listing.itemName,
-      icon: listing.itemIcon,
+      icon: listing.itemIcon || '📦',
       type: listing.itemType,
-      rarity: listing.itemRarity,
-      stackable: true
+      subtype: listing.itemSubtype || '',
+      rarity: listing.itemRarity || 'common',
+      stackable: listing.itemType === 'material' || listing.itemType === 'consumable',
+      stats: listing.itemStats || {}
     };
 
-    const result = addItemToInventory(buyer, listing.itemId, buyQty, itemData);
+    var result = addItemToInventory(buyer, listing.itemId, buyQty, itemData);
     if (!result.success) {
       // Refund
       buyer.gold += totalCost;
@@ -355,9 +432,9 @@ router.post('/trading/buy/:listingId', authenticate, async (req, res) => {
 });
 
 // DELETE /api/tavern/trading/:listingId - Cancel listing
-router.delete('/trading/:listingId', authenticate, async (req, res) => {
+router.delete('/trading/:listingId', authenticate, async function(req, res) {
   try {
-    const listing = await TradingListing.findById(req.params.listingId);
+    var listing = await TradingListing.findById(req.params.listingId);
 
     if (!listing || !listing.isActive) {
       return res.status(404).json({ error: 'Listing not found' });
@@ -367,19 +444,21 @@ router.delete('/trading/:listingId', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Not your listing' });
     }
 
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
 
-    // Return items to inventory
-    const itemData = getItemById(listing.itemId) || {
+    // Build item data from listing
+    var itemData = {
       id: listing.itemId,
       name: listing.itemName,
-      icon: listing.itemIcon,
+      icon: listing.itemIcon || '📦',
       type: listing.itemType,
-      rarity: listing.itemRarity,
-      stackable: true
+      subtype: listing.itemSubtype || '',
+      rarity: listing.itemRarity || 'common',
+      stackable: listing.itemType === 'material' || listing.itemType === 'consumable',
+      stats: listing.itemStats || {}
     };
 
-    const result = addItemToInventory(character, listing.itemId, listing.quantity, itemData);
+    var result = addItemToInventory(character, listing.itemId, listing.quantity, itemData);
     if (!result.success) {
       return res.status(400).json({ error: 'Cannot return items: ' + result.error });
     }
@@ -400,24 +479,24 @@ router.delete('/trading/:listingId', authenticate, async (req, res) => {
 // ============ INVENTORY MANAGEMENT ============
 
 // POST /api/tavern/inventory/use - Use consumable item
-router.post('/inventory/use', authenticate, async (req, res) => {
+router.post('/inventory/use', authenticate, async function(req, res) {
   try {
-    const { itemId } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var itemId = req.body.itemId;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    const itemData = getItemById(itemId);
+    var itemData = getItemById(itemId);
     if (!itemData || !itemData.usable) {
       return res.status(400).json({ error: 'Item cannot be used' });
     }
 
-    const result = removeItemFromInventory(character, itemId, 1);
+    var result = removeItemFromInventory(character, itemId, 1);
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
 
     // Apply effect
-    let message = '';
+    var message = '';
     if (itemData.effect) {
       switch (itemData.effect.type) {
         case 'heal':
@@ -440,7 +519,7 @@ router.post('/inventory/use', authenticate, async (req, res) => {
     await character.save();
 
     res.json({
-      message,
+      message: message,
       character: {
         hp: character.stats.hp,
         maxHp: character.stats.maxHp,
@@ -456,16 +535,17 @@ router.post('/inventory/use', authenticate, async (req, res) => {
 });
 
 // POST /api/tavern/inventory/split - Split stack
-router.post('/inventory/split', authenticate, async (req, res) => {
+router.post('/inventory/split', authenticate, async function(req, res) {
   try {
-    const { itemId, quantity } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var itemId = req.body.itemId;
+    var quantity = req.body.quantity;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    const index = character.inventory.findIndex(i => i.itemId === itemId);
+    var index = character.inventory.findIndex(function(i) { return i.itemId === itemId; });
     if (index === -1) return res.status(400).json({ error: 'Item not found' });
 
-    const item = character.inventory[index];
+    var item = character.inventory[index];
     if (item.quantity <= quantity || quantity < 1) {
       return res.status(400).json({ error: 'Invalid split quantity' });
     }
@@ -478,11 +558,18 @@ router.post('/inventory/split', authenticate, async (req, res) => {
     character.inventory[index].quantity -= quantity;
 
     // Create new stack
-    character.inventory.push({
-      ...item.toObject(),
+    var newItem = {
+      itemId: item.itemId,
+      name: item.name,
+      icon: item.icon,
+      type: item.type,
+      subtype: item.subtype,
+      rarity: item.rarity,
       quantity: quantity,
-      _id: undefined
-    });
+      stackable: item.stackable,
+      stats: item.stats
+    };
+    character.inventory.push(newItem);
 
     await character.save();
 
@@ -496,21 +583,26 @@ router.post('/inventory/split', authenticate, async (req, res) => {
 });
 
 // POST /api/tavern/inventory/combine - Combine stacks
-router.post('/inventory/combine', authenticate, async (req, res) => {
+router.post('/inventory/combine', authenticate, async function(req, res) {
   try {
-    const { itemId } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var itemId = req.body.itemId;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    const itemData = getItemById(itemId);
-    if (!itemData || !itemData.stackable) {
+    // Find item in inventory to check stackable
+    var invItem = character.inventory.find(function(i) { return i.itemId === itemId; });
+    if (!invItem || !invItem.stackable) {
       return res.status(400).json({ error: 'Item cannot be stacked' });
     }
 
+    // Get max stack from database or default
+    var itemData = getItemById(itemId);
+    var maxStack = (itemData && itemData.maxStack) ? itemData.maxStack : 999;
+
     // Find all stacks of this item
-    const indices = [];
-    let totalQty = 0;
-    character.inventory.forEach((item, idx) => {
+    var indices = [];
+    var totalQty = 0;
+    character.inventory.forEach(function(item, idx) {
       if (item.itemId === itemId) {
         indices.push(idx);
         totalQty += item.quantity;
@@ -522,11 +614,10 @@ router.post('/inventory/combine', authenticate, async (req, res) => {
     }
 
     // Remove all but first, set first to total
-    const firstIndex = indices[0];
-    const maxStack = itemData.maxStack || 999;
+    var firstIndex = indices[0];
 
     // Remove from end to not mess up indices
-    for (let i = indices.length - 1; i > 0; i--) {
+    for (var i = indices.length - 1; i > 0; i--) {
       character.inventory.splice(indices[i], 1);
     }
 
@@ -536,7 +627,7 @@ router.post('/inventory/combine', authenticate, async (req, res) => {
     await character.save();
 
     res.json({
-      message: 'Combined ' + totalQty + 'x ' + itemData.name,
+      message: 'Combined ' + totalQty + 'x ' + invItem.name,
       inventory: character.inventory
     });
   } catch (error) {
@@ -545,13 +636,13 @@ router.post('/inventory/combine', authenticate, async (req, res) => {
 });
 
 // DELETE /api/tavern/inventory/:itemId - Remove/discard item
-router.delete('/inventory/:itemId', authenticate, async (req, res) => {
+router.delete('/inventory/:itemId', authenticate, async function(req, res) {
   try {
-    const { quantity } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var quantity = req.body.quantity;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    const result = removeItemFromInventory(character, req.params.itemId, quantity || 1);
+    var result = removeItemFromInventory(character, req.params.itemId, quantity || 1);
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
@@ -570,15 +661,42 @@ router.delete('/inventory/:itemId', authenticate, async (req, res) => {
 // ============ EQUIPMENT ROUTES ============
 
 // POST /api/tavern/equip - Equip item
-router.post('/equip', authenticate, async (req, res) => {
+router.post('/equip', authenticate, async function(req, res) {
   try {
-    const { itemId } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var itemId = req.body.itemId;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    const itemData = getItemById(itemId);
+    // Find item in inventory first
+    var invIndex = character.inventory.findIndex(function(i) { return i.itemId === itemId; });
+    if (invIndex === -1) {
+      return res.status(400).json({ error: 'Item not in inventory' });
+    }
+    var invItem = character.inventory[invIndex];
+
+    // Get item data from DB or inventory
+    var itemData = getItemDataFromInventoryOrDB(itemId, invItem);
     if (!itemData || !itemData.equippable) {
-      return res.status(400).json({ error: 'Item cannot be equipped' });
+      // Check if inventory item is equippable (for dynamic equipment)
+      if (invItem.type !== 'equipment') {
+        return res.status(400).json({ error: 'Item cannot be equipped' });
+      }
+      // Use inventory data for dynamic equipment
+      itemData = {
+        id: invItem.itemId,
+        name: invItem.name,
+        icon: invItem.icon || '📦',
+        type: invItem.type,
+        subtype: invItem.subtype,
+        slot: invItem.subtype === 'weapon' ? 'leftHand' : 
+              invItem.subtype === 'shield' ? 'rightHand' :
+              invItem.subtype === 'armor' ? 'body' :
+              invItem.subtype || 'body',
+        rarity: invItem.rarity,
+        stats: invItem.stats || {},
+        classReq: invItem.classReq,
+        equippable: true
+      };
     }
 
     // Check class requirement
@@ -586,29 +704,28 @@ router.post('/equip', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Wrong class for this item' });
     }
 
-    const slot = itemData.slot;
+    var slot = itemData.slot;
     if (!slot) return res.status(400).json({ error: 'Invalid equipment slot' });
 
-    // Find item in inventory
-    const invIndex = character.inventory.findIndex(i => i.itemId === itemId);
-    if (invIndex === -1) {
-      return res.status(400).json({ error: 'Item not in inventory' });
-    }
-
     // Unequip current item in slot (if any)
-    const currentEquip = character.equipment[slot];
+    var currentEquip = character.equipment[slot];
     if (currentEquip && currentEquip.itemId) {
       // Add current to inventory
-      const currentItemData = getItemById(currentEquip.itemId) || currentEquip;
-      addItemToInventory(character, currentEquip.itemId, 1, {
-        ...currentItemData,
+      var currentItemData = getItemById(currentEquip.itemId) || {
+        id: currentEquip.itemId,
+        name: currentEquip.name,
+        icon: currentEquip.icon || '📦',
+        type: currentEquip.type,
+        rarity: currentEquip.rarity,
+        stats: currentEquip.stats,
         stackable: false
-      });
+      };
+      addItemToInventory(character, currentEquip.itemId, 1, currentItemData);
     }
 
     // Equip new item
     character.equipment[slot] = {
-      itemId: itemData.id,
+      itemId: itemData.id || itemId,
       name: itemData.name,
       icon: itemData.icon,
       type: itemData.type,
@@ -637,23 +754,28 @@ router.post('/equip', authenticate, async (req, res) => {
 });
 
 // POST /api/tavern/unequip - Unequip item
-router.post('/unequip', authenticate, async (req, res) => {
+router.post('/unequip', authenticate, async function(req, res) {
   try {
-    const { slot } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var slot = req.body.slot;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    const currentEquip = character.equipment[slot];
+    var currentEquip = character.equipment[slot];
     if (!currentEquip || !currentEquip.itemId) {
       return res.status(400).json({ error: 'Nothing equipped in that slot' });
     }
 
     // Add to inventory
-    const itemData = getItemById(currentEquip.itemId) || currentEquip;
-    const result = addItemToInventory(character, currentEquip.itemId, 1, {
-      ...itemData,
+    var itemData = getItemById(currentEquip.itemId) || {
+      id: currentEquip.itemId,
+      name: currentEquip.name,
+      icon: currentEquip.icon || '📦',
+      type: currentEquip.type,
+      rarity: currentEquip.rarity,
+      stats: currentEquip.stats,
       stackable: false
-    });
+    };
+    var result = addItemToInventory(character, currentEquip.itemId, 1, itemData);
 
     if (!result.success) {
       return res.status(400).json({ error: result.error });
@@ -683,15 +805,15 @@ router.post('/unequip', authenticate, async (req, res) => {
 // ============ CRAFTING ============
 
 // POST /api/tavern/craft/memory-crystal - Craft Memory Crystal
-router.post('/craft/memory-crystal', authenticate, async (req, res) => {
+router.post('/craft/memory-crystal', authenticate, async function(req, res) {
   try {
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
     // Check fragments
-    const fragIndex = character.inventory.findIndex(i => i.itemId === 'memory_crystal_fragment');
+    var fragIndex = character.inventory.findIndex(function(i) { return i.itemId === 'memory_crystal_fragment'; });
     if (fragIndex === -1 || character.inventory[fragIndex].quantity < 15) {
-      const have = fragIndex >= 0 ? character.inventory[fragIndex].quantity : 0;
+      var have = fragIndex >= 0 ? character.inventory[fragIndex].quantity : 0;
       return res.status(400).json({ error: 'Need 15 Memory Crystal Fragments. Have: ' + have });
     }
 
@@ -702,7 +824,7 @@ router.post('/craft/memory-crystal', authenticate, async (req, res) => {
     }
 
     // Add Memory Crystal
-    const itemData = getItemById('memory_crystal');
+    var itemData = getItemById('memory_crystal');
     addItemToInventory(character, 'memory_crystal', 1, itemData);
 
     await character.save();
@@ -717,9 +839,9 @@ router.post('/craft/memory-crystal', authenticate, async (req, res) => {
 });
 
 // POST /api/tavern/use-memory-crystal - Remove hidden class, return scroll
-router.post('/use-memory-crystal', authenticate, async (req, res) => {
+router.post('/use-memory-crystal', authenticate, async function(req, res) {
   try {
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
     if (character.hiddenClass === 'none') {
@@ -727,7 +849,7 @@ router.post('/use-memory-crystal', authenticate, async (req, res) => {
     }
 
     // Check Memory Crystal
-    const crystalIndex = character.inventory.findIndex(i => i.itemId === 'memory_crystal');
+    var crystalIndex = character.inventory.findIndex(function(i) { return i.itemId === 'memory_crystal'; });
     if (crystalIndex === -1) {
       return res.status(400).json({ error: 'You need a Memory Crystal!' });
     }
@@ -743,31 +865,31 @@ router.post('/use-memory-crystal', authenticate, async (req, res) => {
     await HiddenClassOwnership.releaseClass(character.hiddenClass, character._id);
 
     // Get scroll ID for the hidden class
-    const scrollMap = {
+    var scrollMap = {
       flameblade: 'scroll_flameblade',
       shadowDancer: 'scroll_shadow_dancer',
       stormRanger: 'scroll_storm_ranger',
       frostWeaver: 'scroll_frost_weaver'
     };
-    const scrollId = scrollMap[character.hiddenClass];
-    const scrollData = getItemById(scrollId);
+    var scrollId = scrollMap[character.hiddenClass];
+    var scrollData = getItemById(scrollId);
 
     // Add scroll back to inventory
     addItemToInventory(character, scrollId, 1, scrollData);
 
-    const oldClass = character.hiddenClass;
+    var oldClass = character.hiddenClass;
 
     // Remove hidden class and skills
     character.hiddenClass = 'none';
     character.hiddenClassUnlocked = false;
 
-    const baseSkillIds = [
+    var baseSkillIds = [
       'slash', 'heavyStrike', 'shieldBash', 'warCry',
       'backstab', 'poisonBlade', 'smokeScreen', 'steal',
       'preciseShot', 'multiShot', 'eagleEye', 'arrowRain',
       'fireball', 'iceSpear', 'manaShield', 'thunderbolt'
     ];
-    character.skills = character.skills.filter(s => baseSkillIds.includes(s.skillId));
+    character.skills = character.skills.filter(function(s) { return baseSkillIds.indexOf(s.skillId) >= 0; });
 
     await character.save();
 
@@ -785,30 +907,32 @@ router.post('/use-memory-crystal', authenticate, async (req, res) => {
 // ============ GM SHOP MANAGEMENT ============
 
 // GET /api/tavern/gm/shop - Get shop for editing
-router.get('/gm/shop', authenticate, requireGM, async (req, res) => {
+router.get('/gm/shop', authenticate, requireGM, async function(req, res) {
   try {
-    let shop = await TavernShop.findOne();
+    var shop = await TavernShop.findOne();
     if (!shop) shop = await TavernShop.initializeShop();
-    res.json({ shop });
+    res.json({ shop: shop });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // POST /api/tavern/gm/shop/add - Add item to shop
-router.post('/gm/shop/add', authenticate, requireGM, async (req, res) => {
+router.post('/gm/shop/add', authenticate, requireGM, async function(req, res) {
   try {
-    const { itemId, price, stock } = req.body;
-    const itemData = getItemById(itemId);
+    var itemId = req.body.itemId;
+    var price = req.body.price;
+    var stock = req.body.stock;
+    var itemData = getItemById(itemId);
     if (!itemData) {
       return res.status(400).json({ error: 'Item not found in database' });
     }
 
-    let shop = await TavernShop.findOne();
+    var shop = await TavernShop.findOne();
     if (!shop) shop = await TavernShop.initializeShop();
 
     // Check if already exists
-    const existing = shop.items.find(i => i.itemId === itemId);
+    var existing = shop.items.find(function(i) { return i.itemId === itemId; });
     if (existing) {
       existing.price = price;
       existing.stock = stock || -1;
@@ -829,19 +953,21 @@ router.post('/gm/shop/add', authenticate, requireGM, async (req, res) => {
     shop.updatedBy = req.userId;
     await shop.save();
 
-    res.json({ message: 'Added ' + itemData.name + ' to shop', shop });
+    res.json({ message: 'Added ' + itemData.name + ' to shop', shop: shop });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // PATCH /api/tavern/gm/shop/:itemId - Update shop item
-router.patch('/gm/shop/:itemId', authenticate, requireGM, async (req, res) => {
+router.patch('/gm/shop/:itemId', authenticate, requireGM, async function(req, res) {
   try {
-    const { price, stock, isActive } = req.body;
-    const shop = await TavernShop.findOne();
+    var price = req.body.price;
+    var stock = req.body.stock;
+    var isActive = req.body.isActive;
+    var shop = await TavernShop.findOne();
 
-    const item = shop.items.find(i => i.itemId === req.params.itemId);
+    var item = shop.items.find(function(i) { return i.itemId === req.params.itemId; });
     if (!item) return res.status(404).json({ error: 'Item not in shop' });
 
     if (price !== undefined) item.price = price;
@@ -851,23 +977,23 @@ router.patch('/gm/shop/:itemId', authenticate, requireGM, async (req, res) => {
     shop.lastUpdated = new Date();
     await shop.save();
 
-    res.json({ message: 'Updated ' + item.name, shop });
+    res.json({ message: 'Updated ' + item.name, shop: shop });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // DELETE /api/tavern/gm/shop/:itemId - Remove from shop
-router.delete('/gm/shop/:itemId', authenticate, requireGM, async (req, res) => {
+router.delete('/gm/shop/:itemId', authenticate, requireGM, async function(req, res) {
   try {
-    const shop = await TavernShop.findOne();
-    const index = shop.items.findIndex(i => i.itemId === req.params.itemId);
+    var shop = await TavernShop.findOne();
+    var index = shop.items.findIndex(function(i) { return i.itemId === req.params.itemId; });
     if (index === -1) return res.status(404).json({ error: 'Item not in shop' });
 
-    const removed = shop.items.splice(index, 1)[0];
+    var removed = shop.items.splice(index, 1)[0];
     await shop.save();
 
-    res.json({ message: 'Removed ' + removed.name + ' from shop', shop });
+    res.json({ message: 'Removed ' + removed.name + ' from shop', shop: shop });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
