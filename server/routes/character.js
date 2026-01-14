@@ -197,7 +197,7 @@ router.post('/rest', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Character not found.' });
     }
     
-    const restCost = character.level * 5;
+    const restCost = character.level * 250;
     
     if (character.gold < restCost) {
       return res.status(400).json({ error: `Not enough gold. Rest costs ${restCost} gold.` });
