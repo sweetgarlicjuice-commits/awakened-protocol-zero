@@ -185,16 +185,9 @@ const GamePage = () => {
           <div className="flex items-center gap-3">
             <h1 className="font-display text-xl text-purple-400">APZ</h1>
             <div className="hidden md:block text-gray-500 text-sm">|</div>
-            <span className="hidden md:block text-gray-400 text-sm">Phase 1</span>
+            <span className="hidden md:block text-gray-400 text-sm">Awakened Protocol: Zero</span>
           </div>
           <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <div className="text-sm text-gray-400">
-                <span className={CLASS_COLORS[character.baseClass]}>{CLASS_ICONS[character.baseClass]}</span>
-                {' '}{character.name}
-              </div>
-              <div className="text-xs text-gray-500">Level {character.level} • 💰 {character.gold}</div>
-            </div>
             <button onClick={handleLogout} className="text-gray-400 hover:text-red-400 transition-colors text-sm">Logout</button>
           </div>
         </div>
