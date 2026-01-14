@@ -6,13 +6,17 @@ import { TOWERS, ENEMIES, DROP_RATES, EQUIPMENT_DROPS } from '../data/gameData.j
 import { FLOOR_REQUIREMENTS, MATERIAL_DROPS, STORY_EVENTS, DOORKEEPER_DIALOGUES, HIDDEN_CLASS_INFO, CRAFTING_RECIPES, STORY_EVENTS_EXPANDED, FLOOR_REQUIREMENTS_EXPANDED } from '../data/storyData.js';
 import { calculateDamage, scaleEnemyStats, getRandomEnemy, calculateGoldDrop, rollForDrops, rollForScroll } from '../utils/combat.js';
 
-const router = express.Router();
-const ENERGY_PER_FLOOR = 10;
-const randomFrom = (arr) => arr && arr.length > 0 ? arr[Math.floor(Math.random() * arr.length)] : '';
+var router = express.Router();
+var ENERGY_PER_FLOOR = 10;
+
+function randomFrom(arr) {
+  if (!arr || arr.length === 0) return '';
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 // Get story events for tower (with fallback to expanded)
 function getStoryEvents(towerId) {
-  const key = 'tower' + towerId;
+  var key = 'tower' + towerId;
   if (STORY_EVENTS && STORY_EVENTS[key]) return STORY_EVENTS[key];
   if (STORY_EVENTS_EXPANDED && STORY_EVENTS_EXPANDED[key]) return STORY_EVENTS_EXPANDED[key];
   return STORY_EVENTS.tower1;
@@ -20,30 +24,54 @@ function getStoryEvents(towerId) {
 
 // Get floor requirements (with fallback to expanded)
 function getFloorRequirements(towerId) {
-  const key = 'tower' + towerId;
+  var key = 'tower' + towerId;
   if (FLOOR_REQUIREMENTS && FLOOR_REQUIREMENTS[key]) return FLOOR_REQUIREMENTS[key];
   if (FLOOR_REQUIREMENTS_EXPANDED && FLOOR_REQUIREMENTS_EXPANDED[key]) return FLOOR_REQUIREMENTS_EXPANDED[key];
   return {};
 }
 
+// Helper function to generate consistent itemId from name
+function generateItemId(name) {
+  if (!name) return 'unknown_item';
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+
 // Helper function to add items with PROPER stacking
-function addItemToInventory(character, itemId, name, icon, type, rarity, quantity, stats, sellPrice) {
-  // Check for existing item with SAME itemId
-  const existingIndex = character.inventory.findIndex(i => i.itemId === itemId);
-  if (existingIndex >= 0) {
-    character.inventory[existingIndex].quantity += quantity;
-    return true;
+function addItemToInventory(character, itemId, name, icon, type, rarity, quantity, stats, sellPrice, subtype) {
+  // Normalize itemId to ensure consistency
+  var normalizedId = itemId || generateItemId(name);
+  
+  // Determine if stackable
+  var isStackable = type === 'material' || type === 'consumable';
+  
+  // Check for existing item with SAME itemId (only for stackable items)
+  if (isStackable) {
+    var existingIndex = -1;
+    for (var i = 0; i < character.inventory.length; i++) {
+      if (character.inventory[i].itemId === normalizedId) {
+        existingIndex = i;
+        break;
+      }
+    }
+    if (existingIndex >= 0) {
+      character.inventory[existingIndex].quantity += quantity;
+      return true;
+    }
   }
+  
+  // Check inventory space
   if (character.inventory.length >= character.inventorySize) return false;
+  
+  // Add as new item
   character.inventory.push({
-    itemId: itemId,
+    itemId: normalizedId,
     name: name,
     icon: icon || '📦',
     type: type,
-    subtype: type,
+    subtype: subtype || type,
     rarity: rarity || 'common',
     quantity: quantity,
-    stackable: type === 'material' || type === 'consumable',
+    stackable: isStackable,
     stats: stats || {},
     sellPrice: sellPrice || 5
   });
@@ -51,14 +79,28 @@ function addItemToInventory(character, itemId, name, icon, type, rarity, quantit
 }
 
 function rollMaterialDrops(enemyId, towerId) {
-  const drops = [];
-  const materialTable = MATERIAL_DROPS ? MATERIAL_DROPS['tower' + towerId] : null;
-  const enemyDrops = materialTable ? materialTable[enemyId] : null;
+  var drops = [];
+  var materialTable = MATERIAL_DROPS ? MATERIAL_DROPS['tower' + towerId] : null;
+  var enemyDrops = materialTable ? materialTable[enemyId] : null;
   if (!enemyDrops) return drops;
-  for (const drop of enemyDrops) {
+  
+  for (var i = 0; i < enemyDrops.length; i++) {
+    var drop = enemyDrops[i];
     if (Math.random() < drop.chance) {
-      const quantity = Math.floor(drop.quantity.min + Math.random() * (drop.quantity.max - drop.quantity.min + 1));
-      drops.push({ itemId: drop.id, name: drop.name, icon: drop.icon, type: 'material', rarity: 'common', quantity, sellPrice: 5 });
+      var minQty = drop.quantity.min || 1;
+      var maxQty = drop.quantity.max || 1;
+      var quantity = Math.floor(minQty + Math.random() * (maxQty - minQty + 1));
+      
+      // Use drop.id as itemId - this should match itemDatabase.js
+      drops.push({ 
+        itemId: drop.id, 
+        name: drop.name, 
+        icon: drop.icon || '📦', 
+        type: 'material', 
+        rarity: drop.rarity || 'common', 
+        quantity: quantity, 
+        sellPrice: drop.sellPrice || 5 
+      });
     }
   }
   return drops;
@@ -68,7 +110,7 @@ function rollMaterialDrops(enemyId, towerId) {
 // 20 EXPLORATION SCENARIOS
 // ============================================================
 
-const EXPLORATION_SCENARIOS = [
+var EXPLORATION_SCENARIOS = [
   // 1. Three artifacts
   {
     id: 'three_artifacts',
@@ -276,33 +318,39 @@ const EXPLORATION_SCENARIOS = [
 // ROUTES
 // ============================================================
 
-router.get('/info', authenticate, async (req, res) => {
+router.get('/info', authenticate, async function(req, res) {
   try {
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const towerInfo = Object.values(TOWERS).map(tower => ({
-      ...tower,
-      isUnlocked: !tower.requirement || character.highestTowerCleared >= tower.requirement.tower,
-      currentFloor: character.currentTower === tower.id ? character.currentFloor : 1,
-      highestFloor: character.towerProgress && character.towerProgress['tower' + tower.id] ? character.towerProgress['tower' + tower.id] : 1
-    }));
+    var towerInfo = Object.values(TOWERS).map(function(tower) {
+      return {
+        id: tower.id,
+        name: tower.name,
+        description: tower.description,
+        floors: tower.floors,
+        levelRange: tower.levelRange,
+        isUnlocked: !tower.requirement || character.highestTowerCleared >= tower.requirement.tower,
+        currentFloor: character.currentTower === tower.id ? character.currentFloor : 1,
+        highestFloor: character.towerProgress && character.towerProgress['tower' + tower.id] ? character.towerProgress['tower' + tower.id] : 1
+      };
+    });
     res.json({ towers: towerInfo, currentTower: character.currentTower, currentFloor: character.currentFloor });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/enter', authenticate, async (req, res) => {
+router.post('/enter', authenticate, async function(req, res) {
   try {
-    const { towerId } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var towerId = req.body.towerId;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
     // Check tower lockout
     if (character.towerLockoutUntil && new Date() < character.towerLockoutUntil) {
-      const remaining = Math.ceil((character.towerLockoutUntil - new Date()) / 60000);
+      var remaining = Math.ceil((character.towerLockoutUntil - new Date()) / 60000);
       return res.status(400).json({ error: 'You are cursed! Cannot enter towers for ' + remaining + ' more minutes.' });
     }
     
-    const tower = TOWERS[towerId];
+    var tower = TOWERS[towerId];
     if (!tower) return res.status(400).json({ error: 'Invalid tower' });
     if (tower.requirement && character.highestTowerCleared < tower.requirement.tower) {
       return res.status(400).json({ error: 'Tower locked! Clear Tower ' + tower.requirement.tower + ' first.' });
@@ -310,28 +358,28 @@ router.post('/enter', authenticate, async (req, res) => {
     character.currentTower = towerId;
     // Keep progress for this tower if any
     if (!character.towerProgress) character.towerProgress = {};
-    const savedFloor = character.towerProgress['tower' + towerId] || 1;
+    var savedFloor = character.towerProgress['tower' + towerId] || 1;
     character.currentFloor = savedFloor;
     await character.save();
-    res.json({ message: 'Entered ' + tower.name, tower, currentFloor: character.currentFloor });
+    res.json({ message: 'Entered ' + tower.name, tower: tower, currentFloor: character.currentFloor });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
 // Get available floors for a tower
-router.get('/floors/:towerId', authenticate, async (req, res) => {
+router.get('/floors/:towerId', authenticate, async function(req, res) {
   try {
-    const { towerId } = req.params;
-    const character = await Character.findOne({ userId: req.userId });
+    var towerId = req.params.towerId;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const tower = TOWERS[parseInt(towerId)];
+    var tower = TOWERS[parseInt(towerId)];
     if (!tower) return res.status(400).json({ error: 'Invalid tower' });
     
     // Get highest unlocked floor for this tower
     if (!character.towerProgress) character.towerProgress = {};
-    const highestFloor = character.towerProgress['tower' + towerId] || 1;
+    var highestFloor = character.towerProgress['tower' + towerId] || 1;
     
-    const floors = [];
-    for (let i = 1; i <= tower.floors; i++) {
+    var floors = [];
+    for (var i = 1; i <= tower.floors; i++) {
       floors.push({
         floor: i,
         unlocked: i <= highestFloor,
@@ -340,21 +388,22 @@ router.get('/floors/:towerId', authenticate, async (req, res) => {
         isEliteZone: i >= 13 && i < 15
       });
     }
-    res.json({ floors, currentFloor: character.currentFloor, highestFloor });
+    res.json({ floors: floors, currentFloor: character.currentFloor, highestFloor: highestFloor });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
 // Select floor to run
-router.post('/select-floor', authenticate, async (req, res) => {
+router.post('/select-floor', authenticate, async function(req, res) {
   try {
-    const { towerId, floor } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var towerId = req.body.towerId;
+    var floor = req.body.floor;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const tower = TOWERS[parseInt(towerId)];
+    var tower = TOWERS[parseInt(towerId)];
     if (!tower) return res.status(400).json({ error: 'Invalid tower' });
     
     if (!character.towerProgress) character.towerProgress = {};
-    const highestFloor = character.towerProgress['tower' + towerId] || 1;
+    var highestFloor = character.towerProgress['tower' + towerId] || 1;
     
     if (floor < 1 || floor > tower.floors) return res.status(400).json({ error: 'Invalid floor' });
     if (floor > highestFloor) return res.status(400).json({ error: 'Floor not unlocked yet! Highest: ' + highestFloor });
@@ -366,31 +415,31 @@ router.post('/select-floor', authenticate, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/explore', authenticate, async (req, res) => {
+router.post('/explore', authenticate, async function(req, res) {
   try {
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
     // Check tower lockout
     if (character.towerLockoutUntil && new Date() < character.towerLockoutUntil) {
-      const remaining = Math.ceil((character.towerLockoutUntil - new Date()) / 60000);
+      var remaining = Math.ceil((character.towerLockoutUntil - new Date()) / 60000);
       return res.status(400).json({ error: 'You are cursed! Cannot explore for ' + remaining + ' more minutes.' });
     }
     
     if (character.energy < ENERGY_PER_FLOOR) return res.status(400).json({ error: 'Not enough energy! (Need ' + ENERGY_PER_FLOOR + ')' });
     if (character.stats.hp <= 0) return res.status(400).json({ error: 'You are defeated! Rest to recover.' });
-    const floor = character.currentFloor;
+    var floor = character.currentFloor;
     if (floor === 10) return res.json({ type: 'safe_zone', message: 'You reached the Safe Zone!', story: 'A peaceful sanctuary amidst the chaos.', floor: 10 });
     
     character.energy -= ENERGY_PER_FLOOR;
     await character.save();
     
     // Pick a random scenario
-    const scenario = EXPLORATION_SCENARIOS[Math.floor(Math.random() * EXPLORATION_SCENARIOS.length)];
+    var scenario = EXPLORATION_SCENARIOS[Math.floor(Math.random() * EXPLORATION_SCENARIOS.length)];
     
     res.json({ 
       type: 'exploration', 
-      floor, 
+      floor: floor, 
       scenarioId: scenario.id,
       story: scenario.description, 
       choices: scenario.choices, 
@@ -399,32 +448,41 @@ router.post('/explore', authenticate, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/choose-path', authenticate, async (req, res) => {
+router.post('/choose-path', authenticate, async function(req, res) {
   try {
-    const { choice, scenarioId } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var choice = req.body.choice;
+    var scenarioId = req.body.scenarioId;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const floor = character.currentFloor;
-    const towerEnemies = ENEMIES['tower' + character.currentTower];
+    var floor = character.currentFloor;
+    var towerEnemies = ENEMIES['tower' + character.currentTower];
     
     // Find scenario
-    const scenario = EXPLORATION_SCENARIOS.find(s => s.id === scenarioId) || EXPLORATION_SCENARIOS[0];
-    const outcome = scenario.outcomes[choice] || scenario.outcomes[scenario.choices[0]];
+    var scenario = null;
+    for (var i = 0; i < EXPLORATION_SCENARIOS.length; i++) {
+      if (EXPLORATION_SCENARIOS[i].id === scenarioId) {
+        scenario = EXPLORATION_SCENARIOS[i];
+        break;
+      }
+    }
+    if (!scenario) scenario = EXPLORATION_SCENARIOS[0];
+    
+    var outcome = scenario.outcomes[choice] || scenario.outcomes[scenario.choices[0]];
     
     // Process outcome
-    let resultType = outcome.type;
-    let message = outcome.message;
-    let enemy = null;
-    let treasure = null;
-    let goldReward = 0;
-    let healAmount = 0;
-    let damageAmount = 0;
-    let lockoutMinutes = 0;
-    let nextScenario = null;
+    var resultType = outcome.type;
+    var message = outcome.message;
+    var enemy = null;
+    var treasure = null;
+    var goldReward = 0;
+    var healAmount = 0;
+    var damageAmount = 0;
+    var lockoutMinutes = 0;
+    var nextScenario = null;
     
     // Handle random outcomes
     if (resultType === 'random') {
-      const roll = Math.random();
+      var roll = Math.random();
       if (roll < (outcome.successChance || 0.5)) {
         // Success
         if (outcome.success.type) resultType = outcome.success.type;
@@ -464,7 +522,7 @@ router.post('/choose-path', authenticate, async (req, res) => {
         character.towerLockoutUntil = new Date(Date.now() + lockoutMinutes * 60000);
         character.currentFloor = 1; // Kicked from tower
         await character.save();
-        return res.json({ type: 'curse_lockout', message, lockoutMinutes, floor: 1 });
+        return res.json({ type: 'curse_lockout', message: message, lockoutMinutes: lockoutMinutes, floor: 1 });
         
       case 'curse_damage':
       case 'trap':
@@ -472,26 +530,26 @@ router.post('/choose-path', authenticate, async (req, res) => {
         damageAmount = Math.floor(character.stats.maxHp * (outcome.damagePercent || 20) / 100);
         character.stats.hp = Math.max(1, character.stats.hp - damageAmount);
         await character.save();
-        return res.json({ type: 'damage', message, damage: damageAmount, hp: character.stats.hp, maxHp: character.stats.maxHp });
+        return res.json({ type: 'damage', message: message, damage: damageAmount, hp: character.stats.hp, maxHp: character.stats.maxHp });
         
       case 'blessing':
       case 'heal':
         healAmount = Math.floor(character.stats.maxHp * (outcome.healPercent || 20) / 100);
         character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + healAmount);
         await character.save();
-        return res.json({ type: 'heal', message, heal: healAmount, hp: character.stats.hp, maxHp: character.stats.maxHp });
+        return res.json({ type: 'heal', message: message, heal: healAmount, hp: character.stats.hp, maxHp: character.stats.maxHp });
         
       case 'reward':
         goldReward = outcome.goldReward || 50;
         character.gold += goldReward;
         await character.save();
-        return res.json({ type: 'reward', message, gold: goldReward, totalGold: character.gold });
+        return res.json({ type: 'reward', message: message, gold: goldReward, totalGold: character.gold });
         
       case 'treasure':
-        const chestChance = outcome.chestChance || 0.3;
+        var chestChance = outcome.chestChance || 0.3;
         if (Math.random() < chestChance) {
           // Found chest - give gold + maybe item
-          const chestGold = Math.floor(50 + Math.random() * 100);
+          var chestGold = Math.floor(50 + Math.random() * 100);
           character.gold += chestGold;
           await character.save();
           return res.json({ type: 'treasure', message: message + ' You found ' + chestGold + ' gold!', gold: chestGold, totalGold: character.gold, foundChest: true });
@@ -500,57 +558,73 @@ router.post('/choose-path', authenticate, async (req, res) => {
         }
         
       case 'followup':
-        nextScenario = EXPLORATION_SCENARIOS.find(s => s.id === outcome.nextScenario);
+        for (var j = 0; j < EXPLORATION_SCENARIOS.length; j++) {
+          if (EXPLORATION_SCENARIOS[j].id === outcome.nextScenario) {
+            nextScenario = EXPLORATION_SCENARIOS[j];
+            break;
+          }
+        }
         if (nextScenario) {
-          return res.json({ type: 'exploration', floor, scenarioId: nextScenario.id, story: nextScenario.description, choices: nextScenario.choices, followup: true });
+          return res.json({ type: 'exploration', floor: floor, scenarioId: nextScenario.id, story: nextScenario.description, choices: nextScenario.choices, followup: true });
         }
         break;
         
       case 'safe':
       default:
-        return res.json({ type: 'safe', message, floor });
+        return res.json({ type: 'safe', message: message, floor: floor });
     }
     
     // If we have an enemy, start combat
     if (enemy) {
       await character.save();
-      return res.json({ type: 'combat_start', story: message, enemy, floor, isBoss: enemy.isBoss || false, isElite: enemy.isElite || false, treasureAfter: treasure });
+      return res.json({ type: 'combat_start', story: message, enemy: enemy, floor: floor, isBoss: enemy.isBoss || false, isElite: enemy.isElite || false, treasureAfter: treasure });
     }
     
-    res.json({ type: 'safe', message: message || 'You continue onward.', floor });
+    res.json({ type: 'safe', message: message || 'You continue onward.', floor: floor });
   } catch (error) { 
     console.error(error);
     res.status(500).json({ error: 'Server error' }); 
   }
 });
 
-router.post('/combat/attack', authenticate, async (req, res) => {
+router.post('/combat/attack', authenticate, async function(req, res) {
   try {
-    const { enemy, treasureAfter } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var enemy = req.body.enemy;
+    var treasureAfter = req.body.treasureAfter;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const combatLog = [];
-    const playerDamage = calculateDamage({ stats: character.stats, baseClass: character.baseClass }, enemy);
+    var combatLog = [];
+    var playerDamage = calculateDamage({ stats: character.stats, baseClass: character.baseClass }, enemy);
     enemy.hp -= playerDamage.damage;
     combatLog.push({ actor: 'player', damage: playerDamage.damage, isCritical: playerDamage.isCritical, message: playerDamage.isCritical ? 'CRITICAL! You deal ' + playerDamage.damage + ' damage!' : 'You attack for ' + playerDamage.damage + ' damage!' });
     if (enemy.hp <= 0) return await handleVictory(character, enemy, res, combatLog, treasureAfter);
-    const enemyDamage = calculateDamage({ baseAtk: enemy.atk }, { stats: character.stats });
+    var enemyDamage = calculateDamage({ baseAtk: enemy.atk }, { stats: character.stats });
     character.stats.hp -= enemyDamage.damage;
     combatLog.push({ actor: 'enemy', damage: enemyDamage.damage, message: enemy.name + ' attacks for ' + enemyDamage.damage + ' damage!' });
     if (character.stats.hp <= 0) return await handleDefeat(character, res, combatLog);
     await character.save();
-    res.json({ status: 'ongoing', combatLog, enemy: { ...enemy, hp: Math.max(0, enemy.hp) }, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } });
+    res.json({ status: 'ongoing', combatLog: combatLog, enemy: { name: enemy.name, hp: Math.max(0, enemy.hp), maxHp: enemy.maxHp, atk: enemy.atk, isBoss: enemy.isBoss, isElite: enemy.isElite }, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/combat/skill', authenticate, async (req, res) => {
+router.post('/combat/skill', authenticate, async function(req, res) {
   try {
-    const { enemy, skillId, treasureAfter } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var enemy = req.body.enemy;
+    var skillId = req.body.skillId;
+    var treasureAfter = req.body.treasureAfter;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const characterSkill = character.skills.find(s => s.skillId === skillId);
+    
+    var characterSkill = null;
+    for (var i = 0; i < character.skills.length; i++) {
+      if (character.skills[i].skillId === skillId) {
+        characterSkill = character.skills[i];
+        break;
+      }
+    }
     if (!characterSkill || !characterSkill.unlocked) return res.status(400).json({ error: 'Skill not available' });
-    const SKILL_DATA = {
+    
+    var SKILL_DATA = {
       slash: { name: 'Slash', mpCost: 5, damage: 1.3 }, heavyStrike: { name: 'Heavy Strike', mpCost: 12, damage: 1.8 },
       shieldBash: { name: 'Shield Bash', mpCost: 8, damage: 1.0 }, warCry: { name: 'War Cry', mpCost: 15, damage: 0 },
       backstab: { name: 'Backstab', mpCost: 8, damage: 2.2, critBonus: 0.4 }, poisonBlade: { name: 'Poison Blade', mpCost: 10, damage: 1.3 },
@@ -568,16 +642,19 @@ router.post('/combat/skill', authenticate, async (req, res) => {
       frost_bolt: { name: 'Frost Bolt', mpCost: 12, damage: 2.0 }, blizzard: { name: 'Blizzard', mpCost: 28, damage: 2.2 },
       ice_armor: { name: 'Ice Armor', mpCost: 20, damage: 0 }, absolute_zero: { name: 'Absolute Zero', mpCost: 50, damage: 4.0 }
     };
-    const skill = SKILL_DATA[skillId];
+    
+    var skill = SKILL_DATA[skillId];
     if (!skill) return res.status(400).json({ error: 'Invalid skill' });
     if (character.stats.mp < skill.mpCost) return res.status(400).json({ error: 'Not enough MP!' });
-    const combatLog = [];
+    
+    var combatLog = [];
     character.stats.mp -= skill.mpCost;
+    
     if (skill.damage > 0) {
-      let totalDamage = 0;
-      const hits = skill.hits || 1;
-      for (let i = 0; i < hits; i++) {
-        const result = calculateDamage({ stats: character.stats, baseClass: character.baseClass }, enemy, skill);
+      var totalDamage = 0;
+      var hits = skill.hits || 1;
+      for (var h = 0; h < hits; h++) {
+        var result = calculateDamage({ stats: character.stats, baseClass: character.baseClass }, enemy, skill);
         totalDamage += result.damage;
       }
       enemy.hp -= totalDamage;
@@ -585,39 +662,49 @@ router.post('/combat/skill', authenticate, async (req, res) => {
     } else {
       combatLog.push({ actor: 'player', skillName: skill.name, mpCost: skill.mpCost, message: skill.name + ' activated! (-' + skill.mpCost + ' MP)' });
     }
+    
     if (enemy.hp <= 0) return await handleVictory(character, enemy, res, combatLog, treasureAfter);
-    const enemyDamage = calculateDamage({ baseAtk: enemy.atk }, { stats: character.stats });
+    
+    var enemyDamage = calculateDamage({ baseAtk: enemy.atk }, { stats: character.stats });
     character.stats.hp -= enemyDamage.damage;
     combatLog.push({ actor: 'enemy', damage: enemyDamage.damage, message: enemy.name + ' attacks for ' + enemyDamage.damage + ' damage!' });
+    
     if (character.stats.hp <= 0) return await handleDefeat(character, res, combatLog);
+    
     await character.save();
-    res.json({ status: 'ongoing', combatLog, enemy: { ...enemy, hp: Math.max(0, enemy.hp) }, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } });
+    res.json({ status: 'ongoing', combatLog: combatLog, enemy: { name: enemy.name, hp: Math.max(0, enemy.hp), maxHp: enemy.maxHp, atk: enemy.atk, isBoss: enemy.isBoss, isElite: enemy.isElite }, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/combat/flee', authenticate, async (req, res) => {
+router.post('/combat/flee', authenticate, async function(req, res) {
   try {
-    const { enemy } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var enemy = req.body.enemy;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     if (enemy.isBoss) return res.status(400).json({ error: 'Cannot flee from boss battles!' });
-    const fleeChance = 0.4 + (character.stats.agi * 0.01);
+    var fleeChance = 0.4 + (character.stats.agi * 0.01);
     if (Math.random() < fleeChance) return res.json({ status: 'fled', message: 'You successfully fled!', success: true });
-    const enemyDamage = calculateDamage({ baseAtk: enemy.atk }, { stats: character.stats });
+    var enemyDamage = calculateDamage({ baseAtk: enemy.atk }, { stats: character.stats });
     character.stats.hp -= enemyDamage.damage;
     if (character.stats.hp <= 0) return await handleDefeat(character, res, [{ actor: 'system', message: 'Failed to flee! ' + enemy.name + ' strikes you down!' }]);
     await character.save();
-    res.json({ status: 'ongoing', message: 'Failed to flee! ' + enemy.name + ' attacks for ' + enemyDamage.damage + ' damage!', success: false, enemy, character: { hp: character.stats.hp, maxHp: character.stats.maxHp } });
+    res.json({ status: 'ongoing', message: 'Failed to flee! ' + enemy.name + ' attacks for ' + enemyDamage.damage + ' damage!', success: false, enemy: enemy, character: { hp: character.stats.hp, maxHp: character.stats.maxHp } });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/use-potion', authenticate, async (req, res) => {
+router.post('/use-potion', authenticate, async function(req, res) {
   try {
-    const { potionType } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var potionType = req.body.potionType;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const potionId = potionType === 'hp' ? 'health_potion_small' : 'mana_potion_small';
-    const itemIndex = character.inventory.findIndex(i => i.itemId === potionId);
+    var potionId = potionType === 'hp' ? 'health_potion_small' : 'mana_potion_small';
+    var itemIndex = -1;
+    for (var i = 0; i < character.inventory.length; i++) {
+      if (character.inventory[i].itemId === potionId) {
+        itemIndex = i;
+        break;
+      }
+    }
     if (itemIndex === -1) return res.status(400).json({ error: 'No ' + potionType.toUpperCase() + ' potions available!' });
     if (character.inventory[itemIndex].quantity > 1) character.inventory[itemIndex].quantity -= 1;
     else character.inventory.splice(itemIndex, 1);
@@ -628,38 +715,68 @@ router.post('/use-potion', authenticate, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.get('/floor-requirements', authenticate, async (req, res) => {
+router.get('/floor-requirements', authenticate, async function(req, res) {
   try {
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const requirements = getFloorRequirements(character.currentTower);
-    const floorReq = requirements ? requirements[character.currentFloor] : null;
-    const playerItems = {};
-    character.inventory.forEach(item => { playerItems[item.itemId] = (playerItems[item.itemId] || 0) + item.quantity; });
-    const canAdvance = floorReq ? (floorReq.items || []).every(req => (playerItems[req.id] || 0) >= req.quantity) && character.gold >= (floorReq.gold || 0) : true;
-    res.json({ floor: character.currentFloor, nextFloor: character.currentFloor + 1, requirements: floorReq, playerItems, playerGold: character.gold, canAdvance, doorkeeper: randomFrom(DOORKEEPER_DIALOGUES.greeting) });
+    var requirements = getFloorRequirements(character.currentTower);
+    var floorReq = requirements ? requirements[character.currentFloor] : null;
+    var playerItems = {};
+    for (var i = 0; i < character.inventory.length; i++) {
+      var item = character.inventory[i];
+      playerItems[item.itemId] = (playerItems[item.itemId] || 0) + item.quantity;
+    }
+    var canAdvance = true;
+    if (floorReq) {
+      if (floorReq.items && floorReq.items.length > 0) {
+        for (var j = 0; j < floorReq.items.length; j++) {
+          if ((playerItems[floorReq.items[j].id] || 0) < floorReq.items[j].quantity) {
+            canAdvance = false;
+            break;
+          }
+        }
+      }
+      if (character.gold < (floorReq.gold || 0)) canAdvance = false;
+    }
+    res.json({ floor: character.currentFloor, nextFloor: character.currentFloor + 1, requirements: floorReq, playerItems: playerItems, playerGold: character.gold, canAdvance: canAdvance, doorkeeper: randomFrom(DOORKEEPER_DIALOGUES.greeting) });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/advance', authenticate, async (req, res) => {
+router.post('/advance', authenticate, async function(req, res) {
   try {
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const tower = TOWERS[character.currentTower];
-    const requirements = getFloorRequirements(character.currentTower);
-    const floorReq = requirements ? requirements[character.currentFloor] : null;
+    var tower = TOWERS[character.currentTower];
+    var requirements = getFloorRequirements(character.currentTower);
+    var floorReq = requirements ? requirements[character.currentFloor] : null;
+    
     if (floorReq && floorReq.items && floorReq.items.length > 0) {
-      for (const req of floorReq.items) {
-        const itemIndex = character.inventory.findIndex(i => i.itemId === req.id);
-        const itemQuantity = itemIndex >= 0 ? character.inventory[itemIndex].quantity : 0;
+      for (var i = 0; i < floorReq.items.length; i++) {
+        var req = floorReq.items[i];
+        var itemIndex = -1;
+        for (var j = 0; j < character.inventory.length; j++) {
+          if (character.inventory[j].itemId === req.id) {
+            itemIndex = j;
+            break;
+          }
+        }
+        var itemQuantity = itemIndex >= 0 ? character.inventory[itemIndex].quantity : 0;
         if (itemQuantity < req.quantity) return res.status(400).json({ error: randomFrom(DOORKEEPER_DIALOGUES.failure), missing: { id: req.id, name: req.name, need: req.quantity, have: itemQuantity } });
       }
-      for (const req of floorReq.items) {
-        const itemIndex = character.inventory.findIndex(i => i.itemId === req.id);
-        if (character.inventory[itemIndex].quantity > req.quantity) character.inventory[itemIndex].quantity -= req.quantity;
-        else character.inventory.splice(itemIndex, 1);
+      for (var k = 0; k < floorReq.items.length; k++) {
+        var req2 = floorReq.items[k];
+        var itemIndex2 = -1;
+        for (var l = 0; l < character.inventory.length; l++) {
+          if (character.inventory[l].itemId === req2.id) {
+            itemIndex2 = l;
+            break;
+          }
+        }
+        if (character.inventory[itemIndex2].quantity > req2.quantity) character.inventory[itemIndex2].quantity -= req2.quantity;
+        else character.inventory.splice(itemIndex2, 1);
       }
     }
+    
     if (floorReq && floorReq.gold && character.gold < floorReq.gold) return res.status(400).json({ error: randomFrom(DOORKEEPER_DIALOGUES.failure), missing: { id: 'gold', name: 'Gold', need: floorReq.gold, have: character.gold } });
     if (floorReq && floorReq.gold) character.gold -= floorReq.gold;
     
@@ -680,11 +797,11 @@ router.post('/advance', authenticate, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/leave', authenticate, async (req, res) => {
+router.post('/leave', authenticate, async function(req, res) {
   try {
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const checkpoint = character.currentFloor >= 10 ? 10 : 1;
+    var checkpoint = character.currentFloor >= 10 ? 10 : 1;
     // Save progress before leaving
     if (!character.towerProgress) character.towerProgress = {};
     character.towerProgress['tower' + character.currentTower] = Math.max(character.towerProgress['tower' + character.currentTower] || 1, checkpoint);
@@ -695,38 +812,54 @@ router.post('/leave', authenticate, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.get('/hidden-classes', authenticate, async (req, res) => {
+router.get('/hidden-classes', authenticate, async function(req, res) {
   try {
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const classInfo = HIDDEN_CLASS_INFO;
-    const availability = {};
-    for (const classId of Object.keys(classInfo)) {
-      const isAvailable = await HiddenClassOwnership.isClassAvailable(classId);
-      availability[classId] = { ...classInfo[classId], isAvailable, matchesBase: classInfo[classId].baseClass === character.baseClass };
+    var classInfo = HIDDEN_CLASS_INFO;
+    var availability = {};
+    var classIds = Object.keys(classInfo);
+    for (var i = 0; i < classIds.length; i++) {
+      var classId = classIds[i];
+      var isAvailable = await HiddenClassOwnership.isClassAvailable(classId);
+      availability[classId] = { 
+        name: classInfo[classId].name,
+        description: classInfo[classId].description,
+        baseClass: classInfo[classId].baseClass,
+        skills: classInfo[classId].skills,
+        isAvailable: isAvailable, 
+        matchesBase: classInfo[classId].baseClass === character.baseClass 
+      };
     }
     res.json({ classes: availability, playerBaseClass: character.baseClass, playerHiddenClass: character.hiddenClass });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/unlock-hidden-class', authenticate, async (req, res) => {
+router.post('/unlock-hidden-class', authenticate, async function(req, res) {
   try {
-    const { scrollItemIndex } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var scrollItemIndex = req.body.scrollItemIndex;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     if (character.hiddenClass !== 'none') return res.status(400).json({ error: 'You already have a hidden class!' });
-    const scrollItem = character.inventory[scrollItemIndex];
+    var scrollItem = character.inventory[scrollItemIndex];
     if (!scrollItem || scrollItem.type !== 'scroll') return res.status(400).json({ error: 'Invalid scroll' });
-    const scrollToClass = { 'scroll_flameblade': { classId: 'flameblade', baseReq: 'swordsman' }, 'scroll_shadow_dancer': { classId: 'shadowDancer', baseReq: 'thief' }, 'scroll_storm_ranger': { classId: 'stormRanger', baseReq: 'archer' }, 'scroll_frost_weaver': { classId: 'frostWeaver', baseReq: 'mage' } };
-    const mapping = scrollToClass[scrollItem.itemId];
+    var scrollToClass = { 
+      'scroll_flameblade': { classId: 'flameblade', baseReq: 'swordsman' }, 
+      'scroll_shadow_dancer': { classId: 'shadowDancer', baseReq: 'thief' }, 
+      'scroll_storm_ranger': { classId: 'stormRanger', baseReq: 'archer' }, 
+      'scroll_frost_weaver': { classId: 'frostWeaver', baseReq: 'mage' } 
+    };
+    var mapping = scrollToClass[scrollItem.itemId];
     if (!mapping) return res.status(400).json({ error: 'Invalid scroll type' });
     if (character.baseClass !== mapping.baseReq) return res.status(400).json({ error: 'This scroll requires ' + mapping.baseReq + ' class!' });
-    const classInfo = HIDDEN_CLASS_INFO[mapping.classId];
+    var classInfo = HIDDEN_CLASS_INFO[mapping.classId];
     if (!classInfo) return res.status(400).json({ error: 'Invalid hidden class' });
-    const claimed = await HiddenClassOwnership.claimClass(mapping.classId, req.userId);
+    var claimed = await HiddenClassOwnership.claimClass(mapping.classId, req.userId);
     if (!claimed) return res.status(400).json({ error: 'This hidden class is already owned by another player!' });
     character.hiddenClass = mapping.classId;
-    classInfo.skills.forEach(skill => { character.skills.push({ skillId: skill.skillId, name: skill.name, unlocked: true }); });
+    for (var i = 0; i < classInfo.skills.length; i++) {
+      character.skills.push({ skillId: classInfo.skills[i].skillId, name: classInfo.skills[i].name, unlocked: true });
+    }
     character.inventory.splice(scrollItemIndex, 1);
     character.statistics.hiddenClassUnlocked = true;
     await character.save();
@@ -734,21 +867,46 @@ router.post('/unlock-hidden-class', authenticate, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/remove-hidden-class', authenticate, async (req, res) => {
+router.post('/remove-hidden-class', authenticate, async function(req, res) {
   try {
-    const character = await Character.findOne({ userId: req.userId });
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     if (character.hiddenClass === 'none') return res.status(400).json({ error: 'You do not have a hidden class!' });
-    const crystalIndex = character.inventory.findIndex(i => i.itemId === 'memory_crystal');
+    var crystalIndex = -1;
+    for (var i = 0; i < character.inventory.length; i++) {
+      if (character.inventory[i].itemId === 'memory_crystal') {
+        crystalIndex = i;
+        break;
+      }
+    }
     if (crystalIndex === -1) return res.status(400).json({ error: 'You need a Memory Crystal to remove your hidden class!' });
-    const classToScroll = { 'flameblade': 'scroll_flameblade', 'shadowDancer': 'scroll_shadow_dancer', 'stormRanger': 'scroll_storm_ranger', 'frostWeaver': 'scroll_frost_weaver' };
-    const scrollId = classToScroll[character.hiddenClass];
-    const scrollNames = { 'scroll_flameblade': 'Flameblade Scroll', 'scroll_shadow_dancer': 'Shadow Dancer Scroll', 'scroll_storm_ranger': 'Storm Ranger Scroll', 'scroll_frost_weaver': 'Frost Weaver Scroll' };
+    var classToScroll = { 
+      'flameblade': 'scroll_flameblade', 
+      'shadowDancer': 'scroll_shadow_dancer', 
+      'stormRanger': 'scroll_storm_ranger', 
+      'frostWeaver': 'scroll_frost_weaver' 
+    };
+    var scrollId = classToScroll[character.hiddenClass];
+    var scrollNames = { 
+      'scroll_flameblade': 'Flameblade Scroll', 
+      'scroll_shadow_dancer': 'Shadow Dancer Scroll', 
+      'scroll_storm_ranger': 'Storm Ranger Scroll', 
+      'scroll_frost_weaver': 'Frost Weaver Scroll' 
+    };
     await HiddenClassOwnership.releaseClass(character.hiddenClass);
-    const hiddenClassInfo = HIDDEN_CLASS_INFO[character.hiddenClass];
+    var hiddenClassInfo = HIDDEN_CLASS_INFO[character.hiddenClass];
     if (hiddenClassInfo) {
-      const hiddenSkillIds = hiddenClassInfo.skills.map(s => s.skillId);
-      character.skills = character.skills.filter(s => !hiddenSkillIds.includes(s.skillId));
+      var hiddenSkillIds = [];
+      for (var j = 0; j < hiddenClassInfo.skills.length; j++) {
+        hiddenSkillIds.push(hiddenClassInfo.skills[j].skillId);
+      }
+      var newSkills = [];
+      for (var k = 0; k < character.skills.length; k++) {
+        if (hiddenSkillIds.indexOf(character.skills[k].skillId) === -1) {
+          newSkills.push(character.skills[k]);
+        }
+      }
+      character.skills = newSkills;
     }
     character.hiddenClass = 'none';
     if (character.inventory[crystalIndex].quantity > 1) character.inventory[crystalIndex].quantity -= 1;
@@ -759,23 +917,40 @@ router.post('/remove-hidden-class', authenticate, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-router.post('/craft', authenticate, async (req, res) => {
+router.post('/craft', authenticate, async function(req, res) {
   try {
-    const { recipeId } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
+    var recipeId = req.body.recipeId;
+    var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    const recipe = CRAFTING_RECIPES[recipeId];
+    var recipe = CRAFTING_RECIPES[recipeId];
     if (!recipe) return res.status(400).json({ error: 'Invalid recipe' });
-    for (const ingredient of recipe.ingredients) {
-      const itemIndex = character.inventory.findIndex(i => i.itemId === ingredient.id);
-      const quantity = itemIndex >= 0 ? character.inventory[itemIndex].quantity : 0;
+    
+    for (var i = 0; i < recipe.ingredients.length; i++) {
+      var ingredient = recipe.ingredients[i];
+      var itemIndex = -1;
+      for (var j = 0; j < character.inventory.length; j++) {
+        if (character.inventory[j].itemId === ingredient.id) {
+          itemIndex = j;
+          break;
+        }
+      }
+      var quantity = itemIndex >= 0 ? character.inventory[itemIndex].quantity : 0;
       if (quantity < ingredient.quantity) return res.status(400).json({ error: 'Not enough ' + ingredient.name + '! Need ' + ingredient.quantity + ', have ' + quantity });
     }
-    for (const ingredient of recipe.ingredients) {
-      const itemIndex = character.inventory.findIndex(i => i.itemId === ingredient.id);
-      if (character.inventory[itemIndex].quantity > ingredient.quantity) character.inventory[itemIndex].quantity -= ingredient.quantity;
-      else character.inventory.splice(itemIndex, 1);
+    
+    for (var k = 0; k < recipe.ingredients.length; k++) {
+      var ingredient2 = recipe.ingredients[k];
+      var itemIndex2 = -1;
+      for (var l = 0; l < character.inventory.length; l++) {
+        if (character.inventory[l].itemId === ingredient2.id) {
+          itemIndex2 = l;
+          break;
+        }
+      }
+      if (character.inventory[itemIndex2].quantity > ingredient2.quantity) character.inventory[itemIndex2].quantity -= ingredient2.quantity;
+      else character.inventory.splice(itemIndex2, 1);
     }
+    
     addItemToInventory(character, recipe.result.id, recipe.result.name || recipe.name, recipe.icon, 'material', 'epic', recipe.result.quantity, {}, 100);
     await character.save();
     res.json({ message: 'Crafted ' + recipe.name + '!', item: recipe.result });
@@ -787,44 +962,53 @@ router.post('/craft', authenticate, async (req, res) => {
 // ============================================================
 
 async function handleVictory(character, enemy, res, combatLog, treasureAfter) {
-  const rewards = { exp: enemy.expReward, gold: calculateGoldDrop(enemy.goldReward), items: [] };
+  var rewards = { exp: enemy.expReward, gold: calculateGoldDrop(enemy.goldReward), items: [] };
   character.experience += rewards.exp;
   character.gold += rewards.gold;
   character.statistics.totalKills += 1;
   character.statistics.totalGoldEarned += rewards.gold;
   if (enemy.isElite) character.statistics.eliteKills += 1;
   if (enemy.isBoss) character.statistics.bossKills += 1;
-  const leveledUp = character.checkLevelUp();
+  var leveledUp = character.checkLevelUp();
   
-  // Material drops - FIX: Use itemId consistently
-  const materialDrops = rollMaterialDrops(enemy.id, character.currentTower);
-  materialDrops.forEach(drop => {
-    addItemToInventory(character, drop.itemId, drop.name, drop.icon, drop.type, drop.rarity, drop.quantity, {}, drop.sellPrice);
+  // Material drops - Use consistent itemId
+  var materialDrops = rollMaterialDrops(enemy.id, character.currentTower);
+  for (var i = 0; i < materialDrops.length; i++) {
+    var drop = materialDrops[i];
+    addItemToInventory(character, drop.itemId, drop.name, drop.icon, drop.type, drop.rarity, drop.quantity, {}, drop.sellPrice, 'material');
     rewards.items.push(drop);
-  });
+  }
   
   // Equipment drops
-  const dropRate = enemy.isBoss ? DROP_RATES.boss : (enemy.isElite ? DROP_RATES.elite : DROP_RATES.normal);
-  const equipmentTable = EQUIPMENT_DROPS ? EQUIPMENT_DROPS['tower' + character.currentTower] : null;
-  const equipDrops = rollForDrops(enemy, dropRate, equipmentTable, character.baseClass, character.currentTower);
-  equipDrops.forEach(item => {
+  var dropRate = enemy.isBoss ? DROP_RATES.boss : (enemy.isElite ? DROP_RATES.elite : DROP_RATES.normal);
+  var equipmentTable = EQUIPMENT_DROPS ? EQUIPMENT_DROPS['tower' + character.currentTower] : null;
+  var equipDrops = rollForDrops(enemy, dropRate, equipmentTable, character.baseClass, character.currentTower);
+  
+  for (var j = 0; j < equipDrops.length; j++) {
+    var item = equipDrops[j];
     if (character.inventory.length < character.inventorySize) {
-      const itemId = item.itemId || item.id || (item.name.toLowerCase().replace(/\s+/g, '_'));
-      addItemToInventory(character, itemId, item.name, item.icon, item.type, item.rarity, item.quantity || 1, item.stats, item.sellPrice);
+      // Generate consistent itemId for equipment
+      var itemId = item.itemId || item.id || generateItemId(item.name);
+      addItemToInventory(character, itemId, item.name, item.icon || '⚔️', item.type || 'equipment', item.rarity, item.quantity || 1, item.stats, item.sellPrice || 10, item.subtype || 'equipment');
       rewards.items.push(item);
     }
-  });
+  }
   
   // Scroll drops
-  const scroll = rollForScroll(enemy, character.baseClass);
+  var scroll = rollForScroll(enemy, character.baseClass);
   if (scroll) {
-    const classIdMap = { 'scroll_flameblade': 'flameblade', 'scroll_shadow_dancer': 'shadowDancer', 'scroll_storm_ranger': 'stormRanger', 'scroll_frost_weaver': 'frostWeaver' };
-    const mappedClassId = classIdMap[scroll.id];
+    var classIdMap = { 
+      'scroll_flameblade': 'flameblade', 
+      'scroll_shadow_dancer': 'shadowDancer', 
+      'scroll_storm_ranger': 'stormRanger', 
+      'scroll_frost_weaver': 'frostWeaver' 
+    };
+    var mappedClassId = classIdMap[scroll.id];
     try {
       if (mappedClassId) {
-        const isAvailable = await HiddenClassOwnership.isClassAvailable(mappedClassId);
+        var isAvailable = await HiddenClassOwnership.isClassAvailable(mappedClassId);
         if (isAvailable) {
-          addItemToInventory(character, scroll.id, scroll.name, '📜', 'scroll', 'legendary', 1, {}, 0);
+          addItemToInventory(character, scroll.id, scroll.name, '📜', 'scroll', 'legendary', 1, {}, 0, 'scroll');
           rewards.items.push(scroll);
           rewards.scrollDropped = true;
           character.statistics.scrollsFound += 1;
@@ -835,14 +1019,14 @@ async function handleVictory(character, enemy, res, combatLog, treasureAfter) {
   
   // Memory crystal fragment
   if (enemy.isBoss && Math.random() < 0.1) {
-    addItemToInventory(character, 'memory_crystal_fragment', 'Memory Crystal Fragment', '💠', 'material', 'epic', 1, {}, 100);
+    addItemToInventory(character, 'memory_crystal_fragment', 'Memory Crystal Fragment', '💠', 'material', 'epic', 1, {}, 100, 'special');
     rewards.items.push({ name: 'Memory Crystal Fragment', icon: '💠' });
     rewards.memoryCrystalFragment = true;
   }
   
   // Treasure after combat (from scenario)
   if (treasureAfter && treasureAfter.chestChance && Math.random() < treasureAfter.chestChance) {
-    const chestGold = Math.floor(50 + Math.random() * 100);
+    var chestGold = Math.floor(50 + Math.random() * 100);
     character.gold += chestGold;
     rewards.treasureGold = chestGold;
   }
@@ -855,15 +1039,33 @@ async function handleVictory(character, enemy, res, combatLog, treasureAfter) {
   character.markModified('towerProgress');
   
   await character.save();
-  const towerStory = getStoryEvents(character.currentTower);
+  var towerStory = getStoryEvents(character.currentTower);
   combatLog.push({ actor: 'system', message: 'Victory! Defeated ' + enemy.name + '!' });
-  res.json({ status: 'victory', message: randomFrom(towerStory.victory).replace('{enemy}', enemy.name), combatLog, rewards, leveledUp, restPrompt: randomFrom(towerStory.rest_prompt), character: { level: character.level, experience: character.experience, experienceToNextLevel: character.experienceToNextLevel, gold: character.gold, statPoints: character.statPoints, hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } });
+  res.json({ 
+    status: 'victory', 
+    message: randomFrom(towerStory.victory).replace('{enemy}', enemy.name), 
+    combatLog: combatLog, 
+    rewards: rewards, 
+    leveledUp: leveledUp, 
+    restPrompt: randomFrom(towerStory.rest_prompt), 
+    character: { 
+      level: character.level, 
+      experience: character.experience, 
+      experienceToNextLevel: character.experienceToNextLevel, 
+      gold: character.gold, 
+      statPoints: character.statPoints, 
+      hp: character.stats.hp, 
+      maxHp: character.stats.maxHp, 
+      mp: character.stats.mp, 
+      maxMp: character.stats.maxMp 
+    } 
+  });
 }
 
 async function handleDefeat(character, res, combatLog) {
   character.stats.hp = 0;
   character.statistics.deaths += 1;
-  const checkpoint = character.currentFloor < 10 ? 1 : 10;
+  var checkpoint = character.currentFloor < 10 ? 1 : 10;
   character.currentFloor = checkpoint;
   // Update tower progress to checkpoint
   if (!character.towerProgress) character.towerProgress = {};
@@ -871,7 +1073,7 @@ async function handleDefeat(character, res, combatLog) {
   character.markModified('towerProgress');
   await character.save();
   combatLog.push({ actor: 'system', message: 'You have been defeated!' });
-  res.json({ status: 'defeat', message: 'Defeated! Progress reset to checkpoint.', combatLog, resetFloor: checkpoint, character: { hp: 0, maxHp: character.stats.maxHp } });
+  res.json({ status: 'defeat', message: 'Defeated! Progress reset to checkpoint.', combatLog: combatLog, resetFloor: checkpoint, character: { hp: 0, maxHp: character.stats.maxHp } });
 }
 
 export default router;
