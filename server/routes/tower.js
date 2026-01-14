@@ -65,210 +65,402 @@ function rollMaterialDrops(enemyId, towerId) {
 }
 
 // ============================================================
-// 20 EXPLORATION SCENARIOS - REVAMPED
-// All scenarios now give meaningful rewards or progression
+// 30 EXPLORATION SCENARIOS - DIVERSE REWARDS
+// Focus on materials, buffs, consumables, lore - less gold
 // ============================================================
 
 const EXPLORATION_SCENARIOS = [
-  // 1. Three artifacts - high risk/reward
+  // 1. Abandoned Camp
   {
-    id: 'three_artifacts',
-    description: 'You discover an ancient chamber with three mystical pedestals. A 👑 Crown radiates dark energy, a 💀 Skull whispers secrets, and a 🗡️ Sword gleams with power. Choose wisely...',
-    choices: ['crown', 'skull', 'sword'],
+    id: 'abandoned_camp',
+    description: 'You discover an abandoned adventurer\'s camp. Supplies are scattered about. Do you SEARCH the belongings carefully or LEAVE them undisturbed?',
+    choices: ['search', 'leave'],
     outcomes: {
-      crown: { type: 'curse_lockout', message: 'The crown pulses with forbidden power! A curse befalls you - banished from all towers!', lockoutMinutes: 15 },
-      skull: { type: 'combat_then_treasure', message: 'The skull crumbles revealing a guardian spirit protecting treasure!', chestChance: 0.7 },
-      sword: { type: 'combat_reward', message: 'The cursed sword animates and attacks! But defeating it grants its power!', goldReward: 80 }
+      search: { type: 'random', successChance: 0.6, 
+        success: { type: 'item_reward', message: 'You find useful supplies left behind!', itemType: 'consumable' },
+        fail: { type: 'combat', message: 'A trap activates! The camp\'s guardian attacks!' }
+      },
+      leave: { type: 'safe_progress', message: 'You respectfully leave the camp. The path ahead feels clearer.', progressBonus: true }
     }
   },
-  // 2. Left or right path - both lead somewhere
+  // 2. Mysterious Portal
   {
-    id: 'fork_path',
-    description: 'The corridor splits. The LEFT path glows faintly with magical runes. The RIGHT echoes with distant battle sounds.',
-    choices: ['left', 'right'],
+    id: 'mysterious_portal',
+    description: 'A shimmering portal pulses with arcane energy. Strange whispers beckon you. ENTER the unknown or OBSERVE from safety?',
+    choices: ['enter', 'observe'],
     outcomes: {
-      left: { type: 'treasure', message: 'The runes led to a hidden cache!', chestChance: 0.6 },
-      right: { type: 'combat_then_treasure', message: 'You find adventurers fighting a monster! Help them for a share of loot!', chestChance: 0.5 }
+      enter: { type: 'combat_then_treasure', message: 'You step through into a pocket dimension! A guardian awaits!', chestChance: 0.8, itemReward: true },
+      observe: { type: 'lore_reward', message: 'By studying the portal, you gain ancient knowledge.', loreType: 'arcane', expBonus: 25 }
     }
   },
-  // 3. Voice in the dark
+  // 3. Lost Treasure Map
   {
-    id: 'voice_in_dark',
-    description: 'A mysterious voice echoes: "Brave hunter... I offer knowledge or power. LISTEN to my wisdom, or CHALLENGE me for strength."',
-    choices: ['listen', 'challenge'],
+    id: 'treasure_map',
+    description: 'A half-burned treasure map lies on the ground. The remaining text hints at nearby riches. FOLLOW the clues or KEEP the map for later?',
+    choices: ['follow', 'keep'],
     outcomes: {
-      listen: { type: 'blessing', message: 'The spirit shares ancient knowledge, restoring your vitality!', healPercent: 35 },
-      challenge: { type: 'combat_then_treasure', message: 'The spirit materializes to test your worth!', chestChance: 0.6 }
+      follow: { type: 'random', successChance: 0.5,
+        success: { type: 'material_reward', message: 'The map leads you to a hidden cache of rare materials!', materialType: 'rare' },
+        fail: { type: 'trap', message: 'The map was a decoy! You trigger a trap!', damagePercent: 15 }
+      },
+      keep: { type: 'item_gain', message: 'You pocket the map. It might be useful later.', itemId: 'treasure_map_fragment', itemName: 'Treasure Map Fragment' }
     }
   },
-  // 4. Trap corridor - skill check
+  // 4. Elder's Warning
   {
-    id: 'trap_corridor',
-    description: 'Pressure plates line the floor ahead. You can DISARM them carefully for salvage, or DASH through relying on reflexes.',
-    choices: ['disarm', 'dash'],
+    id: 'elders_warning',
+    description: 'A blind elder blocks your path. "Turn back," they rasp, "or accept my blessing to face what lies ahead." HEED their warning or ACCEPT the blessing?',
+    choices: ['heed', 'accept'],
     outcomes: {
-      disarm: { type: 'reward', message: 'You salvage valuable trap components!', goldReward: 60 },
-      dash: { type: 'random', success: { type: 'reward', message: 'You dash through unscathed and find gold dropped by previous victims!', goldReward: 40 }, fail: { message: 'Spikes graze you but you grab some gold on the way!', damagePercent: 15, goldReward: 25 }, successChance: 0.5 }
+      heed: { type: 'safe_retreat', message: 'You take a different path, avoiding danger but finding a small shrine.', healPercent: 15 },
+      accept: { type: 'buff_reward', message: 'The elder grants you a temporary blessing!', buffType: 'protection', buffDuration: 3 }
     }
   },
-  // 5. Wounded traveler - moral choice with rewards
+  // 5. Shifting Walls
   {
-    id: 'wounded_traveler',
-    description: 'A wounded hunter lies against the wall. "Please... HELP me and I\'ll share my findings. Or SEARCH my pack while I rest..."',
-    choices: ['help', 'search'],
+    id: 'shifting_walls',
+    description: 'The walls begin to shift, creating a maze! Solve the PUZZLE to find the way, or FORCE through with brute strength?',
+    choices: ['puzzle', 'force'],
     outcomes: {
-      help: { type: 'reward', message: 'Grateful, they share their treasure map location!', goldReward: 75 },
-      search: { type: 'random', success: { type: 'treasure', message: 'You find valuable items in their pack!', chestChance: 0.7 }, fail: { type: 'combat', message: 'It was a trap! The "wounded" hunter attacks!' }, successChance: 0.4 }
+      puzzle: { type: 'random', successChance: 0.6,
+        success: { type: 'secret_room', message: 'You solve the puzzle! A hidden chamber opens!', chestChance: 0.9 },
+        fail: { type: 'safe', message: 'The puzzle resets. You find the normal path.' }
+      },
+      force: { type: 'random', successChance: 0.4,
+        success: { type: 'material_reward', message: 'You break through! Debris contains valuable ore!', materialType: 'ore' },
+        fail: { type: 'damage', message: 'The walls crush you momentarily!', damagePercent: 20 }
+      }
     }
   },
-  // 6. Mysterious altar - divine gamble
+  // 6. Ancient Ruins
   {
-    id: 'mysterious_altar',
-    description: 'An altar pulses with divine energy. OFFER gold (50g) for a blessing, or MEDITATE to absorb ambient energy.',
-    choices: ['offer', 'meditate'],
+    id: 'ancient_ruins',
+    description: 'Crumbling ruins emerge from the shadows. Ancient power lingers here. EXPLORE the depths or STUDY the inscriptions?',
+    choices: ['explore', 'study'],
     outcomes: {
-      offer: { type: 'blessing_cost', message: 'The gods accept your offering and restore you fully!', healPercent: 50, goldCost: 50 },
-      meditate: { type: 'blessing', message: 'You absorb the ambient energy, feeling refreshed!', healPercent: 25 }
+      explore: { type: 'random', successChance: 0.5,
+        success: { type: 'artifact_find', message: 'You discover an ancient artifact!', itemType: 'artifact' },
+        fail: { type: 'combat', message: 'You disturb ancient guardians!' }
+      },
+      study: { type: 'lore_reward', message: 'The inscriptions reveal forgotten knowledge.', loreType: 'ancient', expBonus: 30, intBonus: true }
     }
   },
-  // 7. Crumbling bridge - risk vs safe
+  // 7. Collapsed Bridge
   {
-    id: 'crumbling_bridge',
-    description: 'A treasure chest glimmers on a crumbling bridge. RISK crossing for it, or take the SAFE path around.',
-    choices: ['risk', 'safe'],
+    id: 'collapsed_bridge',
+    description: 'The bridge ahead has partially collapsed. You can see treasure glinting below. CLIMB down to investigate or JUMP across the gap?',
+    choices: ['climb', 'jump'],
     outcomes: {
-      risk: { type: 'random', success: { type: 'treasure', message: 'You grab the chest and leap to safety!', chestChance: 0.9 }, fail: { type: 'treasure', message: 'The bridge collapses! You grab the chest but take damage!', chestChance: 0.9, damagePercent: 20 }, successChance: 0.6 },
-      safe: { type: 'reward', message: 'The safe path leads to a small cache left by cautious travelers.', goldReward: 35 }
+      climb: { type: 'random', successChance: 0.7,
+        success: { type: 'material_reward', message: 'You find rare crystals in the chasm!', materialType: 'crystal' },
+        fail: { type: 'damage', message: 'You slip and fall!', damagePercent: 15 }
+      },
+      jump: { type: 'random', successChance: 0.6,
+        success: { type: 'safe_progress', message: 'You leap across gracefully!', progressBonus: true },
+        fail: { type: 'damage', message: 'You barely make it, scraping yourself!', damagePercent: 10 }
+      }
     }
   },
-  // 8. Treasure guardian - fight or stealth
+  // 8. Haunted Portrait
   {
-    id: 'treasure_guardian',
-    description: 'A spectral guardian hovers over a treasure hoard. FIGHT for full access, or SNEAK for a smaller share.',
-    choices: ['fight', 'sneak'],
+    id: 'haunted_portrait',
+    description: 'A portrait\'s eyes seem to follow you. The painting depicts a warrior holding a glowing sword. TOUCH the portrait or SPEAK to it?',
+    choices: ['touch', 'speak'],
     outcomes: {
-      fight: { type: 'combat_then_treasure', message: 'The guardian attacks! Victory means all the treasure!', chestChance: 0.85 },
-      sneak: { type: 'random', success: { type: 'treasure', message: 'You grab what you can and escape!', chestChance: 0.5 }, fail: { type: 'combat_then_treasure', message: 'Spotted! But you can still fight for treasure!', chestChance: 0.6 }, successChance: 0.5 }
+      touch: { type: 'random', successChance: 0.4,
+        success: { type: 'buff_reward', message: 'The warrior\'s spirit empowers you!', buffType: 'attack', buffDuration: 3 },
+        fail: { type: 'curse', message: 'A curse seeps into you!', debuffType: 'weakness', debuffDuration: 2 }
+      },
+      speak: { type: 'lore_reward', message: 'The spirit shares tales of ancient battles.', loreType: 'warrior', expBonus: 20 }
     }
   },
-  // 9. Poison gas room - both paths have value
+  // 9. Underground River
   {
-    id: 'poison_gas',
-    description: 'Green gas fills the chamber. RUSH through to reach treasure beyond, or WAIT and scavenge from those who failed.',
-    choices: ['rush', 'wait'],
+    id: 'underground_river',
+    description: 'An underground river blocks your path. Something shimmers beneath the surface. SWIM across or SEARCH for another way?',
+    choices: ['swim', 'search'],
     outcomes: {
-      rush: { type: 'random', success: { type: 'treasure', message: 'You reach the treasure room!', chestChance: 0.8 }, fail: { type: 'treasure', message: 'The gas weakens you, but treasure awaits!', chestChance: 0.8, damagePercent: 20 }, successChance: 0.5 },
-      wait: { type: 'reward', message: 'You find valuables on fallen adventurers.', goldReward: 55 }
+      swim: { type: 'random', successChance: 0.5,
+        success: { type: 'material_reward', message: 'You grab glowing river stones!', materialType: 'aquatic' },
+        fail: { type: 'combat', message: 'Aquatic creatures attack!' }
+      },
+      search: { type: 'safe_progress', message: 'You find a hidden crossing. Safe passage.', healPercent: 10 }
     }
   },
-  // 10. Ancient riddle - knowledge rewards
+  // 10. Abandoned Forge
   {
-    id: 'ancient_riddle',
-    description: 'A stone door asks: "I have keys but no locks, space but no room, you can enter but cannot go inside." Answer: KEYBOARD or HOUSE?',
-    choices: ['keyboard', 'house'],
+    id: 'abandoned_forge',
+    description: 'An ancient forge still burns with magical fire. Tools and materials lie scattered. REPAIR something or SALVAGE materials?',
+    choices: ['repair', 'salvage'],
     outcomes: {
-      keyboard: { type: 'treasure', message: 'Correct! The door reveals a scholar\'s hidden vault!', chestChance: 0.75 },
-      house: { type: 'trap_reward', message: 'Wrong! Darts hit you, but a consolation prize drops.', damagePercent: 10, goldReward: 20 }
+      repair: { type: 'random', successChance: 0.5,
+        success: { type: 'equipment_upgrade', message: 'You enhance your equipment!', statBoost: true },
+        fail: { type: 'damage', message: 'The forge explodes!', damagePercent: 20 }
+      },
+      salvage: { type: 'material_reward', message: 'You gather valuable smithing materials.', materialType: 'smithing', quantity: 3 }
     }
   },
-  // 11. Glowing mushrooms - nature's bounty
+  // 11. Frozen Statue
   {
-    id: 'glowing_mushrooms',
-    description: 'Bioluminescent mushrooms fill a cavern. HARVEST them for alchemy, or CONSUME one for immediate effect.',
-    choices: ['harvest', 'consume'],
+    id: 'frozen_statue',
+    description: 'A warrior frozen in ice blocks the path. Their expression shows determination. THAW them with fire or BREAK the ice?',
+    choices: ['thaw', 'break'],
     outcomes: {
-      harvest: { type: 'reward', message: 'You gather valuable alchemical ingredients!', goldReward: 45 },
-      consume: { type: 'random', success: { type: 'heal', message: 'The mushroom invigorates you greatly!', healPercent: 40 }, fail: { type: 'heal', message: 'Mildly toxic, but still somewhat restorative.', healPercent: 15 }, successChance: 0.5 }
+      thaw: { type: 'random', successChance: 0.5,
+        success: { type: 'ally_reward', message: 'The warrior awakens and aids you briefly!', tempAlly: true },
+        fail: { type: 'combat', message: 'The warrior awakens hostile and confused!' }
+      },
+      break: { type: 'material_reward', message: 'The ice shatters into magical shards.', materialType: 'ice', quantity: 2 }
     }
   },
-  // 12. Fallen warrior - honor or profit
+  // 12. Injured Beast
   {
-    id: 'fallen_warrior',
-    description: 'A fallen warrior clutches a glowing weapon. PAY RESPECTS and the spirit may bless you, or CLAIM their equipment.',
-    choices: ['respects', 'claim'],
+    id: 'injured_beast',
+    description: 'A majestic beast lies wounded, watching you warily. It could be dangerous or grateful. HEAL it or LEAVE it be?',
+    choices: ['heal', 'leave'],
     outcomes: {
-      respects: { type: 'blessing', message: 'The warrior\'s spirit blesses you for your honor!', healPercent: 30, goldReward: 40 },
-      claim: { type: 'random', success: { type: 'treasure', message: 'You claim their valuable equipment!', chestChance: 0.7 }, fail: { type: 'combat', message: 'The warrior rises to defend their honor!' }, successChance: 0.6 }
+      heal: { type: 'random', successChance: 0.7,
+        success: { type: 'companion_buff', message: 'The beast becomes a temporary ally!', buffType: 'companion', buffDuration: 3 },
+        fail: { type: 'damage', message: 'The beast lashes out in fear!', damagePercent: 15 }
+      },
+      leave: { type: 'safe', message: 'You carefully back away. The beast watches you go.' }
     }
   },
-  // 13. Magic mirror - shadow self
+  // 13. Ancient Shrine
+  {
+    id: 'ancient_shrine',
+    description: 'A shrine pulses with divine energy. Offerings lie at its base. PRAY for blessing or TAKE the offerings?',
+    choices: ['pray', 'take'],
+    outcomes: {
+      pray: { type: 'blessing', message: 'Divine energy restores you!', healPercent: 30, mpRestore: 20 },
+      take: { type: 'random', successChance: 0.3,
+        success: { type: 'material_reward', message: 'You claim the offerings safely.', materialType: 'divine' },
+        fail: { type: 'curse', message: 'The gods are displeased!', damagePercent: 25 }
+      }
+    }
+  },
+  // 14. Dark Silhouette
+  {
+    id: 'dark_silhouette',
+    description: 'A dark figure watches from the shadows. It doesn\'t move, but you sense power. CONFRONT it or SNEAK past?',
+    choices: ['confront', 'sneak'],
+    outcomes: {
+      confront: { type: 'combat_elite', message: 'The shadow reveals itself - an elite enemy!' },
+      sneak: { type: 'random', successChance: 0.6,
+        success: { type: 'safe_progress', message: 'You slip past unnoticed.', progressBonus: true },
+        fail: { type: 'combat', message: 'It spots you and attacks!' }
+      }
+    }
+  },
+  // 15. Poisonous Garden
+  {
+    id: 'poisonous_garden',
+    description: 'Beautiful but deadly flowers fill this chamber. Their pollen could be valuable. HARVEST carefully or PASS through quickly?',
+    choices: ['harvest', 'pass'],
+    outcomes: {
+      harvest: { type: 'random', successChance: 0.5,
+        success: { type: 'item_reward', message: 'You gather rare alchemical ingredients!', itemType: 'alchemy' },
+        fail: { type: 'poison', message: 'The spores overwhelm you!', damagePercent: 15, poisonDuration: 2 }
+      },
+      pass: { type: 'safe_progress', message: 'You hold your breath and hurry through.' }
+    }
+  },
+  // 16. Falling Debris
+  {
+    id: 'falling_debris',
+    description: 'The ceiling is unstable. Rocks begin to fall. CLEAR the path or FIND cover and wait?',
+    choices: ['clear', 'cover'],
+    outcomes: {
+      clear: { type: 'random', successChance: 0.5,
+        success: { type: 'material_reward', message: 'You find ore in the rubble!', materialType: 'ore', quantity: 2 },
+        fail: { type: 'damage', message: 'Rocks strike you!', damagePercent: 20 }
+      },
+      cover: { type: 'safe', message: 'You wait safely until the dust settles.' }
+    }
+  },
+  // 17. Magic Mirror
   {
     id: 'magic_mirror',
-    description: 'A mirror shows your shadow-self. MERGE with it for power, or SHATTER the mirror to banish it.',
+    description: 'A mirror shows a twisted version of yourself. It beckons. MERGE with your reflection or SHATTER the mirror?',
     choices: ['merge', 'shatter'],
     outcomes: {
-      merge: { type: 'random', success: { type: 'blessing', message: 'You absorb your shadow\'s strength!', healPercent: 25, goldReward: 30 }, fail: { type: 'combat', message: 'Your shadow overpowers and attacks you!' }, successChance: 0.5 },
-      shatter: { type: 'treasure', message: 'The mirror shatters revealing hidden compartments!', chestChance: 0.6 }
+      merge: { type: 'random', successChance: 0.4,
+        success: { type: 'buff_reward', message: 'You absorb shadow power!', buffType: 'shadow', buffDuration: 3 },
+        fail: { type: 'combat', message: 'Your shadow self attacks!' }
+      },
+      shatter: { type: 'material_reward', message: 'Enchanted glass shards fall.', materialType: 'enchanted', quantity: 2 }
     }
   },
-  // 14. Crying child illusion
+  // 18. Hidden Chamber
   {
-    id: 'crying_child',
-    description: 'Crying echoes through the halls. INVESTIGATE the source, or FOCUS and see through the illusion.',
-    choices: ['investigate', 'focus'],
+    id: 'hidden_chamber',
+    description: 'A wall panel slides open revealing a hidden room. It could be a treasury or a trap. ENTER carefully or SEAL it back?',
+    choices: ['enter', 'seal'],
     outcomes: {
-      investigate: { type: 'random', success: { type: 'treasure', message: 'A lost spirit rewards your kindness!', chestChance: 0.7 }, fail: { type: 'combat_then_treasure', message: 'A monster used the illusion as bait!', chestChance: 0.4 }, successChance: 0.4 },
-      focus: { type: 'treasure', message: 'You see through the illusion to a hidden passage!', chestChance: 0.5 }
+      enter: { type: 'random', successChance: 0.6,
+        success: { type: 'treasure_room', message: 'A small treasury! Various valuables!', chestChance: 0.9, materialReward: true },
+        fail: { type: 'trap', message: 'It was a trap room!', damagePercent: 20 }
+      },
+      seal: { type: 'lore_reward', message: 'You notice inscriptions before sealing. Knowledge gained.', loreType: 'secret', expBonus: 15 }
     }
   },
-  // 15. Gambling demon - high stakes
+  // 19. Spirit Tomb
   {
-    id: 'gambling_demon',
-    description: 'A demon grins: "Gamble with me! WIN and double your gold (up to 100g). LOSE and pay 50g. Or DECLINE for a small gift."',
-    choices: ['gamble', 'decline'],
+    id: 'spirit_tomb',
+    description: 'An ornate tomb emanates spectral energy. The spirit within might grant power or demand tribute. COMMUNE or RESPECT from afar?',
+    choices: ['commune', 'respect'],
     outcomes: {
-      gamble: { type: 'random', success: { type: 'reward', message: 'You WIN! The demon honors the bet!', goldReward: 100 }, fail: { type: 'cost', message: 'You lose... the demon takes its due.', goldCost: 50 }, successChance: 0.5 },
-      decline: { type: 'reward', message: 'The demon respects your caution and offers a consolation prize.', goldReward: 25 }
+      commune: { type: 'random', successChance: 0.5,
+        success: { type: 'artifact_find', message: 'The spirit gifts you an artifact!', itemType: 'spirit_artifact' },
+        fail: { type: 'curse', message: 'The spirit drains your energy!', damagePercent: 20, mpDrain: 30 }
+      },
+      respect: { type: 'blessing', message: 'The spirit appreciates your reverence.', healPercent: 15, expBonus: 10 }
     }
   },
-  // 16. Locked door - strength or cunning
+  // 20. Cursed Relic
   {
-    id: 'locked_door',
-    description: 'A reinforced door blocks your path. FORCE it with strength, or PICK the lock with finesse.',
-    choices: ['force', 'pick'],
+    id: 'cursed_relic',
+    description: 'A glowing relic pulses with corrupted energy. Power emanates from it. CLEANSE it or ABSORB its power?',
+    choices: ['cleanse', 'absorb'],
     outcomes: {
-      force: { type: 'random', success: { type: 'treasure', message: 'You smash through to a storage room!', chestChance: 0.7 }, fail: { type: 'combat', message: 'The noise alerts guards!' }, successChance: 0.5 },
-      pick: { type: 'random', success: { type: 'treasure', message: 'The lock clicks open revealing valuables!', chestChance: 0.6 }, fail: { type: 'treasure', message: 'The lock breaks but you squeeze through!', chestChance: 0.4 }, successChance: 0.6 }
+      cleanse: { type: 'random', successChance: 0.6,
+        success: { type: 'purified_relic', message: 'You purify the relic!', itemType: 'purified_relic' },
+        fail: { type: 'safe', message: 'The corruption resists. The relic crumbles.' }
+      },
+      absorb: { type: 'random', successChance: 0.4,
+        success: { type: 'buff_reward', message: 'Dark power surges through you!', buffType: 'dark_power', buffDuration: 3, damageBoost: 30 },
+        fail: { type: 'curse', message: 'The corruption overwhelms you!', damagePercent: 25, debuffDuration: 3 }
+      }
     }
   },
-  // 17. Flooded room
+  // 21. Temporal Anomaly
   {
-    id: 'water_room',
-    description: 'The room is flooded. DIVE to search underwater ruins, or WADE carefully along the edges.',
-    choices: ['dive', 'wade'],
+    id: 'temporal_anomaly',
+    description: 'Time itself warps here. A broken timepiece floats in the distortion. REPAIR the timepiece or PASS through the anomaly?',
+    choices: ['repair', 'pass'],
     outcomes: {
-      dive: { type: 'random', success: { type: 'treasure', message: 'You find a sunken treasure chest!', chestChance: 0.8 }, fail: { type: 'combat', message: 'Something lurks in the depths!' }, successChance: 0.5 },
-      wade: { type: 'reward', message: 'You find coins dropped along the shallow edges.', goldReward: 40 }
+      repair: { type: 'random', successChance: 0.5,
+        success: { type: 'time_buff', message: 'Time slows around you!', buffType: 'haste', buffDuration: 3 },
+        fail: { type: 'debuff', message: 'Time accelerates against you!', debuffType: 'slow', debuffDuration: 2 }
+      },
+      pass: { type: 'random', successChance: 0.7,
+        success: { type: 'safe_progress', message: 'You navigate the anomaly safely.' },
+        fail: { type: 'damage', message: 'Temporal energy burns you!', damagePercent: 15 }
+      }
     }
   },
-  // 18. Statue room - observation rewards
+  // 22. Blood Moon Chamber
   {
-    id: 'statue_room',
-    description: 'Warrior statues line the hall. One holds a real gem. EXAMINE carefully to find it, or HURRY through.',
-    choices: ['examine', 'hurry'],
+    id: 'blood_moon',
+    description: 'A crimson glow fills this chamber. The blood moon\'s power is concentrated here. EMBRACE the power or RESIST its call?',
+    choices: ['embrace', 'resist'],
     outcomes: {
-      examine: { type: 'treasure', message: 'You spot the real gem and claim it!', chestChance: 0.7 },
-      hurry: { type: 'random', success: { type: 'reward', message: 'You pass through quickly and find gold ahead!', goldReward: 35 }, fail: { type: 'combat', message: 'A statue animates as you pass!' }, successChance: 0.7 }
+      embrace: { type: 'buff_with_cost', message: 'Power surges through you, but at a cost!', buffType: 'berserker', buffDuration: 3, damagePercent: 10 },
+      resist: { type: 'safe_progress', message: 'You resist the corruption and find inner strength.', healPercent: 10, mpRestore: 15 }
     }
   },
-  // 19. Echo chamber - stealth vs combat
+  // 23. Collapsed Tunnel
   {
-    id: 'echo_chamber',
-    description: 'Your footsteps echo loudly. SILENCE your movement to avoid detection, or let them HEAR you and face what comes.',
-    choices: ['silence', 'hear'],
+    id: 'collapsed_tunnel',
+    description: 'A side tunnel has collapsed, but you hear water and see light through cracks. DIG through or CONTINUE on the main path?',
+    choices: ['dig', 'continue'],
     outcomes: {
-      silence: { type: 'treasure', message: 'You sneak past enemies and find their unguarded stash!', chestChance: 0.5 },
-      hear: { type: 'combat_then_treasure', message: 'Enemies approach! Defeating them reveals their loot!', chestChance: 0.6 }
+      dig: { type: 'random', successChance: 0.5,
+        success: { type: 'secret_area', message: 'You discover a hidden spring!', healPercent: 40, materialReward: true },
+        fail: { type: 'combat', message: 'Burrowing creatures attack!' }
+      },
+      continue: { type: 'safe_progress', message: 'You continue safely on the known path.' }
     }
   },
-  // 20. Cursed gold - greed test
+  // 24. Cursed Fountain
   {
-    id: 'cursed_gold',
-    description: 'A pile of glittering gold coins. TAKE only a handful to be safe, or TAKE ALL and risk the curse.',
-    choices: ['handful', 'all'],
+    id: 'cursed_fountain',
+    description: 'A fountain of dark water bubbles before you. It might heal or corrupt. DRINK from it or PURIFY it first?',
+    choices: ['drink', 'purify'],
     outcomes: {
-      handful: { type: 'reward', message: 'You wisely take a safe amount.', goldReward: 50 },
-      all: { type: 'random', success: { type: 'reward', message: 'Fortune favors the bold! It was all real!', goldReward: 150 }, fail: { type: 'curse_damage', message: 'Cursed gold burns you!', damagePercent: 25, goldReward: 50 }, successChance: 0.4 }
+      drink: { type: 'random', successChance: 0.3,
+        success: { type: 'major_heal', message: 'The water is miraculously healing!', healPercent: 50 },
+        fail: { type: 'curse', message: 'Corruption seeps into you!', damagePercent: 20, debuffDuration: 2 }
+      },
+      purify: { type: 'blessing', message: 'You cleanse the fountain. Pure water flows.', healPercent: 25, mpRestore: 25 }
+    }
+  },
+  // 25. Undead Patrol
+  {
+    id: 'undead_patrol',
+    description: 'A patrol of undead marches past. They haven\'t noticed you yet. AMBUSH them or FOLLOW silently?',
+    choices: ['ambush', 'follow'],
+    outcomes: {
+      ambush: { type: 'combat_advantage', message: 'You strike first with advantage!', firstStrike: true },
+      follow: { type: 'random', successChance: 0.7,
+        success: { type: 'treasure_discovery', message: 'They lead you to their treasure hoard!', chestChance: 0.8 },
+        fail: { type: 'combat', message: 'They spot you and attack!' }
+      }
+    }
+  },
+  // 26. Cryptic Message
+  {
+    id: 'cryptic_message',
+    description: 'Strange symbols are carved into the wall. They seem to form a message or spell. DECIPHER them or COPY them for later?',
+    choices: ['decipher', 'copy'],
+    outcomes: {
+      decipher: { type: 'random', successChance: 0.6,
+        success: { type: 'spell_knowledge', message: 'You understand! Magical knowledge floods your mind!', expBonus: 40, intBonus: true },
+        fail: { type: 'confusion', message: 'The symbols make your head spin.', debuffType: 'confusion', debuffDuration: 1 }
+      },
+      copy: { type: 'item_gain', message: 'You carefully copy the symbols.', itemId: 'cryptic_scroll', itemName: 'Cryptic Scroll' }
+    }
+  },
+  // 27. Ruined Library
+  {
+    id: 'ruined_library',
+    description: 'Ancient books line collapsed shelves. Knowledge waits to be discovered. SEARCH the shelves or STUDY the readable tomes?',
+    choices: ['search', 'study'],
+    outcomes: {
+      search: { type: 'random', successChance: 0.6,
+        success: { type: 'rare_book', message: 'You find a rare skill tome!', itemType: 'skill_tome' },
+        fail: { type: 'safe', message: 'Most books are too damaged. You find nothing special.' }
+      },
+      study: { type: 'lore_reward', message: 'You gain wisdom from ancient texts.', loreType: 'wisdom', expBonus: 35, intBonus: true }
+    }
+  },
+  // 28. Whispering Woods (Chamber)
+  {
+    id: 'whispering_woods',
+    description: 'This chamber is overgrown with strange trees. Whispers echo from within. LISTEN to the whispers or CUT through quickly?',
+    choices: ['listen', 'cut'],
+    outcomes: {
+      listen: { type: 'random', successChance: 0.5,
+        success: { type: 'nature_blessing', message: 'The forest spirits bless you!', healPercent: 25, buffType: 'nature', buffDuration: 3 },
+        fail: { type: 'curse', message: 'The whispers drive you mad momentarily!', debuffType: 'confusion', debuffDuration: 2 }
+      },
+      cut: { type: 'material_reward', message: 'You harvest rare wood and herbs.', materialType: 'nature', quantity: 3 }
+    }
+  },
+  // 29. Merchant Spirit
+  {
+    id: 'merchant_spirit',
+    description: 'A ghostly merchant appears, offering trades. They want materials, not gold. TRADE with them or BANISH the spirit?',
+    choices: ['trade', 'banish'],
+    outcomes: {
+      trade: { type: 'spirit_trade', message: 'The merchant offers mystical goods!', tradeAvailable: true },
+      banish: { type: 'random', successChance: 0.5,
+        success: { type: 'spirit_essence', message: 'The spirit leaves behind essence!', materialType: 'spirit', quantity: 2 },
+        fail: { type: 'curse', message: 'The merchant curses you before fleeing!', debuffType: 'bad_luck', debuffDuration: 2 }
+      }
+    }
+  },
+  // 30. Final Challenge
+  {
+    id: 'final_challenge',
+    description: 'A glowing doorway blocks the path. It demands proof of worth. DEMONSTRATE strength or SHOW wisdom?',
+    choices: ['strength', 'wisdom'],
+    outcomes: {
+      strength: { type: 'combat_trial', message: 'A trial by combat begins!', eliteChance: 0.5, rewardBonus: true },
+      wisdom: { type: 'random', successChance: 0.6,
+        success: { type: 'wisdom_reward', message: 'Your knowledge impresses the door!', expBonus: 50, itemReward: true },
+        fail: { type: 'safe', message: 'The door finds you lacking, but allows passage.' }
+      }
     }
   }
 ];
@@ -381,21 +573,39 @@ router.post('/explore', authenticate, async (req, res) => {
     if (character.energy < ENERGY_PER_FLOOR) return res.status(400).json({ error: 'Not enough energy! (Need ' + ENERGY_PER_FLOOR + ')' });
     if (character.stats.hp <= 0) return res.status(400).json({ error: 'You are defeated! Rest to recover.' });
     const floor = character.currentFloor;
-    if (floor === 10) return res.json({ type: 'safe_zone', message: 'You reached the Safe Zone!', story: 'A peaceful sanctuary amidst the chaos.', floor: 10 });
+    if (floor === 10) return res.json({ type: 'safe_zone', message: 'You reached the Safe Zone!', story: 'A peaceful sanctuary amidst the chaos. Your progress is saved here.', floor: 10 });
     
     character.energy -= ENERGY_PER_FLOOR;
+    
+    // MULTI-EVENT SYSTEM: Determine how many events this exploration will have (2-3)
+    const totalEvents = Math.random() < 0.4 ? 3 : 2;
+    const currentEvent = 1;
+    
+    // Store exploration progress in character (temporary)
+    character.explorationProgress = {
+      totalEvents: totalEvents,
+      currentEvent: currentEvent,
+      eventsCompleted: [],
+      floor: floor
+    };
+    character.markModified('explorationProgress');
+    
     await character.save();
     
-    // Pick a random scenario
+    // Pick a random scenario for the first event
     const scenario = EXPLORATION_SCENARIOS[Math.floor(Math.random() * EXPLORATION_SCENARIOS.length)];
     
     res.json({ 
       type: 'exploration', 
       floor, 
       scenarioId: scenario.id,
-      story: scenario.description, 
+      story: '📍 Event ' + currentEvent + ' of ' + totalEvents + '\n\n' + scenario.description, 
       choices: scenario.choices, 
-      energyRemaining: character.energy 
+      energyRemaining: character.energy,
+      eventProgress: {
+        current: currentEvent,
+        total: totalEvents
+      }
     });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
@@ -408,6 +618,9 @@ router.post('/choose-path', authenticate, async (req, res) => {
     const floor = character.currentFloor;
     const towerEnemies = ENEMIES['tower' + character.currentTower];
     
+    // Get exploration progress
+    const progress = character.explorationProgress || { totalEvents: 1, currentEvent: 1 };
+    
     // Find scenario
     const scenario = EXPLORATION_SCENARIOS.find(s => s.id === scenarioId) || EXPLORATION_SCENARIOS[0];
     const outcome = scenario.outcomes[choice] || scenario.outcomes[scenario.choices[0]];
@@ -417,45 +630,91 @@ router.post('/choose-path', authenticate, async (req, res) => {
     let message = outcome.message;
     let enemy = null;
     let treasure = null;
-    let goldReward = outcome.goldReward || 0;
-    let goldCost = outcome.goldCost || 0;
+    let rewards = { items: [], materials: [], buffs: [], exp: 0, gold: 0 };
     let healAmount = 0;
+    let mpRestore = 0;
     let damageAmount = outcome.damagePercent ? Math.floor(character.stats.maxHp * outcome.damagePercent / 100) : 0;
-    let lockoutMinutes = 0;
-    let nextScenario = null;
     
     // Handle random outcomes
     if (resultType === 'random') {
       const roll = Math.random();
       if (roll < (outcome.successChance || 0.5)) {
         // Success
-        if (outcome.success.type) resultType = outcome.success.type;
-        else resultType = 'safe';
+        resultType = outcome.success.type || 'safe';
         message = outcome.success.message;
-        if (outcome.success.chestChance) treasure = { chestChance: outcome.success.chestChance };
-        if (outcome.success.goldReward) goldReward = outcome.success.goldReward;
         if (outcome.success.healPercent) healAmount = Math.floor(character.stats.maxHp * outcome.success.healPercent / 100);
         if (outcome.success.damagePercent) damageAmount = Math.floor(character.stats.maxHp * outcome.success.damagePercent / 100);
+        if (outcome.success.chestChance) treasure = { chestChance: outcome.success.chestChance };
+        if (outcome.success.expBonus) rewards.exp = outcome.success.expBonus;
+        if (outcome.success.materialType) rewards.materials.push({ type: outcome.success.materialType, quantity: outcome.success.quantity || 1 });
+        if (outcome.success.buffType) rewards.buffs.push({ type: outcome.success.buffType, duration: outcome.success.buffDuration || 3 });
       } else {
         // Fail
-        if (outcome.fail.type) resultType = outcome.fail.type;
-        else resultType = 'damage';
+        resultType = outcome.fail.type || 'damage';
         message = outcome.fail.message;
         if (outcome.fail.damagePercent) damageAmount = Math.floor(character.stats.maxHp * outcome.fail.damagePercent / 100);
-        if (outcome.fail.goldReward) goldReward = outcome.fail.goldReward;
-        if (outcome.fail.chestChance) treasure = { chestChance: outcome.fail.chestChance };
+        if (outcome.fail.debuffType) rewards.buffs.push({ type: outcome.fail.debuffType, duration: outcome.fail.debuffDuration || 2, isDebuff: true });
       }
     }
+    
+    // Helper function to give material rewards
+    const giveMaterial = (materialType, quantity) => {
+      const materials = {
+        rare: { id: 'rare_material', name: 'Rare Material', icon: '💎' },
+        ore: { id: 'tower_ore', name: 'Tower Ore', icon: '🪨' },
+        crystal: { id: 'magic_crystal', name: 'Magic Crystal', icon: '🔮' },
+        aquatic: { id: 'aquatic_essence', name: 'Aquatic Essence', icon: '💧' },
+        smithing: { id: 'smithing_material', name: 'Smithing Material', icon: '⚒️' },
+        ice: { id: 'frost_shard', name: 'Frost Shard', icon: '❄️' },
+        divine: { id: 'divine_essence', name: 'Divine Essence', icon: '✨' },
+        enchanted: { id: 'enchanted_glass', name: 'Enchanted Glass', icon: '🪞' },
+        spirit: { id: 'spirit_essence', name: 'Spirit Essence', icon: '👻' },
+        nature: { id: 'nature_essence', name: 'Nature Essence', icon: '🌿' }
+      };
+      const mat = materials[materialType] || materials.rare;
+      addItemToInventory(character, mat.id, mat.name, mat.icon, 'material', 'uncommon', quantity, {}, 15);
+      return mat;
+    };
+    
+    // Helper to check for next event in multi-event exploration
+    const checkNextEvent = async () => {
+      if (progress.currentEvent < progress.totalEvents) {
+        progress.currentEvent += 1;
+        progress.eventsCompleted.push(scenarioId);
+        character.explorationProgress = progress;
+        character.markModified('explorationProgress');
+        await character.save();
+        
+        // Get next scenario (avoid repeats)
+        let nextScenario;
+        do {
+          nextScenario = EXPLORATION_SCENARIOS[Math.floor(Math.random() * EXPLORATION_SCENARIOS.length)];
+        } while (progress.eventsCompleted.includes(nextScenario.id) && progress.eventsCompleted.length < EXPLORATION_SCENARIOS.length);
+        
+        return {
+          hasNext: true,
+          nextScenario: nextScenario,
+          eventProgress: { current: progress.currentEvent, total: progress.totalEvents }
+        };
+      }
+      // Clear progress after last event
+      character.explorationProgress = null;
+      character.markModified('explorationProgress');
+      return { hasNext: false };
+    };
     
     // Apply effects based on type
     switch (resultType) {
       case 'combat':
       case 'combat_then_treasure':
       case 'combat_reward':
-        // Spawn enemy
+      case 'combat_elite':
+      case 'combat_advantage':
+      case 'combat_trial':
+        // Spawn enemy based on type
         if (floor === 15) {
           enemy = scaleEnemyStats(towerEnemies.boss, floor, character.currentTower);
-        } else if (floor >= 13 && Math.random() < 0.4) {
+        } else if (resultType === 'combat_elite' || (resultType === 'combat_trial' && Math.random() < 0.5) || (floor >= 13 && Math.random() < 0.4)) {
           enemy = getRandomEnemy(towerEnemies.elite, floor);
           enemy = scaleEnemyStats(enemy, floor, character.currentTower);
         } else {
@@ -463,96 +722,324 @@ router.post('/choose-path', authenticate, async (req, res) => {
           enemy = scaleEnemyStats(enemy, floor, character.currentTower);
         }
         if (resultType === 'combat_then_treasure') treasure = { chestChance: outcome.chestChance || 0.5 };
-        if (resultType === 'combat_reward') treasure = { goldReward: outcome.goldReward || 50 };
+        if (resultType === 'combat_advantage') treasure = { firstStrike: true };
+        if (resultType === 'combat_trial') treasure = { bonusRewards: true };
         break;
         
-      case 'curse_lockout':
-        lockoutMinutes = outcome.lockoutMinutes || 15;
-        character.towerLockoutUntil = new Date(Date.now() + lockoutMinutes * 60000);
-        character.currentFloor = 1;
-        await character.save();
-        return res.json({ type: 'curse_lockout', message, lockoutMinutes, floor: 1 });
-        
+      case 'curse':
       case 'curse_damage':
       case 'trap':
       case 'damage':
-        damageAmount = damageAmount || Math.floor(character.stats.maxHp * (outcome.damagePercent || 20) / 100);
+      case 'poison':
+        damageAmount = damageAmount || Math.floor(character.stats.maxHp * (outcome.damagePercent || 15) / 100);
         character.stats.hp = Math.max(1, character.stats.hp - damageAmount);
-        // Also give gold if specified (trap_reward type)
-        if (goldReward > 0) character.gold += goldReward;
         await character.save();
-        return res.json({ type: 'damage', message, damage: damageAmount, gold: goldReward, hp: character.stats.hp, maxHp: character.stats.maxHp, totalGold: character.gold });
-      
-      case 'trap_reward':
-        damageAmount = Math.floor(character.stats.maxHp * (outcome.damagePercent || 10) / 100);
-        character.stats.hp = Math.max(1, character.stats.hp - damageAmount);
-        character.gold += outcome.goldReward || 20;
-        await character.save();
-        return res.json({ type: 'trap_reward', message, damage: damageAmount, gold: outcome.goldReward || 20, hp: character.stats.hp, maxHp: character.stats.maxHp, totalGold: character.gold });
+        const nextAfterDamage = await checkNextEvent();
+        if (nextAfterDamage.hasNext) {
+          return res.json({ 
+            type: 'damage_continue', 
+            message: message + '\n\n⚠️ -' + damageAmount + ' HP', 
+            damage: damageAmount, 
+            hp: character.stats.hp, 
+            maxHp: character.stats.maxHp,
+            nextEvent: {
+              scenarioId: nextAfterDamage.nextScenario.id,
+              story: '📍 Event ' + nextAfterDamage.eventProgress.current + ' of ' + nextAfterDamage.eventProgress.total + '\n\n' + nextAfterDamage.nextScenario.description,
+              choices: nextAfterDamage.nextScenario.choices
+            },
+            eventProgress: nextAfterDamage.eventProgress
+          });
+        }
+        return res.json({ type: 'damage', message, damage: damageAmount, hp: character.stats.hp, maxHp: character.stats.maxHp });
         
       case 'blessing':
       case 'heal':
+      case 'major_heal':
+      case 'nature_blessing':
         healAmount = Math.floor(character.stats.maxHp * (outcome.healPercent || 20) / 100);
         character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + healAmount);
-        // Also give gold if specified
-        if (outcome.goldReward) {
-          character.gold += outcome.goldReward;
-          goldReward = outcome.goldReward;
+        if (outcome.mpRestore) {
+          mpRestore = outcome.mpRestore;
+          character.stats.mp = Math.min(character.stats.maxMp, character.stats.mp + mpRestore);
+        }
+        if (outcome.expBonus) {
+          character.experience += outcome.expBonus;
+          rewards.exp = outcome.expBonus;
         }
         await character.save();
-        return res.json({ type: 'heal', message, heal: healAmount, gold: goldReward, hp: character.stats.hp, maxHp: character.stats.maxHp, totalGold: character.gold });
-      
-      case 'blessing_cost':
-        // Costs gold but heals
-        if (character.gold < (outcome.goldCost || 50)) {
-          return res.json({ type: 'safe', message: 'You don\'t have enough gold for the offering. The altar remains silent.', floor });
+        const nextAfterHeal = await checkNextEvent();
+        if (nextAfterHeal.hasNext) {
+          return res.json({ 
+            type: 'heal_continue', 
+            message: message + '\n\n💚 +' + healAmount + ' HP' + (mpRestore ? ' | +' + mpRestore + ' MP' : ''), 
+            heal: healAmount, 
+            mpRestore: mpRestore,
+            hp: character.stats.hp, 
+            maxHp: character.stats.maxHp,
+            nextEvent: {
+              scenarioId: nextAfterHeal.nextScenario.id,
+              story: '📍 Event ' + nextAfterHeal.eventProgress.current + ' of ' + nextAfterHeal.eventProgress.total + '\n\n' + nextAfterHeal.nextScenario.description,
+              choices: nextAfterHeal.nextScenario.choices
+            },
+            eventProgress: nextAfterHeal.eventProgress
+          });
         }
-        character.gold -= outcome.goldCost || 50;
-        healAmount = Math.floor(character.stats.maxHp * (outcome.healPercent || 30) / 100);
-        character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + healAmount);
-        await character.save();
-        return res.json({ type: 'blessing_cost', message, heal: healAmount, goldSpent: outcome.goldCost || 50, hp: character.stats.hp, maxHp: character.stats.maxHp, totalGold: character.gold });
-        
-      case 'reward':
-        goldReward = goldReward || outcome.goldReward || 50;
-        character.gold += goldReward;
-        await character.save();
-        return res.json({ type: 'reward', message, gold: goldReward, totalGold: character.gold });
+        return res.json({ type: 'heal', message, heal: healAmount, mpRestore, hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp });
       
-      case 'cost':
-        // Lose gold
-        goldCost = outcome.goldCost || 50;
-        character.gold = Math.max(0, character.gold - goldCost);
-        await character.save();
-        return res.json({ type: 'cost', message, goldLost: goldCost, totalGold: character.gold });
-        
-      case 'treasure':
-        const chestChance = outcome.chestChance || treasure?.chestChance || 0.5;
-        const chestGold = Math.floor(50 + Math.random() * 100);
-        character.gold += chestGold;
-        // Apply damage if outcome has it (risky treasure)
-        if (damageAmount > 0) {
+      case 'buff_reward':
+      case 'buff_with_cost':
+        if (resultType === 'buff_with_cost' && outcome.damagePercent) {
+          damageAmount = Math.floor(character.stats.maxHp * outcome.damagePercent / 100);
           character.stats.hp = Math.max(1, character.stats.hp - damageAmount);
         }
+        // Buffs are temporary - just message for now
         await character.save();
-        return res.json({ type: 'treasure', message: message + ' You found ' + chestGold + ' gold!', gold: chestGold, damage: damageAmount, totalGold: character.gold, foundChest: true, hp: character.stats.hp, maxHp: character.stats.maxHp });
-        
-      case 'followup':
-        nextScenario = EXPLORATION_SCENARIOS.find(s => s.id === outcome.nextScenario);
-        if (nextScenario) {
-          return res.json({ type: 'exploration', floor, scenarioId: nextScenario.id, story: nextScenario.description, choices: nextScenario.choices, followup: true });
+        const nextAfterBuff = await checkNextEvent();
+        if (nextAfterBuff.hasNext) {
+          return res.json({ 
+            type: 'buff_continue', 
+            message: message + '\n\n✨ Gained ' + (outcome.buffType || 'unknown') + ' buff!', 
+            buffType: outcome.buffType,
+            buffDuration: outcome.buffDuration || 3,
+            damage: damageAmount,
+            hp: character.stats.hp,
+            maxHp: character.stats.maxHp,
+            nextEvent: {
+              scenarioId: nextAfterBuff.nextScenario.id,
+              story: '📍 Event ' + nextAfterBuff.eventProgress.current + ' of ' + nextAfterBuff.eventProgress.total + '\n\n' + nextAfterBuff.nextScenario.description,
+              choices: nextAfterBuff.nextScenario.choices
+            },
+            eventProgress: nextAfterBuff.eventProgress
+          });
         }
-        break;
+        return res.json({ type: 'buff', message, buffType: outcome.buffType, buffDuration: outcome.buffDuration || 3, damage: damageAmount, hp: character.stats.hp, maxHp: character.stats.maxHp });
+      
+      case 'material_reward':
+      case 'spirit_essence':
+        const matType = outcome.materialType || 'rare';
+        const matQty = outcome.quantity || 1;
+        const material = giveMaterial(matType, matQty);
+        await character.save();
+        const nextAfterMat = await checkNextEvent();
+        if (nextAfterMat.hasNext) {
+          return res.json({ 
+            type: 'material_continue', 
+            message: message + '\n\n📦 +' + matQty + ' ' + material.name, 
+            material: material,
+            quantity: matQty,
+            nextEvent: {
+              scenarioId: nextAfterMat.nextScenario.id,
+              story: '📍 Event ' + nextAfterMat.eventProgress.current + ' of ' + nextAfterMat.eventProgress.total + '\n\n' + nextAfterMat.nextScenario.description,
+              choices: nextAfterMat.nextScenario.choices
+            },
+            eventProgress: nextAfterMat.eventProgress
+          });
+        }
+        return res.json({ type: 'material', message, material: material, quantity: matQty });
+      
+      case 'item_reward':
+      case 'item_gain':
+      case 'artifact_find':
+      case 'rare_book':
+      case 'purified_relic':
+        // Give a consumable or special item
+        const itemTypes = {
+          consumable: { id: 'health_potion_small', name: 'Health Potion', icon: '🧪' },
+          alchemy: { id: 'alchemy_ingredient', name: 'Alchemy Ingredient', icon: '⚗️' },
+          artifact: { id: 'ancient_artifact', name: 'Ancient Artifact', icon: '🏺' },
+          skill_tome: { id: 'skill_tome', name: 'Skill Tome', icon: '📖' },
+          spirit_artifact: { id: 'spirit_artifact', name: 'Spirit Artifact', icon: '👻' },
+          purified_relic: { id: 'purified_relic', name: 'Purified Relic', icon: '🌟' }
+        };
+        const itemInfo = itemTypes[outcome.itemType] || itemTypes.consumable;
+        if (outcome.itemId) {
+          addItemToInventory(character, outcome.itemId, outcome.itemName || 'Unknown Item', '📜', 'material', 'uncommon', 1, {}, 10);
+        } else {
+          addItemToInventory(character, itemInfo.id, itemInfo.name, itemInfo.icon, 'consumable', 'uncommon', 1, {}, 20);
+        }
+        await character.save();
+        const nextAfterItem = await checkNextEvent();
+        if (nextAfterItem.hasNext) {
+          return res.json({ 
+            type: 'item_continue', 
+            message: message + '\n\n📦 Received ' + (outcome.itemName || itemInfo.name) + '!', 
+            item: outcome.itemName || itemInfo.name,
+            nextEvent: {
+              scenarioId: nextAfterItem.nextScenario.id,
+              story: '📍 Event ' + nextAfterItem.eventProgress.current + ' of ' + nextAfterItem.eventProgress.total + '\n\n' + nextAfterItem.nextScenario.description,
+              choices: nextAfterItem.nextScenario.choices
+            },
+            eventProgress: nextAfterItem.eventProgress
+          });
+        }
+        return res.json({ type: 'item', message, item: outcome.itemName || itemInfo.name });
+      
+      case 'lore_reward':
+      case 'spell_knowledge':
+      case 'wisdom_reward':
+        const expGain = outcome.expBonus || 20;
+        character.experience += expGain;
+        character.checkLevelUp();
+        await character.save();
+        const nextAfterLore = await checkNextEvent();
+        if (nextAfterLore.hasNext) {
+          return res.json({ 
+            type: 'lore_continue', 
+            message: message + '\n\n📚 +' + expGain + ' EXP', 
+            exp: expGain,
+            loreType: outcome.loreType,
+            nextEvent: {
+              scenarioId: nextAfterLore.nextScenario.id,
+              story: '📍 Event ' + nextAfterLore.eventProgress.current + ' of ' + nextAfterLore.eventProgress.total + '\n\n' + nextAfterLore.nextScenario.description,
+              choices: nextAfterLore.nextScenario.choices
+            },
+            eventProgress: nextAfterLore.eventProgress
+          });
+        }
+        return res.json({ type: 'lore', message, exp: expGain, loreType: outcome.loreType });
         
       case 'safe':
+      case 'safe_progress':
+      case 'safe_retreat':
+        if (outcome.healPercent) {
+          healAmount = Math.floor(character.stats.maxHp * outcome.healPercent / 100);
+          character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + healAmount);
+        }
+        await character.save();
+        const nextAfterSafe = await checkNextEvent();
+        if (nextAfterSafe.hasNext) {
+          return res.json({ 
+            type: 'safe_continue', 
+            message: message + (healAmount ? '\n\n💚 +' + healAmount + ' HP' : ''), 
+            heal: healAmount,
+            hp: character.stats.hp,
+            maxHp: character.stats.maxHp,
+            nextEvent: {
+              scenarioId: nextAfterSafe.nextScenario.id,
+              story: '📍 Event ' + nextAfterSafe.eventProgress.current + ' of ' + nextAfterSafe.eventProgress.total + '\n\n' + nextAfterSafe.nextScenario.description,
+              choices: nextAfterSafe.nextScenario.choices
+            },
+            eventProgress: nextAfterSafe.eventProgress
+          });
+        }
+        return res.json({ type: 'safe', message, heal: healAmount, hp: character.stats.hp, maxHp: character.stats.maxHp });
+      
+      case 'secret_room':
+      case 'treasure_room':
+      case 'secret_area':
+      case 'treasure':
+      case 'treasure_discovery':
+        // Give treasure
+        const treasureGold = Math.floor(30 + Math.random() * 70);
+        character.gold += treasureGold;
+        if (outcome.healPercent) {
+          healAmount = Math.floor(character.stats.maxHp * outcome.healPercent / 100);
+          character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + healAmount);
+        }
+        if (outcome.materialReward) {
+          giveMaterial('rare', 1);
+        }
+        await character.save();
+        const nextAfterTreasure = await checkNextEvent();
+        if (nextAfterTreasure.hasNext) {
+          return res.json({ 
+            type: 'treasure_continue', 
+            message: message + '\n\n💰 +' + treasureGold + ' gold!' + (healAmount ? ' | +' + healAmount + ' HP' : ''), 
+            gold: treasureGold,
+            totalGold: character.gold,
+            heal: healAmount,
+            hp: character.stats.hp,
+            maxHp: character.stats.maxHp,
+            nextEvent: {
+              scenarioId: nextAfterTreasure.nextScenario.id,
+              story: '📍 Event ' + nextAfterTreasure.eventProgress.current + ' of ' + nextAfterTreasure.eventProgress.total + '\n\n' + nextAfterTreasure.nextScenario.description,
+              choices: nextAfterTreasure.nextScenario.choices
+            },
+            eventProgress: nextAfterTreasure.eventProgress
+          });
+        }
+        return res.json({ type: 'treasure', message, gold: treasureGold, totalGold: character.gold, heal: healAmount, hp: character.stats.hp, maxHp: character.stats.maxHp, foundChest: true });
+      
+      case 'spirit_trade':
+        // Special trade event - give small gold for now
+        character.gold += 25;
+        await character.save();
+        return res.json({ type: 'spirit_trade', message, gold: 25, totalGold: character.gold });
+      
+      case 'ally_reward':
+      case 'companion_buff':
+        await character.save();
+        const nextAfterAlly = await checkNextEvent();
+        if (nextAfterAlly.hasNext) {
+          return res.json({ 
+            type: 'ally_continue', 
+            message: message + '\n\n🐾 Temporary ally gained!', 
+            nextEvent: {
+              scenarioId: nextAfterAlly.nextScenario.id,
+              story: '📍 Event ' + nextAfterAlly.eventProgress.current + ' of ' + nextAfterAlly.eventProgress.total + '\n\n' + nextAfterAlly.nextScenario.description,
+              choices: nextAfterAlly.nextScenario.choices
+            },
+            eventProgress: nextAfterAlly.eventProgress
+          });
+        }
+        return res.json({ type: 'ally', message });
+      
+      case 'time_buff':
+      case 'debuff':
+      case 'confusion':
+        await character.save();
+        const nextAfterDebuff = await checkNextEvent();
+        if (nextAfterDebuff.hasNext) {
+          return res.json({ 
+            type: 'effect_continue', 
+            message: message, 
+            effectType: outcome.debuffType || outcome.buffType,
+            nextEvent: {
+              scenarioId: nextAfterDebuff.nextScenario.id,
+              story: '📍 Event ' + nextAfterDebuff.eventProgress.current + ' of ' + nextAfterDebuff.eventProgress.total + '\n\n' + nextAfterDebuff.nextScenario.description,
+              choices: nextAfterDebuff.nextScenario.choices
+            },
+            eventProgress: nextAfterDebuff.eventProgress
+          });
+        }
+        return res.json({ type: 'effect', message, effectType: outcome.debuffType || outcome.buffType });
+      
+      case 'equipment_upgrade':
+        // Temporary stat boost message
+        await character.save();
+        return res.json({ type: 'upgrade', message });
+        
       default:
-        return res.json({ type: 'safe', message, floor });
+        await character.save();
+        const nextDefault = await checkNextEvent();
+        if (nextDefault.hasNext) {
+          return res.json({ 
+            type: 'continue', 
+            message: message, 
+            nextEvent: {
+              scenarioId: nextDefault.nextScenario.id,
+              story: '📍 Event ' + nextDefault.eventProgress.current + ' of ' + nextDefault.eventProgress.total + '\n\n' + nextDefault.nextScenario.description,
+              choices: nextDefault.nextScenario.choices
+            },
+            eventProgress: nextDefault.eventProgress
+          });
+        }
+        return res.json({ type: 'safe', message: message || 'You continue onward.', floor });
     }
     
     // If we have an enemy, start combat
     if (enemy) {
       await character.save();
-      return res.json({ type: 'combat_start', story: message, enemy, floor, isBoss: enemy.isBoss || false, isElite: enemy.isElite || false, treasureAfter: treasure });
+      return res.json({ 
+        type: 'combat_start', 
+        story: message, 
+        enemy, 
+        floor, 
+        isBoss: enemy.isBoss || false, 
+        isElite: enemy.isElite || false, 
+        treasureAfter: treasure,
+        eventProgress: { current: progress.currentEvent, total: progress.totalEvents }
+      });
     }
     
     res.json({ type: 'safe', message: message || 'You continue onward.', floor });
