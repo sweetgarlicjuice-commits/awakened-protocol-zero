@@ -280,21 +280,21 @@ router.get('/info', authenticate, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
+    
     const towerInfo = Object.values(TOWERS).map(tower => ({
       ...tower,
       isUnlocked: !tower.requirement || character.highestTowerCleared >= tower.requirement.tower,
       currentFloor: character.currentTower === tower.id ? character.currentFloor : 1,
-      highestFloor: character.towerProgress && character.towerProgress['tower' + tower.id] ? character.towerProgress['tower' + tower.id] : 1
+      highestFloor: character.towerProgress && character.towerProgress['tower' + tower.id] ? character.towerProgress['tower' + tower.id] : 1,
+      story: tower.story || "No story available for this tower.",  // Adding story for each tower
+      mobEncounters: tower.mobEncounters || "No mob data available.",  // Adding possible mob encounters
+      itemDrops: tower.itemDrops || "No item drop data available.",  // Adding possible item drops
+      equipmentDrops: tower.equipmentDrops || "No equipment drop data available."  // Adding equipment drop data
     }));
+
     res.json({ towers: towerInfo, currentTower: character.currentTower, currentFloor: character.currentFloor });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
-
-router.post('/enter', authenticate, async (req, res) => {
-  try {
-    const { towerId } = req.body;
-    const character = await Character.findOne({ userId: req.userId });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
     
     // Check tower lockout
     if (character.towerLockoutUntil && new Date() < character.towerLockoutUntil) {
