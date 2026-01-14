@@ -2,124 +2,69 @@ import express from 'express';
 import Character from '../models/Character.js';
 import User from '../models/User.js';
 import HiddenClassOwnership from '../models/HiddenClassOwnership.js';
-import { TradingListing } from '../models/Tavern.js';
-import { authenticate } from '../middleware/auth.js';
-import { getItemById } from '../data/itemDatabase.js';
+import { authenticate, requireGM } from '../middleware/auth.js';
 
-var router = express.Router();
+const router = express.Router();
 
-// Middleware to check GM/Admin role
-var requireGM = async function(req, res, next) {
+// GET /api/gm/player/:id - Get full player profile
+router.get('/player/:id', authenticate, requireGM, async (req, res) => {
   try {
-    var user = await User.findById(req.userId);
-    if (!user || (user.role !== 'gm' && user.role !== 'admin')) {
-      return res.status(403).json({ error: 'Access denied. GM role required.' });
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
-    req.isAdmin = user.role === 'admin';
-    next();
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
-// GET /api/gm/player/:id - Get player details
-router.get('/player/:id', authenticate, requireGM, async function(req, res) {
-  try {
-    var user = await User.findById(req.params.id).select('-password');
-    if (!user) return res.status(404).json({ error: 'User not found' });
     
-    var character = await Character.findOne({ userId: req.params.id });
+    const character = await Character.findOne({ userId: user._id });
     
     res.json({
-      user: user,
-      character: character
+      user,
+      character
     });
   } catch (error) {
+    console.error('Get player error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/refresh-energy - Refresh player energy
-router.post('/player/:id/refresh-energy', authenticate, requireGM, async function(req, res) {
+// PATCH /api/gm/player/:id/stats - Edit player stats
+router.patch('/player/:id/stats', authenticate, requireGM, async (req, res) => {
   try {
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+    const { stats, statPoints } = req.body;
+    const character = await Character.findOne({ userId: req.params.id });
     
-    character.energy = 100;
-    await character.save();
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
     
-    res.json({ message: 'Energy refreshed to 100', character: character });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// POST /api/gm/player/:id/heal - Full heal player
-router.post('/player/:id/heal', authenticate, requireGM, async function(req, res) {
-  try {
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+    if (stats) {
+      character.stats = { ...character.stats, ...stats };
+    }
     
-    character.stats.hp = character.stats.maxHp;
-    character.stats.mp = character.stats.maxMp;
-    await character.save();
-    
-    res.json({ message: 'Player fully healed', character: character });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// POST /api/gm/player/:id/add-gold - Add/remove gold
-router.post('/player/:id/add-gold', authenticate, requireGM, async function(req, res) {
-  try {
-    var amount = req.body.amount;
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
-    
-    character.gold = Math.max(0, character.gold + amount);
-    await character.save();
-    
-    res.json({ message: 'Gold updated. New total: ' + character.gold, character: character });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// POST /api/gm/player/:id/set-level - Set player level
-router.post('/player/:id/set-level', authenticate, requireGM, async function(req, res) {
-  try {
-    var level = req.body.level;
-    if (level < 1 || level > 200) return res.status(400).json({ error: 'Level must be 1-200' });
-    
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
-    
-    var oldLevel = character.level;
-    character.level = level;
-    
-    // Adjust stat points based on level change (3 points per level)
-    var levelDiff = level - oldLevel;
-    character.statPoints = Math.max(0, character.statPoints + (levelDiff * 3));
-    
-    // Recalculate experience for level
-    character.experience = 0;
-    character.experienceToNextLevel = 100 + (level * 50);
+    if (statPoints !== undefined) {
+      character.statPoints = statPoints;
+    }
     
     await character.save();
     
-    res.json({ message: 'Level set to ' + level, character: character });
+    res.json({
+      message: 'Stats updated successfully',
+      character
+    });
   } catch (error) {
+    console.error('Update stats error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/edit-stats - Edit player stats
-router.post('/player/:id/edit-stats', authenticate, requireGM, async function(req, res) {
+// POST /api/gm/player/:id/edit-stats - Edit individual player stats (for GM modal)
+router.post('/player/:id/edit-stats', authenticate, requireGM, async (req, res) => {
   try {
-    var stats = req.body.stats;
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+    const { stats } = req.body;
+    const character = await Character.findOne({ userId: req.params.id });
+    
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
     
     // Update individual stats
     if (stats.str !== undefined) character.stats.str = Math.max(1, stats.str);
@@ -138,338 +83,436 @@ router.post('/player/:id/edit-stats', authenticate, requireGM, async function(re
     
     await character.save();
     
-    res.json({ message: 'Stats updated successfully', character: character });
+    res.json({
+      message: 'Stats updated successfully',
+      character
+    });
   } catch (error) {
+    console.error('Edit stats error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/reset-stats - Reset stats to base class values
-router.post('/player/:id/reset-stats', authenticate, requireGM, async function(req, res) {
+// POST /api/gm/player/:id/reset-stats - Reset all stats to base
+router.post('/player/:id/reset-stats', authenticate, requireGM, async (req, res) => {
   try {
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+    const character = await Character.findOne({ userId: req.params.id });
     
-    // Base stats by class
-    var baseStats = {
-      swordsman: { str: 15, agi: 8, dex: 8, int: 5, vit: 14 },
-      thief: { str: 8, agi: 15, dex: 12, int: 7, vit: 8 },
-      archer: { str: 10, agi: 12, dex: 15, int: 6, vit: 7 },
-      mage: { str: 5, agi: 7, dex: 8, int: 15, vit: 5 }
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+    
+    const CLASS_BASE_STATS = {
+      swordsman: { hp: 150, mp: 50, str: 15, agi: 8, dex: 8, int: 5, vit: 14 },
+      thief: { hp: 100, mp: 70, str: 8, agi: 15, dex: 12, int: 7, vit: 8 },
+      archer: { hp: 110, mp: 60, str: 10, agi: 12, dex: 15, int: 6, vit: 7 },
+      mage: { hp: 80, mp: 120, str: 5, agi: 7, dex: 8, int: 15, vit: 5 }
     };
     
-    var base = baseStats[character.baseClass] || baseStats.swordsman;
+    const baseStats = CLASS_BASE_STATS[character.baseClass];
+    character.stats = {
+      ...baseStats,
+      maxHp: baseStats.hp,
+      maxMp: baseStats.mp
+    };
     
-    character.stats.str = base.str;
-    character.stats.agi = base.agi;
-    character.stats.dex = base.dex;
-    character.stats.int = base.int;
-    character.stats.vit = base.vit;
-    
-    // Recalculate HP/MP
-    character.stats.maxHp = character.stats.vit * 10 + 50;
-    character.stats.maxMp = character.stats.int * 8 + 20;
-    character.stats.hp = character.stats.maxHp;
-    character.stats.mp = character.stats.maxMp;
-    
-    // Refund stat points based on level (3 per level after 1)
-    character.statPoints = (character.level - 1) * 3;
+    // Refund stat points based on level
+    character.statPoints = (character.level - 1) * 5;
     
     await character.save();
     
-    res.json({ message: 'Stats reset to base values. ' + character.statPoints + ' stat points refunded.', character: character });
+    res.json({
+      message: 'Stats reset successfully',
+      character
+    });
   } catch (error) {
+    console.error('Reset stats error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/reset-progress - Reset tower progress
-router.post('/player/:id/reset-progress', authenticate, requireGM, async function(req, res) {
+// POST /api/gm/player/:id/refresh-energy - Set energy to 100
+router.post('/player/:id/refresh-energy', authenticate, requireGM, async (req, res) => {
   try {
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+    const character = await Character.findOne({ userId: req.params.id });
     
-    character.currentTower = 1;
-    character.currentFloor = 1;
-    character.highestTowerCleared = 0;
-    character.towerProgress = {};
-    character.towerLockoutUntil = null;
-    character.markModified('towerProgress');
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
     
+    character.energy = 100;
+    character.lastEnergyUpdate = new Date();
     await character.save();
     
-    res.json({ message: 'Tower progress reset', character: character });
+    res.json({
+      message: 'Energy refreshed to 100',
+      energy: character.energy
+    });
   } catch (error) {
+    console.error('Refresh energy error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/add-item - Add item to player inventory
-router.post('/player/:id/add-item', authenticate, requireGM, async function(req, res) {
+// POST /api/gm/player/:id/add-gold - Add gold to player
+router.post('/player/:id/add-gold', authenticate, requireGM, async (req, res) => {
   try {
-    var itemData = req.body;
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+    const { amount } = req.body;
+    const character = await Character.findOne({ userId: req.params.id });
     
-    // Check inventory space
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+    
+    character.gold += amount;
+    if (character.gold < 0) character.gold = 0;
+    
+    await character.save();
+    
+    res.json({
+      message: `Gold ${amount >= 0 ? 'added' : 'removed'}: ${Math.abs(amount)}`,
+      gold: character.gold
+    });
+  } catch (error) {
+    console.error('Add gold error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/gm/player/:id/add-item - Add item to inventory
+router.post('/player/:id/add-item', authenticate, requireGM, async (req, res) => {
+  try {
+    const { itemId, name, type, rarity, quantity, stats } = req.body;
+    const character = await Character.findOne({ userId: req.params.id });
+    
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+    
     if (character.inventory.length >= character.inventorySize) {
-      return res.status(400).json({ error: 'Player inventory is full' });
+      return res.status(400).json({ error: 'Inventory is full' });
     }
     
-    // Get item from database if itemId provided
-    var item = null;
-    if (itemData.itemId) {
-      item = getItemById(itemData.itemId);
-    }
+    character.inventory.push({
+      itemId,
+      name,
+      type: type || 'item',
+      rarity: rarity || 'common',
+      quantity: quantity || 1,
+      stats: stats || {}
+    });
     
-    var newItem = {
-      itemId: itemData.itemId || ('gm_item_' + Date.now()),
-      name: itemData.name || (item ? item.name : 'Unknown Item'),
-      icon: item ? item.icon : '📦',
-      type: itemData.type || (item ? item.type : 'material'),
-      subtype: item ? item.subtype : itemData.type,
-      rarity: itemData.rarity || (item ? item.rarity : 'common'),
-      quantity: itemData.quantity || 1,
-      stackable: itemData.type === 'material' || itemData.type === 'consumable',
-      stats: item ? item.stats : {},
-      sellPrice: item ? (item.sellPrice || 10) : 10
-    };
-    
-    // Check if stackable item already exists
-    if (newItem.stackable) {
-      var existingIndex = -1;
-      for (var i = 0; i < character.inventory.length; i++) {
-        if (character.inventory[i].itemId === newItem.itemId) {
-          existingIndex = i;
-          break;
-        }
-      }
-      if (existingIndex >= 0) {
-        character.inventory[existingIndex].quantity += newItem.quantity;
-        await character.save();
-        return res.json({ message: 'Added ' + newItem.quantity + 'x ' + newItem.name + ' (stacked)', character: character });
-      }
-    }
-    
-    character.inventory.push(newItem);
     await character.save();
     
-    res.json({ message: 'Added ' + newItem.quantity + 'x ' + newItem.name, character: character });
+    res.json({
+      message: `Added ${name} to inventory`,
+      inventory: character.inventory
+    });
   } catch (error) {
-    console.error(error);
+    console.error('Add item error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// DELETE /api/gm/player/:id/remove-item/:index - Remove item from inventory
-router.delete('/player/:id/remove-item/:index', authenticate, requireGM, async function(req, res) {
+// DELETE /api/gm/player/:id/remove-item/:itemIndex - Remove item from inventory
+router.delete('/player/:id/remove-item/:itemIndex', authenticate, requireGM, async (req, res) => {
   try {
-    var index = parseInt(req.params.index);
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+    const { itemIndex } = req.params;
+    const character = await Character.findOne({ userId: req.params.id });
     
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+    
+    const index = parseInt(itemIndex);
     if (index < 0 || index >= character.inventory.length) {
       return res.status(400).json({ error: 'Invalid item index' });
     }
     
-    var removedItem = character.inventory[index];
-    character.inventory.splice(index, 1);
+    const removedItem = character.inventory.splice(index, 1)[0];
     await character.save();
     
-    res.json({ message: 'Removed ' + removedItem.name, character: character });
+    res.json({
+      message: `Removed ${removedItem.name} from inventory`,
+      inventory: character.inventory
+    });
   } catch (error) {
+    console.error('Remove item error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // POST /api/gm/player/:id/clear-inventory - Clear all items
-router.post('/player/:id/clear-inventory', authenticate, requireGM, async function(req, res) {
+router.post('/player/:id/clear-inventory', authenticate, requireGM, async (req, res) => {
   try {
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+    const character = await Character.findOne({ userId: req.params.id });
     
-    var count = character.inventory.length;
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+    
     character.inventory = [];
     await character.save();
     
-    res.json({ message: 'Cleared ' + count + ' items from inventory', character: character });
+    res.json({
+      message: 'Inventory cleared',
+      inventory: character.inventory
+    });
   } catch (error) {
+    console.error('Clear inventory error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/remove-hidden-class - Remove hidden class
-router.post('/player/:id/remove-hidden-class', authenticate, requireGM, async function(req, res) {
+// POST /api/gm/player/:id/reset-progress - Reset tower progress
+router.post('/player/:id/reset-progress', authenticate, requireGM, async (req, res) => {
   try {
-    var character = await Character.findOne({ userId: req.params.id });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+    const character = await Character.findOne({ userId: req.params.id });
+    
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+    
+    character.currentTower = 1;
+    character.currentFloor = 1;
+    character.highestTowerCleared = 0;
+    character.highestFloorReached = { towerId: 1, floor: 1 };
+    
+    await character.save();
+    
+    res.json({
+      message: 'Tower progress reset',
+      character
+    });
+  } catch (error) {
+    console.error('Reset progress error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/gm/player/:id/remove-hidden-class - Force remove hidden class
+router.post('/player/:id/remove-hidden-class', authenticate, requireGM, async (req, res) => {
+  try {
+    const character = await Character.findOne({ userId: req.params.id });
+    
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
     
     if (character.hiddenClass === 'none') {
       return res.status(400).json({ error: 'Player has no hidden class' });
     }
     
-    // Release the hidden class
-    await HiddenClassOwnership.releaseClass(character.hiddenClass);
+    // Release the class ownership
+    await HiddenClassOwnership.releaseClass(character.hiddenClass, character._id);
+    
+    // Remove class from character
+    const oldClass = character.hiddenClass;
+    character.hiddenClass = 'none';
+    character.hiddenClassUnlocked = false;
     
     // Remove hidden class skills
-    var hiddenClassSkills = {
-      flameblade: ['flame_slash', 'inferno_strike', 'fire_aura', 'volcanic_rage'],
-      shadowDancer: ['shadow_strike', 'vanish', 'death_mark', 'shadow_dance'],
-      stormRanger: ['lightning_arrow', 'chain_lightning', 'storm_eye', 'thunderstorm'],
-      frostWeaver: ['frost_bolt', 'blizzard', 'ice_armor', 'absolute_zero']
-    };
+    character.skills = character.skills.filter(s => 
+      ['slash', 'heavyStrike', 'shieldBash', 'warCry',
+       'backstab', 'poisonBlade', 'smokeScreen', 'steal',
+       'preciseShot', 'multiShot', 'eagleEye', 'arrowRain',
+       'fireball', 'iceSpear', 'manaShield', 'thunderbolt'].includes(s.skillId)
+    );
     
-    var skillsToRemove = hiddenClassSkills[character.hiddenClass] || [];
-    character.skills = character.skills.filter(function(s) {
-      return skillsToRemove.indexOf(s.skillId) === -1;
-    });
-    
-    var oldClass = character.hiddenClass;
-    character.hiddenClass = 'none';
     await character.save();
     
-    res.json({ message: 'Removed hidden class: ' + oldClass, character: character });
+    res.json({
+      message: `Removed ${oldClass} from player`,
+      character
+    });
   } catch (error) {
+    console.error('Remove hidden class error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// DELETE /api/gm/player/:id - Delete player
-router.delete('/player/:id', authenticate, requireGM, async function(req, res) {
+// DELETE /api/gm/player/:id - Delete player and character
+router.delete('/player/:id', authenticate, requireGM, async (req, res) => {
   try {
-    var user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const user = await User.findById(req.params.id);
     
-    // Don't allow deleting admins
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Don't allow deleting admins or self
     if (user.role === 'admin') {
       return res.status(403).json({ error: 'Cannot delete admin accounts' });
     }
     
-    // Get character to release hidden class
-    var character = await Character.findOne({ userId: req.params.id });
+    if (user._id.equals(req.user._id)) {
+      return res.status(403).json({ error: 'Cannot delete your own account' });
+    }
+    
+    // Get character to release hidden class if any
+    const character = await Character.findOne({ userId: user._id });
     if (character && character.hiddenClass !== 'none') {
-      await HiddenClassOwnership.releaseClass(character.hiddenClass);
+      await HiddenClassOwnership.releaseClass(character.hiddenClass, character._id);
     }
     
     // Delete character
-    await Character.deleteOne({ userId: req.params.id });
+    await Character.deleteOne({ userId: user._id });
     
     // Delete user
-    await User.deleteOne({ _id: req.params.id });
+    await User.deleteOne({ _id: user._id });
     
-    // Remove any trading listings
-    await TradingListing.deleteMany({ sellerId: req.params.id });
-    
-    res.json({ message: 'Player ' + user.username + ' deleted' });
+    res.json({
+      message: 'Player deleted successfully'
+    });
   } catch (error) {
+    console.error('Delete player error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// GET /api/gm/hidden-classes - Get all hidden class ownership status
-router.get('/hidden-classes', authenticate, requireGM, async function(req, res) {
+// GET /api/gm/hidden-classes - Get all hidden class status
+router.get('/hidden-classes', authenticate, requireGM, async (req, res) => {
   try {
-    var classes = ['flameblade', 'shadowDancer', 'stormRanger', 'frostWeaver'];
-    var result = [];
+    const classes = await HiddenClassOwnership.getAllClassStatus();
+    res.json({ classes });
+  } catch (error) {
+    console.error('Get hidden classes error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/gm/player/:id/set-level - Set player level
+router.post('/player/:id/set-level', authenticate, requireGM, async (req, res) => {
+  try {
+    const { level } = req.body;
+    const character = await Character.findOne({ userId: req.params.id });
     
-    for (var i = 0; i < classes.length; i++) {
-      var classId = classes[i];
-      var ownership = await HiddenClassOwnership.findOne({ classId: classId });
-      
-      var ownerName = null;
-      if (ownership && ownership.ownerId) {
-        var ownerChar = await Character.findOne({ userId: ownership.ownerId });
-        ownerName = ownerChar ? ownerChar.name : 'Unknown';
-      }
-      
-      result.push({
-        classId: classId,
-        ownerId: ownership ? ownership.ownerId : null,
-        ownerName: ownerName
-      });
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
     }
     
-    res.json({ classes: result });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// GET /api/gm/trading - Get all trading listings
-router.get('/trading', authenticate, requireGM, async function(req, res) {
-  try {
-    var listings = await TradingListing.find({ status: 'active' }).sort({ createdAt: -1 });
-    
-    // Get seller names
-    var result = [];
-    for (var i = 0; i < listings.length; i++) {
-      var listing = listings[i];
-      var seller = await Character.findOne({ userId: listing.sellerId });
-      
-      result.push({
-        _id: listing._id,
-        itemId: listing.itemId,
-        itemName: listing.itemName,
-        itemIcon: listing.itemIcon,
-        itemType: listing.itemType,
-        itemRarity: listing.itemRarity,
-        quantity: listing.quantity,
-        pricePerUnit: listing.pricePerUnit,
-        totalPrice: listing.totalPrice,
-        sellerId: listing.sellerId,
-        characterName: seller ? seller.name : 'Unknown',
-        createdAt: listing.createdAt
-      });
+    if (level < 1 || level > 50) {
+      return res.status(400).json({ error: 'Level must be between 1 and 50' });
     }
     
-    res.json({ listings: result });
+    const oldLevel = character.level;
+    character.level = level;
+    character.experience = 0;
+    character.experienceToNextLevel = character.calculateExpToLevel(level);
+    
+    // Adjust stat points
+    const levelDiff = level - oldLevel;
+    character.statPoints = Math.max(0, character.statPoints + (levelDiff * 5));
+    
+    await character.save();
+    
+    res.json({
+      message: `Level set to ${level}`,
+      character
+    });
   } catch (error) {
+    console.error('Set level error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// DELETE /api/gm/trading/:id - Remove trading listing and return item to seller
-router.delete('/trading/:id', authenticate, requireGM, async function(req, res) {
+// POST /api/gm/player/:id/heal - Full heal player
+router.post('/player/:id/heal', authenticate, requireGM, async (req, res) => {
   try {
-    var listing = await TradingListing.findById(req.params.id);
-    if (!listing) return res.status(404).json({ error: 'Listing not found' });
+    const character = await Character.findOne({ userId: req.params.id });
     
-    // Try to return item to seller
-    var seller = await Character.findOne({ userId: listing.sellerId });
-    if (seller && seller.inventory.length < seller.inventorySize) {
-      // Check if stackable
-      var existingIndex = -1;
-      for (var i = 0; i < seller.inventory.length; i++) {
-        if (seller.inventory[i].itemId === listing.itemId && seller.inventory[i].stackable) {
-          existingIndex = i;
-          break;
-        }
-      }
-      
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+    
+    character.stats.hp = character.stats.maxHp;
+    character.stats.mp = character.stats.maxMp;
+    await character.save();
+    
+    res.json({
+      message: 'Player fully healed',
+      stats: character.stats
+    });
+  } catch (error) {
+    console.error('Heal error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/gm/trading - Get all trading listings for GM
+router.get('/trading', authenticate, requireGM, async (req, res) => {
+  try {
+    const { TradingListing } = await import('../models/Tavern.js');
+    const listings = await TradingListing.find({}).sort({ createdAt: -1 });
+    
+    // Get seller info for each listing
+    const listingsWithSellers = await Promise.all(listings.map(async (listing) => {
+      const user = await User.findById(listing.sellerId).select('username');
+      const character = await Character.findOne({ userId: listing.sellerId }).select('name');
+      return {
+        ...listing.toObject(),
+        sellerUsername: user ? user.username : 'Unknown',
+        sellerCharacter: character ? character.name : 'Unknown'
+      };
+    }));
+    
+    res.json({ listings: listingsWithSellers });
+  } catch (error) {
+    console.error('Get trading listings error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/gm/trading/:id - Remove trading listing and return item to player
+router.delete('/trading/:id', authenticate, requireGM, async (req, res) => {
+  try {
+    const { TradingListing } = await import('../models/Tavern.js');
+    const listing = await TradingListing.findById(req.params.id);
+    
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    // Check if seller still exists
+    const seller = await Character.findOne({ userId: listing.sellerId });
+    
+    if (seller) {
+      // Return item to seller's inventory
+      const existingIndex = seller.inventory.findIndex(i => i.itemId === listing.itemId);
       if (existingIndex >= 0) {
         seller.inventory[existingIndex].quantity += listing.quantity;
-      } else {
+      } else if (seller.inventory.length < seller.inventorySize) {
         seller.inventory.push({
           itemId: listing.itemId,
           name: listing.itemName,
-          icon: listing.itemIcon || '📦',
-          type: listing.itemType || 'material',
-          subtype: listing.itemSubtype || listing.itemType,
-          rarity: listing.itemRarity || 'common',
+          icon: listing.icon || '📦',
+          type: listing.itemType || 'item',
+          rarity: listing.rarity || 'common',
           quantity: listing.quantity,
-          stackable: listing.itemType === 'material' || listing.itemType === 'consumable',
-          stats: listing.itemStats || {},
-          sellPrice: 10
+          stackable: true,
+          stats: listing.stats || {}
         });
       }
       await seller.save();
+      
+      // Delete listing
+      await TradingListing.findByIdAndDelete(req.params.id);
+      
+      res.json({
+        message: 'Listing removed. Item returned to player inventory.',
+        returnedTo: seller.name
+      });
+    } else {
+      // Seller doesn't exist, just delete the listing
+      await TradingListing.findByIdAndDelete(req.params.id);
+      
+      res.json({
+        message: 'Listing removed. Seller no longer exists, item deleted.',
+        returnedTo: null
+      });
     }
-    
-    // Remove listing
-    await TradingListing.deleteOne({ _id: req.params.id });
-    
-    res.json({ message: 'Listing removed' + (seller ? ' and item returned to ' + seller.name : '') });
   } catch (error) {
+    console.error('Remove trading listing error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
