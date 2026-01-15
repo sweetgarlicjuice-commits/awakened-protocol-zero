@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { characterAPI } from '../services/api';
@@ -43,25 +43,25 @@ const SKILL_INFO = {
   manaShield: { mpCost: 15, damage: 0, desc: 'Absorb DMG with MP. Shield = INT × 2.', effect: 'shield' },
   thunderbolt: { mpCost: 18, damage: 2.2, desc: 'Lightning strike. High magic DMG.' },
   // Flameblade
-  flame_slash: { mpCost: 15, damage: 2.0, desc: 'Slash with burning blade. DMG + burn effect.', effect: 'burn' },
-  inferno_strike: { mpCost: 25, damage: 2.8, desc: 'Powerful fire-infused strike. High single-target DMG.' },
-  fire_aura: { mpCost: 20, damage: 0, desc: 'Surround yourself in flames. +30% ATK for 3 turns.', effect: 'buff' },
-  volcanic_rage: { mpCost: 40, damage: 3.5, desc: 'Erupt with volcanic power. Massive DMG + burn.', effect: 'burn' },
+  flameSlash: { mpCost: 15, damage: 2.0, desc: 'Slash with burning blade. DMG + burn effect.', effect: 'burn' },
+  infernoStrike: { mpCost: 25, damage: 2.8, desc: 'Powerful fire-infused strike. High single-target DMG.' },
+  fireAura: { mpCost: 20, damage: 0, desc: 'Surround yourself in flames. +30% ATK for 3 turns.', effect: 'buff' },
+  volcanicRage: { mpCost: 40, damage: 3.5, desc: 'Erupt with volcanic power. Massive DMG + burn.', effect: 'burn' },
   // Shadow Dancer
-  shadow_strike: { mpCost: 12, damage: 2.5, desc: 'Strike from the shadows. High crit chance.', effect: '+50% crit' },
+  shadowStrike: { mpCost: 12, damage: 2.5, desc: 'Strike from the shadows. High crit chance.', effect: '+50% crit' },
   vanish: { mpCost: 20, damage: 0, desc: 'Become invisible. Next attack auto-crits +100% DMG.', effect: 'stealth' },
-  death_mark: { mpCost: 18, damage: 1.5, desc: 'Mark target. +30% damage taken for 3 turns.', effect: 'debuff' },
-  shadow_dance: { mpCost: 35, damage: 2.0, hits: 5, desc: 'Rapid 5-hit combo from the shadows.' },
+  deathMark: { mpCost: 18, damage: 1.5, desc: 'Mark target. +30% damage taken for 3 turns.', effect: 'debuff' },
+  shadowDance: { mpCost: 35, damage: 2.0, hits: 5, desc: 'Rapid 5-hit combo from the shadows.' },
   // Storm Ranger
-  lightning_arrow: { mpCost: 14, damage: 2.2, desc: 'Arrow charged with lightning. High DMG + shock.', effect: 'shock' },
-  chain_lightning: { mpCost: 22, damage: 1.8, hits: 3, desc: 'Lightning chains to hit 3 times.' },
-  storm_eye: { mpCost: 18, damage: 0, desc: 'Enter focus state. +50% Precision, +30% Crit.', effect: 'buff' },
+  lightningArrow: { mpCost: 14, damage: 2.2, desc: 'Arrow charged with lightning. High DMG + shock.', effect: 'shock' },
+  chainLightning: { mpCost: 22, damage: 1.8, hits: 3, desc: 'Lightning chains to hit 3 times.' },
+  stormEye: { mpCost: 18, damage: 0, desc: 'Enter focus state. +50% Precision, +30% Crit.', effect: 'buff' },
   thunderstorm: { mpCost: 45, damage: 3.0, hits: 4, desc: 'Call down a devastating thunderstorm.', effect: 'shock' },
   // Frost Weaver
-  frost_bolt: { mpCost: 12, damage: 2.0, desc: 'Ice bolt that slows enemy. -20% ATK.', effect: 'slow' },
+  frostBolt: { mpCost: 12, damage: 2.0, desc: 'Ice bolt that slows enemy. -20% ATK.', effect: 'slow' },
   blizzard: { mpCost: 28, damage: 2.2, hits: 3, desc: 'Ice storm hits 3 times. 30% freeze chance.', effect: 'freeze' },
-  ice_armor: { mpCost: 20, damage: 0, desc: 'Armor of ice. +50 DEF, reflect 20% DMG.', effect: 'defense' },
-  absolute_zero: { mpCost: 50, damage: 4.0, desc: 'Ultimate cold. Massive DMG + 2-turn freeze.', effect: 'freeze' }
+  iceArmor: { mpCost: 20, damage: 0, desc: 'Armor of ice. +50 DEF, reflect 20% DMG.', effect: 'defense' },
+  absoluteZero: { mpCost: 50, damage: 4.0, desc: 'Ultimate cold. Massive DMG + 2-turn freeze.', effect: 'freeze' }
 };
 
 const StatBar = ({ label, current, max, color, icon }) => {
@@ -113,6 +113,46 @@ const ExpBar = ({ exp, expToLevel, level }) => {
   );
 };
 
+// ============================================================
+// PHASE 7: Derived Stats Calculator
+// ============================================================
+const calculateDerivedStats = (stats, level = 1) => {
+  if (!stats) return null;
+  
+  const derived = {
+    pDmg: 5 + (stats.str || 0) * 3,
+    mDmg: 5 + (stats.int || 0) * 4,
+    pDef: (stats.str || 0) * 1 + (stats.vit || 0) * 2,
+    mDef: (stats.vit || 0) * 1 + (stats.int || 0) * 1,
+    critRate: 5 + (stats.agi || 0) * 0.5,
+    critDmg: 150 + (stats.dex || 0) * 1,
+    accuracy: 90 + (stats.dex || 0) * 0.5,
+    evasion: (stats.agi || 0) * 0.3,
+    hpRegen: Math.floor((stats.vit || 0) * 1),
+    mpRegen: Math.floor((stats.int || 0) * 0.5)
+  };
+  
+  // Level bonus (+2% per level)
+  const levelBonus = 1 + (level - 1) * 0.02;
+  derived.pDmg = Math.floor(derived.pDmg * levelBonus);
+  derived.mDmg = Math.floor(derived.mDmg * levelBonus);
+  
+  // Caps
+  derived.critRate = Math.min(derived.critRate, 80);
+  derived.accuracy = Math.min(derived.accuracy, 100);
+  derived.evasion = Math.min(derived.evasion, 60);
+  
+  return derived;
+};
+
+// Hidden class icons
+const HIDDEN_CLASS_ICONS = {
+  flameblade: '🔥', berserker: '💢', paladin: '✨', earthshaker: '🌍', frostguard: '❄️',
+  shadowDancer: '🌑', venomancer: '🐍', assassin: '⚫', phantom: '👻', bloodreaper: '🩸',
+  stormRanger: '⚡', pyroArcher: '🔥', frostSniper: '❄️', natureWarden: '🌿', voidHunter: '🌀',
+  frostWeaver: '❄️', pyromancer: '🔥', stormcaller: '⚡', necromancer: '💀', arcanist: '✨'
+};
+
 const GamePage = () => {
   const { character, logout, refreshCharacter } = useAuth();
   const [activeTab, setActiveTab] = useState('status');
@@ -120,20 +160,15 @@ const GamePage = () => {
   const [showStatModal, setShowStatModal] = useState(false);
   const [pendingStats, setPendingStats] = useState({ str: 0, agi: 0, dex: 0, int: 0, vit: 0 });
   const [isAllocating, setIsAllocating] = useState(false);
-  const [isInTower, setIsInTower] = useState(false); // Track if player is in tower
+  const [isInTower, setIsInTower] = useState(false);
   const [gameLog, setGameLog] = useState([
     { type: 'system', message: 'Welcome to Awakened Protocol: Zero', timestamp: new Date() },
     { type: 'info', message: 'Hunter ' + (character?.name || 'Unknown') + ' has entered the realm.', timestamp: new Date() }
   ]);
   const navigate = useNavigate();
-  const logRef = useRef(null); // Ref for activity log auto-scroll
 
-  // Auto-scroll activity log to bottom when new entries added
-  useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [gameLog]);
+  // Calculate derived stats for display
+  const derivedStats = character ? calculateDerivedStats(character.stats, character.level) : null;
 
   useEffect(() => {
     const interval = setInterval(() => refreshCharacter(), 60000);
@@ -229,7 +264,9 @@ const GamePage = () => {
             </div>
             <h2 className="font-display text-xl text-white">{character.name}</h2>
             <p className={`text-sm ${CLASS_COLORS[character.baseClass]} capitalize`}>
-              {character.hiddenClass !== 'none' ? character.hiddenClass : character.baseClass}
+              {character.hiddenClass !== 'none' 
+                ? `${HIDDEN_CLASS_ICONS[character.hiddenClass] || ''} ${character.hiddenClass}` 
+                : character.baseClass}
             </p>
           </div>
 
@@ -316,32 +353,140 @@ const GamePage = () => {
           </nav>
 
           <div className="flex-1 p-4 md:p-6 overflow-auto">
+            {/* ============================================================ */}
+            {/* STATUS TAB - PHASE 7 UPDATED WITH DERIVED STATS */}
+            {/* ============================================================ */}
             {activeTab === 'status' && (
               <div className="max-w-4xl mx-auto space-y-6">
+                {/* Hunter Status Card */}
                 <div className="bg-void-800/50 rounded-xl p-6 neon-border">
                   <h3 className="font-display text-lg text-purple-400 mb-4">HUNTER STATUS</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
-                      <div className="flex justify-between py-2 border-b border-gray-700/30"><span className="text-gray-400">Name</span><span className="text-white">{character.name}</span></div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30"><span className="text-gray-400">Class</span><span className={CLASS_COLORS[character.baseClass]}>{CLASS_ICONS[character.baseClass]} {character.baseClass.charAt(0).toUpperCase() + character.baseClass.slice(1)}</span></div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30"><span className="text-gray-400">Hidden Class</span><span className={character.hiddenClass !== 'none' ? 'text-purple-400' : 'text-gray-600'}>{character.hiddenClass !== 'none' ? character.hiddenClass : 'Not Unlocked'}</span></div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30"><span className="text-gray-400">Level</span><span className="text-amber-400">{character.level}</span></div>
+                      <div className="flex justify-between py-2 border-b border-gray-700/30">
+                        <span className="text-gray-400">Name</span>
+                        <span className="text-white">{character.name}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-gray-700/30">
+                        <span className="text-gray-400">Class</span>
+                        <span className={CLASS_COLORS[character.baseClass]}>
+                          {CLASS_ICONS[character.baseClass]} {character.baseClass.charAt(0).toUpperCase() + character.baseClass.slice(1)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-gray-700/30">
+                        <span className="text-gray-400">Hidden Class</span>
+                        <span className={character.hiddenClass !== 'none' ? 'text-purple-400' : 'text-gray-600'}>
+                          {character.hiddenClass !== 'none' 
+                            ? `${HIDDEN_CLASS_ICONS[character.hiddenClass] || ''} ${character.hiddenClass}` 
+                            : 'Not Unlocked'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-gray-700/30">
+                        <span className="text-gray-400">Level</span>
+                        <span className="text-amber-400">{character.level}</span>
+                      </div>
                     </div>
                     <div className="space-y-4">
-                      <div className="flex justify-between py-2 border-b border-gray-700/30"><span className="text-gray-400">Current Tower</span><span className="text-white">{character.currentTower}</span></div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30"><span className="text-gray-400">Current Floor</span><span className="text-white">{character.currentFloor}</span></div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30"><span className="text-gray-400">Gold</span><span className="text-amber-400">💰 {character.gold}</span></div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30"><span className="text-gray-400">Memory Crystals</span><span className="text-cyan-400">💎 {character.memoryCrystals}</span></div>
+                      <div className="flex justify-between py-2 border-b border-gray-700/30">
+                        <span className="text-gray-400">Current Tower</span>
+                        <span className="text-white">{character.currentTower}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-gray-700/30">
+                        <span className="text-gray-400">Current Floor</span>
+                        <span className="text-white">{character.currentFloor}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-gray-700/30">
+                        <span className="text-gray-400">Gold</span>
+                        <span className="text-amber-400">💰 {character.gold}</span>
+                      </div>
+                      <div className="flex justify-between py-2 border-b border-gray-700/30">
+                        <span className="text-gray-400">Memory Crystals</span>
+                        <span className="text-cyan-400">💎 {character.memoryCrystals}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
+
+                {/* NEW: Combat Stats Card */}
+                {derivedStats && (
+                  <div className="bg-void-800/50 rounded-xl p-6 neon-border">
+                    <h3 className="font-display text-lg text-purple-400 mb-4">⚔️ COMBAT STATS</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-red-500/20">
+                        <div className="text-2xl font-bold text-red-400">{derivedStats.pDmg}</div>
+                        <div className="text-xs text-gray-500">⚔️ P.DMG</div>
+                      </div>
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-purple-500/20">
+                        <div className="text-2xl font-bold text-purple-400">{derivedStats.mDmg}</div>
+                        <div className="text-xs text-gray-500">✨ M.DMG</div>
+                      </div>
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-yellow-500/20">
+                        <div className="text-2xl font-bold text-yellow-400">{derivedStats.critRate.toFixed(1)}%</div>
+                        <div className="text-xs text-gray-500">🎯 Crit Rate</div>
+                      </div>
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-orange-500/20">
+                        <div className="text-2xl font-bold text-orange-400">{derivedStats.critDmg}%</div>
+                        <div className="text-xs text-gray-500">💥 Crit DMG</div>
+                      </div>
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-blue-500/20">
+                        <div className="text-2xl font-bold text-blue-400">{derivedStats.accuracy.toFixed(1)}%</div>
+                        <div className="text-xs text-gray-500">👁️ Accuracy</div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-gray-500/20">
+                        <div className="text-2xl font-bold text-gray-300">{derivedStats.pDef}</div>
+                        <div className="text-xs text-gray-500">🛡️ P.DEF</div>
+                      </div>
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-indigo-500/20">
+                        <div className="text-2xl font-bold text-indigo-400">{derivedStats.mDef}</div>
+                        <div className="text-xs text-gray-500">🔰 M.DEF</div>
+                      </div>
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-cyan-500/20">
+                        <div className="text-2xl font-bold text-cyan-400">{derivedStats.evasion.toFixed(1)}%</div>
+                        <div className="text-xs text-gray-500">💨 Evasion</div>
+                      </div>
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-green-500/20">
+                        <div className="text-2xl font-bold text-green-400">{derivedStats.hpRegen}</div>
+                        <div className="text-xs text-gray-500">💚 HP Regen</div>
+                      </div>
+                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-blue-500/20">
+                        <div className="text-2xl font-bold text-blue-400">{derivedStats.mpRegen}</div>
+                        <div className="text-xs text-gray-500">💙 MP Regen</div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 text-xs text-gray-600 grid grid-cols-2 md:grid-cols-3 gap-2">
+                      <div>💪 STR → P.DMG, P.DEF</div>
+                      <div>⚡ AGI → Crit Rate, Evasion</div>
+                      <div>🎯 DEX → Accuracy, Crit DMG</div>
+                      <div>🔮 INT → M.DMG, M.DEF, MP Regen</div>
+                      <div>❤️ VIT → HP, HP Regen, DEF</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Statistics Card */}
                 <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                  <h3 className="font-display text-lg text-purple-400 mb-4">STATISTICS</h3>
+                  <h3 className="font-display text-lg text-purple-400 mb-4">📈 STATISTICS</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center p-3 bg-void-900/50 rounded-lg"><div className="text-2xl font-bold text-red-400">{character.statistics?.totalKills || 0}</div><div className="text-xs text-gray-500">Total Kills</div></div>
-                    <div className="text-center p-3 bg-void-900/50 rounded-lg"><div className="text-2xl font-bold text-purple-400">{character.statistics?.bossKills || 0}</div><div className="text-xs text-gray-500">Boss Kills</div></div>
-                    <div className="text-center p-3 bg-void-900/50 rounded-lg"><div className="text-2xl font-bold text-blue-400">{character.statistics?.floorsCleared || 0}</div><div className="text-xs text-gray-500">Floors Cleared</div></div>
-                    <div className="text-center p-3 bg-void-900/50 rounded-lg"><div className="text-2xl font-bold text-amber-400">{character.statistics?.scrollsFound || 0}</div><div className="text-xs text-gray-500">Scrolls Found</div></div>
+                    <div className="text-center p-3 bg-void-900/50 rounded-lg">
+                      <div className="text-2xl font-bold text-red-400">{character.statistics?.totalKills || 0}</div>
+                      <div className="text-xs text-gray-500">Total Kills</div>
+                    </div>
+                    <div className="text-center p-3 bg-void-900/50 rounded-lg">
+                      <div className="text-2xl font-bold text-purple-400">{character.statistics?.bossKills || 0}</div>
+                      <div className="text-xs text-gray-500">Boss Kills</div>
+                    </div>
+                    <div className="text-center p-3 bg-void-900/50 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-400">{character.statistics?.floorsCleared || 0}</div>
+                      <div className="text-xs text-gray-500">Floors Cleared</div>
+                    </div>
+                    <div className="text-center p-3 bg-void-900/50 rounded-lg">
+                      <div className="text-2xl font-bold text-amber-400">{character.statistics?.scrollsFound || 0}</div>
+                      <div className="text-xs text-gray-500">Scrolls Found</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -423,7 +568,7 @@ const GamePage = () => {
             )}
           </div>
 
-          <div ref={logRef} className="h-40 bg-void-900 border-t border-purple-500/10 p-3 overflow-auto">
+          <div className="h-40 bg-void-900 border-t border-purple-500/10 p-3 overflow-auto">
             <div className="font-mono text-xs space-y-1">
               {gameLog.map((log, index) => (
                 <div key={index} className={(log.type === 'system' ? 'text-purple-400' : log.type === 'success' ? 'text-green-400' : log.type === 'error' ? 'text-red-400' : log.type === 'combat' ? 'text-amber-400' : 'text-gray-400')}>
