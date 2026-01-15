@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { characterAPI } from '../services/api';
@@ -126,6 +126,14 @@ const GamePage = () => {
     { type: 'info', message: 'Hunter ' + (character?.name || 'Unknown') + ' has entered the realm.', timestamp: new Date() }
   ]);
   const navigate = useNavigate();
+  const logRef = useRef(null); // Ref for activity log auto-scroll
+
+  // Auto-scroll activity log to bottom when new entries added
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [gameLog]);
 
   useEffect(() => {
     const interval = setInterval(() => refreshCharacter(), 60000);
@@ -415,7 +423,7 @@ const GamePage = () => {
             )}
           </div>
 
-          <div className="h-40 bg-void-900 border-t border-purple-500/10 p-3 overflow-auto">
+          <div ref={logRef} className="h-40 bg-void-900 border-t border-purple-500/10 p-3 overflow-auto">
             <div className="font-mono text-xs space-y-1">
               {gameLog.map((log, index) => (
                 <div key={index} className={(log.type === 'system' ? 'text-purple-400' : log.type === 'success' ? 'text-green-400' : log.type === 'error' ? 'text-red-400' : log.type === 'combat' ? 'text-amber-400' : 'text-gray-400')}>
