@@ -986,7 +986,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
 
   // Main render
   return (
-    <div className="bg-gray-800 rounded-lg p-4 neon-border">
+    <div className="bg-void-800/50 rounded-xl p-6 neon-border">
       {gameState === 'tower_select' && renderTowerSelect()}
       {gameState === 'floor_select' && renderFloorSelect()}
       {gameState === 'in_tower' && renderInTower()}
