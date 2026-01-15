@@ -3,38 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI, gmAPI, tavernAPI } from '../services/api';
 
-// ============================================================
-// PHASE 7: Hidden Class Icons & Base Class Mapping
-// ============================================================
-const HIDDEN_CLASS_ICONS = {
-  // Swordsman
-  flameblade: '🔥', berserker: '💢', paladin: '✨', earthshaker: '🌍', frostguard: '❄️',
-  // Thief
-  shadowDancer: '🌑', venomancer: '🐍', assassin: '⚫', phantom: '👻', bloodreaper: '🩸',
-  // Archer
-  stormRanger: '⚡', pyroArcher: '🔥', frostSniper: '❄️', natureWarden: '🌿', voidHunter: '🌀',
-  // Mage
-  frostWeaver: '❄️', pyromancer: '🔥', stormcaller: '⚡', necromancer: '💀', arcanist: '✨'
-};
-
-const HIDDEN_CLASS_BASE = {
-  // Swordsman
-  flameblade: 'Swordsman', berserker: 'Swordsman', paladin: 'Swordsman', earthshaker: 'Swordsman', frostguard: 'Swordsman',
-  // Thief
-  shadowDancer: 'Thief', venomancer: 'Thief', assassin: 'Thief', phantom: 'Thief', bloodreaper: 'Thief',
-  // Archer
-  stormRanger: 'Archer', pyroArcher: 'Archer', frostSniper: 'Archer', natureWarden: 'Archer', voidHunter: 'Archer',
-  // Mage
-  frostWeaver: 'Mage', pyromancer: 'Mage', stormcaller: 'Mage', necromancer: 'Mage', arcanist: 'Mage'
-};
-
-const HIDDEN_CLASS_NAMES = {
-  flameblade: 'Flameblade', berserker: 'Berserker', paladin: 'Paladin', earthshaker: 'Earthshaker', frostguard: 'Frostguard',
-  shadowDancer: 'Shadow Dancer', venomancer: 'Venomancer', assassin: 'Assassin', phantom: 'Phantom', bloodreaper: 'Bloodreaper',
-  stormRanger: 'Storm Ranger', pyroArcher: 'Pyro Archer', frostSniper: 'Frost Sniper', natureWarden: 'Nature Warden', voidHunter: 'Void Hunter',
-  frostWeaver: 'Frost Weaver', pyromancer: 'Pyromancer', stormcaller: 'Stormcaller', necromancer: 'Necromancer', arcanist: 'Arcanist'
-};
-
 const GMDashboard = () => {
   const { user, logout, isAdmin } = useAuth();
   const [players, setPlayers] = useState([]);
@@ -66,20 +34,57 @@ const GMDashboard = () => {
     setIsLoading(false);
   };
 
+  // All 20 hidden classes for fallback
+  const ALL_HIDDEN_CLASSES = [
+    'flameblade', 'berserker', 'paladin', 'earthshaker', 'frostguard',
+    'shadowDancer', 'venomancer', 'assassin', 'phantom', 'bloodreaper',
+    'stormRanger', 'pyroArcher', 'frostSniper', 'natureWarden', 'voidHunter',
+    'frostWeaver', 'pyromancer', 'stormcaller', 'necromancer', 'arcanist'
+  ];
+
   const fetchHiddenClasses = async () => {
     try {
       const { data } = await gmAPI.getHiddenClasses();
-      // Convert object to array if needed
-      if (data.classes && !Array.isArray(data.classes)) {
-        const classesArray = Object.entries(data.classes).map(([classId, info]) => ({
+      
+      // Handle different response formats
+      let classesArray = [];
+      
+      if (Array.isArray(data.classes)) {
+        classesArray = data.classes;
+      } else if (data.classes && typeof data.classes === 'object') {
+        // Convert object to array
+        classesArray = Object.entries(data.classes).map(([classId, info]) => ({
           classId,
           ...info
         }));
-        setHiddenClasses(classesArray);
-      } else {
-        setHiddenClasses(data.classes || []);
       }
-    } catch (err) { console.error(err); }
+      
+      // If backend returns less than 20, fill with all 20 classes
+      if (classesArray.length < 20) {
+        const existingIds = classesArray.map(c => c.classId || c.id);
+        ALL_HIDDEN_CLASSES.forEach(classId => {
+          if (!existingIds.includes(classId)) {
+            classesArray.push({
+              classId,
+              ownerId: null,
+              ownerName: null,
+              isAvailable: true
+            });
+          }
+        });
+      }
+      
+      setHiddenClasses(classesArray);
+    } catch (err) { 
+      console.error(err);
+      // Fallback: show all 20 classes as available
+      setHiddenClasses(ALL_HIDDEN_CLASSES.map(classId => ({
+        classId,
+        ownerId: null,
+        ownerName: null,
+        isAvailable: true
+      })));
+    }
   };
 
   const fetchShop = async () => {
@@ -229,45 +234,65 @@ const GMDashboard = () => {
       await gmAPI.setLevel(selectedPlayer, parseInt(level));
       showMessage('success', 'Level set!');
       fetchPlayerDetails(selectedPlayer);
+    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
+  };
+
+  const handleAddItem = async (e) => {
+    e.preventDefault();
+    try {
+      await gmAPI.addItem(selectedPlayer, addItemForm);
+      showMessage('success', 'Item added!');
+      setShowAddItemModal(false);
+      setAddItemForm({ itemId: '', name: '', type: 'material', rarity: 'common', quantity: 1 });
+      fetchPlayerDetails(selectedPlayer);
+    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
+  };
+
+  const handleRemoveItem = async (index) => {
+    if (!confirm('Remove this item?')) return;
+    try {
+      await gmAPI.removeItem(selectedPlayer, index);
+      showMessage('success', 'Item removed');
+      fetchPlayerDetails(selectedPlayer);
     } catch (err) { showMessage('error', 'Failed'); }
+  };
+
+  const handleClearInventory = async () => {
+    if (!confirm('Clear ALL items?')) return;
+    try {
+      await gmAPI.clearInventory(selectedPlayer);
+      showMessage('success', 'Inventory cleared');
+      fetchPlayerDetails(selectedPlayer);
+    } catch (err) { showMessage('error', 'Failed'); }
+  };
+
+  const handleDeletePlayer = async () => {
+    const player = players.find(p => p._id === selectedPlayer);
+    if (!confirm('DELETE player ' + player?.username + '?')) return;
+    try {
+      await gmAPI.deletePlayer(selectedPlayer);
+      showMessage('success', 'Player deleted');
+      setSelectedPlayer(null);
+      setPlayerDetails(null);
+      fetchPlayers();
+      fetchHiddenClasses();
+    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
   };
 
   const handleToggleAccount = async (userId) => {
     try {
       await authAPI.toggleAccount(userId);
-      showMessage('success', 'Account status updated!');
       fetchPlayers();
-      if (selectedPlayer === userId) fetchPlayerDetails(userId);
     } catch (err) { showMessage('error', 'Failed'); }
   };
-
-  const handleAddItem = async (e) => {
-    e.preventDefault();
-    if (!addItemForm.itemId) return;
-    try {
-      await gmAPI.addItem(selectedPlayer, addItemForm.itemId, addItemForm.quantity);
-      showMessage('success', 'Item added!');
-      setAddItemForm({ itemId: '', name: '', type: 'material', rarity: 'common', quantity: 1 });
-      setShowAddItemModal(false);
-      setSearchResults([]);
-      fetchPlayerDetails(selectedPlayer);
-    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
-  };
-
-  // Calculate stats for display
-  const totalClasses = hiddenClasses.length || 20;
-  const claimedClasses = hiddenClasses.filter(c => c.ownerId || c.isAvailable === false).length;
-  const availableClasses = hiddenClasses.filter(c => !c.ownerId && c.isAvailable !== false).length;
-
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div></div>;
 
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-void-800 border-b border-purple-500/20 px-4 py-3">
-        <div className="flex items-center justify-between">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="font-display text-xl text-purple-400">APZ</h1>
-            <span className="px-2 py-1 bg-amber-600 rounded text-xs font-bold">👑 ADMIN</span>
+            <span className="text-amber-400 text-sm font-semibold">{isAdmin ? '👑 ADMIN' : '🔧 GM'}</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-gray-400 text-sm">{user?.username}</span>
@@ -294,11 +319,11 @@ const GMDashboard = () => {
               <div className="text-sm text-gray-500">Active</div>
             </div>
             <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-              <div className="text-3xl font-bold text-blue-400">{claimedClasses}/{totalClasses}</div>
+              <div className="text-3xl font-bold text-blue-400">{hiddenClasses.filter(c => c.ownerId).length}/20</div>
               <div className="text-sm text-gray-500">Classes Claimed</div>
             </div>
             <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-              <div className="text-3xl font-bold text-amber-400">{availableClasses}</div>
+              <div className="text-3xl font-bold text-amber-400">{hiddenClasses.filter(c => !c.ownerId).length}</div>
               <div className="text-sm text-gray-500">Available</div>
             </div>
           </div>
@@ -369,89 +394,109 @@ const GMDashboard = () => {
                           </div>
                           <div className="bg-void-900/50 p-3 rounded-lg">
                             <div className="text-gray-400 text-xs">Hidden Class</div>
-                            <div className="text-purple-400 capitalize">
-                              {playerDetails.character.hiddenClass !== 'none' 
-                                ? (HIDDEN_CLASS_ICONS[playerDetails.character.hiddenClass] || '📜') + ' ' + (HIDDEN_CLASS_NAMES[playerDetails.character.hiddenClass] || playerDetails.character.hiddenClass)
-                                : 'None'}
+                            <div className={playerDetails.character.hiddenClass !== 'none' ? 'text-purple-400' : 'text-gray-600'}>
+                              {playerDetails.character.hiddenClass !== 'none' ? playerDetails.character.hiddenClass : 'None'}
                             </div>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                          <div className="bg-void-900/50 p-3 rounded-lg">
-                            <div className="text-gray-400 text-xs">Gold</div>
-                            <div className="text-amber-400">💰 {playerDetails.character.gold}</div>
+                        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-6">
+                          <div className="bg-void-900/50 p-2 rounded text-center">
+                            <div className="text-xs text-gray-400">HP</div>
+                            <div className="text-green-400">{playerDetails.character.stats.hp}/{playerDetails.character.stats.maxHp}</div>
                           </div>
-                          <div className="bg-void-900/50 p-3 rounded-lg">
-                            <div className="text-gray-400 text-xs">HP</div>
-                            <div className="text-green-400">{playerDetails.character.stats?.hp}/{playerDetails.character.stats?.maxHp}</div>
+                          <div className="bg-void-900/50 p-2 rounded text-center">
+                            <div className="text-xs text-gray-400">MP</div>
+                            <div className="text-blue-400">{playerDetails.character.stats.mp}/{playerDetails.character.stats.maxMp}</div>
                           </div>
-                          <div className="bg-void-900/50 p-3 rounded-lg">
-                            <div className="text-gray-400 text-xs">MP</div>
-                            <div className="text-blue-400">{playerDetails.character.stats?.mp}/{playerDetails.character.stats?.maxMp}</div>
+                          <div className="bg-void-900/50 p-2 rounded text-center">
+                            <div className="text-xs text-gray-400">Energy</div>
+                            <div className="text-amber-400">{playerDetails.character.energy}/100</div>
                           </div>
-                          <div className="bg-void-900/50 p-3 rounded-lg">
-                            <div className="text-gray-400 text-xs">Energy</div>
-                            <div className="text-yellow-400">⚡ {playerDetails.character.energy}/100</div>
+                          <div className="bg-void-900/50 p-2 rounded text-center">
+                            <div className="text-xs text-gray-400">Gold</div>
+                            <div className="text-yellow-400">{playerDetails.character.gold}</div>
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                          <div className="bg-void-900/50 p-3 rounded-lg">
-                            <div className="text-gray-400 text-xs">Tower</div>
+                          <div className="bg-void-900/50 p-2 rounded text-center">
+                            <div className="text-xs text-gray-400">Tower</div>
                             <div className="text-white">{playerDetails.character.currentTower}</div>
                           </div>
-                          <div className="bg-void-900/50 p-3 rounded-lg">
-                            <div className="text-gray-400 text-xs">Floor</div>
+                          <div className="bg-void-900/50 p-2 rounded text-center">
+                            <div className="text-xs text-gray-400">Floor</div>
                             <div className="text-white">{playerDetails.character.currentFloor}</div>
-                          </div>
-                          <div className="bg-void-900/50 p-3 rounded-lg">
-                            <div className="text-gray-400 text-xs">Stat Points</div>
-                            <div className="text-purple-400">{playerDetails.character.statPoints}</div>
-                          </div>
-                          <div className="bg-void-900/50 p-3 rounded-lg">
-                            <div className="text-gray-400 text-xs">In Tower</div>
-                            <div className={playerDetails.character.isInTower ? 'text-red-400' : 'text-green-400'}>
-                              {playerDetails.character.isInTower ? 'Yes' : 'No'}
-                            </div>
                           </div>
                         </div>
 
-                        <h4 className="text-gray-400 text-sm mb-3">GM Actions</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          <button onClick={handleRefreshEnergy} className="px-3 py-2 bg-yellow-600 hover:bg-yellow-500 rounded text-sm">⚡ Max Energy</button>
-                          <button onClick={handleHealPlayer} className="px-3 py-2 bg-green-600 hover:bg-green-500 rounded text-sm">❤️ Full Heal</button>
-                          <button onClick={() => handleAddGold(1000)} className="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-sm">💰 +1000g</button>
-                          <button onClick={() => handleAddGold(10000)} className="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-sm">💰 +10000g</button>
-                          <button onClick={handleSetLevel} className="px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded text-sm">📊 Set Level</button>
-                          <button onClick={handleResetStats} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm">🔄 Reset Stats</button>
-                          <button onClick={handleResetProgress} className="px-3 py-2 bg-orange-600 hover:bg-orange-500 rounded text-sm">🗼 Reset Tower</button>
-                          <button onClick={handleRemoveHiddenClass} disabled={playerDetails.character.hiddenClass === 'none'}
-                            className="px-3 py-2 bg-red-600 hover:bg-red-500 rounded text-sm disabled:opacity-50">📜 Remove Class</button>
-                          <button onClick={() => setShowAddItemModal(true)} className="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-sm col-span-2">🎒 Add Item</button>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
+                          <button onClick={handleRefreshEnergy} className="btn-secondary text-sm py-2">⚡ Energy</button>
+                          <button onClick={handleHealPlayer} className="btn-secondary text-sm py-2">❤️ Heal</button>
+                          <button onClick={() => handleAddGold(1000)} className="btn-secondary text-sm py-2">💰 +1000g</button>
+                          <button onClick={handleSetLevel} className="btn-secondary text-sm py-2">📈 Level</button>
+                          <button onClick={handleResetStats} className="btn-secondary text-sm py-2">🔄 Stats</button>
+                          <button onClick={handleResetProgress} className="btn-secondary text-sm py-2">🗼 Tower</button>
+                          {playerDetails.character.hiddenClass !== 'none' && (
+                            <button onClick={handleRemoveHiddenClass} className="btn-secondary text-sm py-2">📜 Class</button>
+                          )}
+                          <button onClick={handleDeletePlayer} className="btn-danger text-sm py-2">🗑️ Delete</button>
+                        </div>
+
+                        <div className="bg-void-900/50 rounded-lg p-4">
+                          <div className="flex justify-between items-center mb-3">
+                            <h4 className="text-gray-400">Inventory ({playerDetails.character.inventory?.length || 0}/{playerDetails.character.inventorySize})</h4>
+                            <div className="flex gap-2">
+                              <button onClick={() => setShowAddItemModal(true)} className="text-xs bg-green-600 px-2 py-1 rounded">+ Add</button>
+                              <button onClick={handleClearInventory} className="text-xs bg-red-600 px-2 py-1 rounded">Clear</button>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-4 md:grid-cols-6 gap-2 max-h-40 overflow-auto">
+                            {playerDetails.character.inventory?.map((item, i) => (
+                              <div key={i} onClick={() => handleRemoveItem(i)} title={item.name + ' x' + item.quantity}
+                                className="bg-void-800 p-2 rounded text-center cursor-pointer hover:bg-red-900/30">
+                                <div className="text-lg">{item.icon || '📦'}</div>
+                                <div className="text-xs text-gray-400 truncate">{item.name}</div>
+                                <div className="text-xs text-gray-500">x{item.quantity}</div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-gray-500 text-center py-8">No character created</p>
+                      <p className="text-gray-400 text-center py-8">No character yet</p>
                     )}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-8">Select a player to view details</p>
+                  <p className="text-gray-400 text-center py-8">Select a player</p>
                 )}
               </div>
             </div>
           )}
 
-          {/* PHASE 7: Hidden Classes Tab - Now shows 20 classes */}
           {activeTab === 'classes' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {hiddenClasses.map(cls => {
                 const classId = cls.classId || cls.id;
-                const icon = HIDDEN_CLASS_ICONS[classId] || '📜';
-                const name = HIDDEN_CLASS_NAMES[classId] || classId;
-                const baseClass = HIDDEN_CLASS_BASE[classId] || cls.baseClass || 'Unknown';
+                const ICONS = {
+                  flameblade: '🔥', berserker: '💢', paladin: '✨', earthshaker: '🌍', frostguard: '❄️',
+                  shadowDancer: '🌑', venomancer: '🐍', assassin: '⚫', phantom: '👻', bloodreaper: '🩸',
+                  stormRanger: '⚡', pyroArcher: '🔥', frostSniper: '❄️', natureWarden: '🌿', voidHunter: '🌀',
+                  frostWeaver: '❄️', pyromancer: '🔥', stormcaller: '⚡', necromancer: '💀', arcanist: '✨'
+                };
+                const NAMES = {
+                  flameblade: 'Flameblade', berserker: 'Berserker', paladin: 'Paladin', earthshaker: 'Earthshaker', frostguard: 'Frostguard',
+                  shadowDancer: 'Shadow Dancer', venomancer: 'Venomancer', assassin: 'Assassin', phantom: 'Phantom', bloodreaper: 'Bloodreaper',
+                  stormRanger: 'Storm Ranger', pyroArcher: 'Pyro Archer', frostSniper: 'Frost Sniper', natureWarden: 'Nature Warden', voidHunter: 'Void Hunter',
+                  frostWeaver: 'Frost Weaver', pyromancer: 'Pyromancer', stormcaller: 'Stormcaller', necromancer: 'Necromancer', arcanist: 'Arcanist'
+                };
+                const BASES = {
+                  flameblade: 'Swordsman', berserker: 'Swordsman', paladin: 'Swordsman', earthshaker: 'Swordsman', frostguard: 'Swordsman',
+                  shadowDancer: 'Thief', venomancer: 'Thief', assassin: 'Thief', phantom: 'Thief', bloodreaper: 'Thief',
+                  stormRanger: 'Archer', pyroArcher: 'Archer', frostSniper: 'Archer', natureWarden: 'Archer', voidHunter: 'Archer',
+                  frostWeaver: 'Mage', pyromancer: 'Mage', stormcaller: 'Mage', necromancer: 'Mage', arcanist: 'Mage'
+                };
+                const icon = ICONS[classId] || '📜';
+                const name = NAMES[classId] || classId;
+                const baseClass = BASES[classId] || 'Unknown';
                 const isOwned = cls.ownerId || cls.isAvailable === false;
-                const ownerName = cls.ownerName || '';
                 
                 return (
                   <div key={classId} className={'bg-void-800/50 rounded-xl p-4 border-2 ' + (isOwned ? 'border-purple-500/50' : 'border-green-500/50')}>
@@ -459,14 +504,14 @@ const GMDashboard = () => {
                     <h3 className="font-display text-lg text-white text-center mb-1">{name}</h3>
                     <p className="text-gray-400 text-xs text-center mb-3">Requires: {baseClass}</p>
                     <div className={'text-center py-2 rounded text-sm ' + (isOwned ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400')}>
-                      {isOwned ? (ownerName ? 'Owned: ' + ownerName : 'Claimed') : 'Available'}
+                      {isOwned ? (cls.ownerName ? 'Owned: ' + cls.ownerName : 'Claimed') : 'Available'}
                     </div>
                   </div>
                 );
               })}
               {hiddenClasses.length === 0 && (
                 <div className="col-span-full text-center text-gray-500 py-8">
-                  No hidden classes found. Check backend connection.
+                  No hidden classes found.
                 </div>
               )}
             </div>
