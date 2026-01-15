@@ -3,88 +3,121 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI, gmAPI, tavernAPI } from '../services/api';
 
-var GMDashboard = function() {
-  var auth = useAuth();
-  var user = auth.user;
-  var logout = auth.logout;
-  var isAdmin = auth.isAdmin;
-  
-  var [players, setPlayers] = useState([]);
-  var [hiddenClasses, setHiddenClasses] = useState([]);
-  var [isLoading, setIsLoading] = useState(true);
-  var [activeTab, setActiveTab] = useState('players');
-  var [selectedPlayer, setSelectedPlayer] = useState(null);
-  var [playerDetails, setPlayerDetails] = useState(null);
-  var [showCreateModal, setShowCreateModal] = useState(false);
-  var [showAddItemModal, setShowAddItemModal] = useState(false);
-  var [showGoldModal, setShowGoldModal] = useState(false);
-  var [showStatsModal, setShowStatsModal] = useState(false);
-  var [createForm, setCreateForm] = useState({ username: '', password: '', role: 'player' });
-  var [addItemForm, setAddItemForm] = useState({ itemId: '', name: '', type: 'material', rarity: 'common', quantity: 1 });
-  var [goldAmount, setGoldAmount] = useState(1000);
-  var [editStats, setEditStats] = useState({ str: 0, agi: 0, dex: 0, int: 0, vit: 0 });
-  var [message, setMessage] = useState({ type: '', text: '' });
-  var [shopItems, setShopItems] = useState([]);
-  var [itemSearch, setItemSearch] = useState('');
-  var [searchResults, setSearchResults] = useState([]);
-  var [selectedItem, setSelectedItem] = useState(null);
-  var [newShopPrice, setNewShopPrice] = useState(10);
-  var [tradingListings, setTradingListings] = useState([]);
-  var navigate = useNavigate();
+// ============================================================
+// PHASE 7: Hidden Class Icons & Base Class Mapping
+// ============================================================
+const HIDDEN_CLASS_ICONS = {
+  // Swordsman
+  flameblade: '🔥', berserker: '💢', paladin: '✨', earthshaker: '🌍', frostguard: '❄️',
+  // Thief
+  shadowDancer: '🌑', venomancer: '🐍', assassin: '⚫', phantom: '👻', bloodreaper: '🩸',
+  // Archer
+  stormRanger: '⚡', pyroArcher: '🔥', frostSniper: '❄️', natureWarden: '🌿', voidHunter: '🌀',
+  // Mage
+  frostWeaver: '❄️', pyromancer: '🔥', stormcaller: '⚡', necromancer: '💀', arcanist: '✨'
+};
 
-  useEffect(function() { fetchPlayers(); fetchHiddenClasses(); fetchShop(); fetchTrading(); }, []);
+const HIDDEN_CLASS_BASE = {
+  // Swordsman
+  flameblade: 'Swordsman', berserker: 'Swordsman', paladin: 'Swordsman', earthshaker: 'Swordsman', frostguard: 'Swordsman',
+  // Thief
+  shadowDancer: 'Thief', venomancer: 'Thief', assassin: 'Thief', phantom: 'Thief', bloodreaper: 'Thief',
+  // Archer
+  stormRanger: 'Archer', pyroArcher: 'Archer', frostSniper: 'Archer', natureWarden: 'Archer', voidHunter: 'Archer',
+  // Mage
+  frostWeaver: 'Mage', pyromancer: 'Mage', stormcaller: 'Mage', necromancer: 'Mage', arcanist: 'Mage'
+};
 
-  var fetchPlayers = async function() {
+const HIDDEN_CLASS_NAMES = {
+  flameblade: 'Flameblade', berserker: 'Berserker', paladin: 'Paladin', earthshaker: 'Earthshaker', frostguard: 'Frostguard',
+  shadowDancer: 'Shadow Dancer', venomancer: 'Venomancer', assassin: 'Assassin', phantom: 'Phantom', bloodreaper: 'Bloodreaper',
+  stormRanger: 'Storm Ranger', pyroArcher: 'Pyro Archer', frostSniper: 'Frost Sniper', natureWarden: 'Nature Warden', voidHunter: 'Void Hunter',
+  frostWeaver: 'Frost Weaver', pyromancer: 'Pyromancer', stormcaller: 'Stormcaller', necromancer: 'Necromancer', arcanist: 'Arcanist'
+};
+
+const GMDashboard = () => {
+  const { user, logout, isAdmin } = useAuth();
+  const [players, setPlayers] = useState([]);
+  const [hiddenClasses, setHiddenClasses] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('players');
+  const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [playerDetails, setPlayerDetails] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ username: '', password: '', role: 'player' });
+  const [addItemForm, setAddItemForm] = useState({ itemId: '', name: '', type: 'material', rarity: 'common', quantity: 1 });
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const [shopItems, setShopItems] = useState([]);
+  const [itemSearch, setItemSearch] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [newShopPrice, setNewShopPrice] = useState(10);
+  const [tradingListings, setTradingListings] = useState([]);
+  const navigate = useNavigate();
+
+  useEffect(() => { fetchPlayers(); fetchHiddenClasses(); fetchShop(); fetchTrading(); }, []);
+
+  const fetchPlayers = async () => {
     try {
-      var response = await authAPI.getPlayers();
-      setPlayers(response.data.players);
+      const { data } = await authAPI.getPlayers();
+      setPlayers(data.players);
     } catch (err) { console.error(err); }
     setIsLoading(false);
   };
 
-  var fetchHiddenClasses = async function() {
+  const fetchHiddenClasses = async () => {
     try {
-      var response = await gmAPI.getHiddenClasses();
-      setHiddenClasses(response.data.classes);
+      const { data } = await gmAPI.getHiddenClasses();
+      // Convert object to array if needed
+      if (data.classes && !Array.isArray(data.classes)) {
+        const classesArray = Object.entries(data.classes).map(([classId, info]) => ({
+          classId,
+          ...info
+        }));
+        setHiddenClasses(classesArray);
+      } else {
+        setHiddenClasses(data.classes || []);
+      }
     } catch (err) { console.error(err); }
   };
 
-  var fetchShop = async function() {
+  const fetchShop = async () => {
     try {
-      var response = await tavernAPI.getGMShop();
-      setShopItems(response.data.shop.items);
+      const { data } = await tavernAPI.getGMShop();
+      setShopItems(data.shop.items);
     } catch (err) { console.error(err); }
   };
 
-  var fetchTrading = async function() {
+  const fetchTrading = async () => {
     try {
-      var response = await gmAPI.getTradingListings();
-      setTradingListings(response.data.listings || []);
+      const { data } = await gmAPI.getTradingListings();
+      setTradingListings(data.listings || []);
     } catch (err) { console.error(err); }
   };
 
-  var handleRemoveListing = async function(listingId) {
+  const handleRemoveListing = async (listingId) => {
     if (!confirm('Remove this listing? Item will be returned to seller if they exist.')) return;
     try {
-      var response = await gmAPI.removeTradingListing(listingId);
-      showMessage('success', response.data.message);
+      const { data } = await gmAPI.removeTradingListing(listingId);
+      showMessage('success', data.message);
       fetchTrading();
     } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
   };
 
-  var handleItemSearch = async function(query) {
+  const handleItemSearch = async (query) => {
     setItemSearch(query);
     if (query.length < 1) {
       setSearchResults([]);
       return;
     }
     try {
-      var response = await tavernAPI.searchItems(query);
-      setSearchResults(response.data.items.slice(0, 10));
+      const { data } = await tavernAPI.searchItems(query);
+      setSearchResults(data.items.slice(0, 10));
     } catch (err) { console.error(err); }
   };
 
-  var handleAddToShop = async function() {
+  const handleAddToShop = async () => {
     if (!selectedItem) return;
     try {
       await tavernAPI.addToShop(selectedItem.id, newShopPrice, -1);
@@ -96,7 +129,7 @@ var GMDashboard = function() {
     } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
   };
 
-  var handleUpdateShopPrice = async function(itemId, newPrice) {
+  const handleUpdateShopPrice = async (itemId, newPrice) => {
     try {
       await tavernAPI.updateShopItem(itemId, { price: newPrice });
       showMessage('success', 'Price updated');
@@ -104,7 +137,7 @@ var GMDashboard = function() {
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
-  var handleRemoveFromShop = async function(itemId) {
+  const handleRemoveFromShop = async (itemId) => {
     if (!confirm('Remove from shop?')) return;
     try {
       await tavernAPI.removeFromShop(itemId);
@@ -113,20 +146,20 @@ var GMDashboard = function() {
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
-  var fetchPlayerDetails = async function(userId) {
+  const fetchPlayerDetails = async (userId) => {
     try {
-      var response = await gmAPI.getPlayer(userId);
-      setPlayerDetails(response.data);
+      const { data } = await gmAPI.getPlayer(userId);
+      setPlayerDetails(data);
       setSelectedPlayer(userId);
     } catch (err) { showMessage('error', 'Failed to load player'); }
   };
 
-  var showMessage = function(type, text) {
-    setMessage({ type: type, text: text });
-    setTimeout(function() { setMessage({ type: '', text: '' }); }, 3000);
+  const showMessage = (type, text) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage({ type: '', text: '' }), 3000);
   };
 
-  var handleCreateAccount = async function(e) {
+  const handleCreateAccount = async (e) => {
     e.preventDefault();
     try {
       await authAPI.createAccount(createForm.username, createForm.password, createForm.role);
@@ -137,7 +170,7 @@ var GMDashboard = function() {
     } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
   };
 
-  var handleRefreshEnergy = async function() {
+  const handleRefreshEnergy = async () => {
     try {
       await gmAPI.refreshEnergy(selectedPlayer);
       showMessage('success', 'Energy refreshed!');
@@ -145,7 +178,7 @@ var GMDashboard = function() {
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
-  var handleHealPlayer = async function() {
+  const handleHealPlayer = async () => {
     try {
       await gmAPI.healPlayer(selectedPlayer);
       showMessage('success', 'Player healed!');
@@ -153,44 +186,16 @@ var GMDashboard = function() {
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
-  var handleAddGold = async function() {
+  const handleAddGold = async (amount) => {
     try {
-      await gmAPI.addGold(selectedPlayer, goldAmount);
-      showMessage('success', 'Gold updated! ' + (goldAmount >= 0 ? '+' : '') + goldAmount + 'g');
+      await gmAPI.addGold(selectedPlayer, amount);
+      showMessage('success', 'Gold updated!');
       fetchPlayerDetails(selectedPlayer);
-      setShowGoldModal(false);
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
-  var handleOpenGoldModal = function() {
-    setGoldAmount(1000);
-    setShowGoldModal(true);
-  };
-
-  var handleOpenStatsModal = function() {
-    if (playerDetails && playerDetails.character && playerDetails.character.stats) {
-      setEditStats({
-        str: playerDetails.character.stats.str || 0,
-        agi: playerDetails.character.stats.agi || 0,
-        dex: playerDetails.character.stats.dex || 0,
-        int: playerDetails.character.stats.int || 0,
-        vit: playerDetails.character.stats.vit || 0
-      });
-    }
-    setShowStatsModal(true);
-  };
-
-  var handleSaveStats = async function() {
-    try {
-      await gmAPI.editStats(selectedPlayer, editStats);
-      showMessage('success', 'Stats updated!');
-      fetchPlayerDetails(selectedPlayer);
-      setShowStatsModal(false);
-    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
-  };
-
-  var handleResetStats = async function() {
-    if (!confirm('Reset all stats to base values?')) return;
+  const handleResetStats = async () => {
+    if (!confirm('Reset all stats?')) return;
     try {
       await gmAPI.resetStats(selectedPlayer);
       showMessage('success', 'Stats reset!');
@@ -198,7 +203,7 @@ var GMDashboard = function() {
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
-  var handleResetProgress = async function() {
+  const handleResetProgress = async () => {
     if (!confirm('Reset tower progress?')) return;
     try {
       await gmAPI.resetProgress(selectedPlayer);
@@ -207,7 +212,7 @@ var GMDashboard = function() {
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
-  var handleRemoveHiddenClass = async function() {
+  const handleRemoveHiddenClass = async () => {
     if (!confirm('Remove hidden class?')) return;
     try {
       await gmAPI.removeHiddenClass(selectedPlayer);
@@ -217,77 +222,56 @@ var GMDashboard = function() {
     } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
   };
 
-  var handleSetLevel = async function() {
-    var level = prompt('Set level (1-200):', playerDetails?.character?.level || 1);
+  const handleSetLevel = async () => {
+    const level = prompt('Set level (1-50):', playerDetails?.character?.level || 1);
     if (!level) return;
     try {
       await gmAPI.setLevel(selectedPlayer, parseInt(level));
       showMessage('success', 'Level set!');
       fetchPlayerDetails(selectedPlayer);
-    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
-  };
-
-  var handleAddItem = async function(e) {
-    e.preventDefault();
-    try {
-      await gmAPI.addItem(selectedPlayer, addItemForm);
-      showMessage('success', 'Item added!');
-      setShowAddItemModal(false);
-      setAddItemForm({ itemId: '', name: '', type: 'material', rarity: 'common', quantity: 1 });
-      fetchPlayerDetails(selectedPlayer);
-    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
-  };
-
-  var handleRemoveItem = async function(index) {
-    if (!confirm('Remove this item?')) return;
-    try {
-      await gmAPI.removeItem(selectedPlayer, index);
-      showMessage('success', 'Item removed');
-      fetchPlayerDetails(selectedPlayer);
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
-  var handleClearInventory = async function() {
-    if (!confirm('Clear ALL items?')) return;
-    try {
-      await gmAPI.clearInventory(selectedPlayer);
-      showMessage('success', 'Inventory cleared');
-      fetchPlayerDetails(selectedPlayer);
-    } catch (err) { showMessage('error', 'Failed'); }
-  };
-
-  var handleDeletePlayer = async function() {
-    var player = players.find(function(p) { return p._id === selectedPlayer; });
-    if (!confirm('DELETE player ' + player?.username + '?')) return;
-    try {
-      await gmAPI.deletePlayer(selectedPlayer);
-      showMessage('success', 'Player deleted');
-      setSelectedPlayer(null);
-      setPlayerDetails(null);
-      fetchPlayers();
-      fetchHiddenClasses();
-    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
-  };
-
-  var handleToggleAccount = async function(userId) {
+  const handleToggleAccount = async (userId) => {
     try {
       await authAPI.toggleAccount(userId);
+      showMessage('success', 'Account status updated!');
       fetchPlayers();
       if (selectedPlayer === userId) fetchPlayerDetails(userId);
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
+  const handleAddItem = async (e) => {
+    e.preventDefault();
+    if (!addItemForm.itemId) return;
+    try {
+      await gmAPI.addItem(selectedPlayer, addItemForm.itemId, addItemForm.quantity);
+      showMessage('success', 'Item added!');
+      setAddItemForm({ itemId: '', name: '', type: 'material', rarity: 'common', quantity: 1 });
+      setShowAddItemModal(false);
+      setSearchResults([]);
+      fetchPlayerDetails(selectedPlayer);
+    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
+  };
+
+  // Calculate stats for display
+  const totalClasses = hiddenClasses.length || 20;
+  const claimedClasses = hiddenClasses.filter(c => c.ownerId || c.isAvailable === false).length;
+  const availableClasses = hiddenClasses.filter(c => !c.ownerId && c.isAvailable !== false).length;
+
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div></div>;
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-void-800 border-b border-purple-500/20 px-4 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="font-display text-xl text-purple-400">APZ</h1>
-            <span className="text-amber-400 text-sm font-semibold">{isAdmin ? '👑 ADMIN' : '🔧 GM'}</span>
+            <span className="px-2 py-1 bg-amber-600 rounded text-xs font-bold">👑 ADMIN</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-gray-400 text-sm">{user?.username}</span>
-            <button onClick={function() { logout(); navigate('/login'); }} className="text-gray-400 hover:text-red-400 text-sm">Logout</button>
+            <button onClick={() => { logout(); navigate('/login'); }} className="text-gray-400 hover:text-red-400 text-sm">Logout</button>
           </div>
         </div>
       </header>
@@ -306,57 +290,55 @@ var GMDashboard = function() {
               <div className="text-sm text-gray-500">Players</div>
             </div>
             <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-              <div className="text-3xl font-bold text-green-400">{players.filter(function(p) { return p.isActive; }).length}</div>
+              <div className="text-3xl font-bold text-green-400">{players.filter(p => p.isActive).length}</div>
               <div className="text-sm text-gray-500">Active</div>
             </div>
             <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-              <div className="text-3xl font-bold text-blue-400">{hiddenClasses.filter(function(c) { return c.ownerId; }).length}/4</div>
+              <div className="text-3xl font-bold text-blue-400">{claimedClasses}/{totalClasses}</div>
               <div className="text-sm text-gray-500">Classes Claimed</div>
             </div>
             <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-              <div className="text-3xl font-bold text-amber-400">{hiddenClasses.filter(function(c) { return !c.ownerId; }).length}</div>
+              <div className="text-3xl font-bold text-amber-400">{availableClasses}</div>
               <div className="text-sm text-gray-500">Available</div>
             </div>
           </div>
 
           <div className="flex gap-2 mb-6 flex-wrap">
-            <button onClick={function() { setActiveTab('players'); }} className={'px-4 py-2 rounded-lg ' + (activeTab === 'players' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
+            <button onClick={() => setActiveTab('players')} className={'px-4 py-2 rounded-lg ' + (activeTab === 'players' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
               👥 Players
             </button>
-            <button onClick={function() { setActiveTab('classes'); }} className={'px-4 py-2 rounded-lg ' + (activeTab === 'classes' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
+            <button onClick={() => setActiveTab('classes')} className={'px-4 py-2 rounded-lg ' + (activeTab === 'classes' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
               📜 Hidden Classes
             </button>
-            <button onClick={function() { setActiveTab('tavern'); }} className={'px-4 py-2 rounded-lg ' + (activeTab === 'tavern' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
+            <button onClick={() => setActiveTab('tavern')} className={'px-4 py-2 rounded-lg ' + (activeTab === 'tavern' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
               🍺 Tavern Shop
             </button>
-            <button onClick={function() { setActiveTab('trading'); }} className={'px-4 py-2 rounded-lg ' + (activeTab === 'trading' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
+            <button onClick={() => setActiveTab('trading')} className={'px-4 py-2 rounded-lg ' + (activeTab === 'trading' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
               🔄 Trading
             </button>
-            <button onClick={function() { setShowCreateModal(true); }} className="px-4 py-2 rounded-lg bg-green-600 text-white">➕ Create Account</button>
+            <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 rounded-lg bg-green-600 text-white">➕ Create Account</button>
           </div>
 
           {activeTab === 'players' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1 bg-void-800/50 rounded-xl p-4 neon-border max-h-96 overflow-auto">
                 <h3 className="font-display text-lg text-purple-400 mb-4">Player List</h3>
-                {players.map(function(player) {
-                  return (
-                    <div key={player._id} onClick={function() { fetchPlayerDetails(player._id); }}
-                      className={'p-3 rounded-lg mb-2 cursor-pointer transition-colors ' + (selectedPlayer === player._id ? 'bg-purple-600/30 border border-purple-500' : 'bg-void-700/50 hover:bg-void-700')}>
-                      <div className="flex justify-between items-center">
-                        <span className="text-white">{player.username}</span>
-                        <span className={'text-xs px-2 py-1 rounded ' + (player.isActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')}>
-                          {player.isActive ? 'Active' : 'Disabled'}
-                        </span>
-                      </div>
-                      {player.character && (
-                        <div className="text-xs text-gray-400 mt-1">
-                          {player.character.name} • Lv.{player.character.level} • {player.character.baseClass}
-                        </div>
-                      )}
+                {players.map(player => (
+                  <div key={player._id} onClick={() => fetchPlayerDetails(player._id)}
+                    className={'p-3 rounded-lg mb-2 cursor-pointer transition-colors ' + (selectedPlayer === player._id ? 'bg-purple-600/30 border border-purple-500' : 'bg-void-700/50 hover:bg-void-700')}>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white">{player.username}</span>
+                      <span className={'text-xs px-2 py-1 rounded ' + (player.isActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')}>
+                        {player.isActive ? 'Active' : 'Disabled'}
+                      </span>
                     </div>
-                  );
-                })}
+                    {player.character && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        {player.character.name} • Lv.{player.character.level} • {player.character.baseClass}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
 
               <div className="lg:col-span-2 bg-void-800/50 rounded-xl p-6 neon-border">
@@ -364,7 +346,7 @@ var GMDashboard = function() {
                   <div>
                     <div className="flex justify-between items-center mb-6">
                       <h3 className="font-display text-xl text-purple-400">{playerDetails.user?.username}</h3>
-                      <button onClick={function() { handleToggleAccount(selectedPlayer); }}
+                      <button onClick={() => handleToggleAccount(selectedPlayer)}
                         className={'text-sm px-3 py-1 rounded ' + (playerDetails.user?.isActive ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400')}>
                         {playerDetails.user?.isActive ? 'Disable' : 'Enable'}
                       </button>
@@ -387,138 +369,106 @@ var GMDashboard = function() {
                           </div>
                           <div className="bg-void-900/50 p-3 rounded-lg">
                             <div className="text-gray-400 text-xs">Hidden Class</div>
-                            <div className={playerDetails.character.hiddenClass !== 'none' ? 'text-purple-400' : 'text-gray-600'}>
-                              {playerDetails.character.hiddenClass !== 'none' ? playerDetails.character.hiddenClass : 'None'}
+                            <div className="text-purple-400 capitalize">
+                              {playerDetails.character.hiddenClass !== 'none' 
+                                ? (HIDDEN_CLASS_ICONS[playerDetails.character.hiddenClass] || '📜') + ' ' + (HIDDEN_CLASS_NAMES[playerDetails.character.hiddenClass] || playerDetails.character.hiddenClass)
+                                : 'None'}
                             </div>
                           </div>
                         </div>
 
-                        {/* Stats Display */}
-                        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-4">
-                          <div className="bg-void-900/50 p-2 rounded text-center">
-                            <div className="text-xs text-gray-400">HP</div>
-                            <div className="text-green-400">{playerDetails.character.stats.hp}/{playerDetails.character.stats.maxHp}</div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                          <div className="bg-void-900/50 p-3 rounded-lg">
+                            <div className="text-gray-400 text-xs">Gold</div>
+                            <div className="text-amber-400">💰 {playerDetails.character.gold}</div>
                           </div>
-                          <div className="bg-void-900/50 p-2 rounded text-center">
-                            <div className="text-xs text-gray-400">MP</div>
-                            <div className="text-blue-400">{playerDetails.character.stats.mp}/{playerDetails.character.stats.maxMp}</div>
+                          <div className="bg-void-900/50 p-3 rounded-lg">
+                            <div className="text-gray-400 text-xs">HP</div>
+                            <div className="text-green-400">{playerDetails.character.stats?.hp}/{playerDetails.character.stats?.maxHp}</div>
                           </div>
-                          <div className="bg-void-900/50 p-2 rounded text-center">
-                            <div className="text-xs text-gray-400">Energy</div>
-                            <div className="text-amber-400">{playerDetails.character.energy}/100</div>
+                          <div className="bg-void-900/50 p-3 rounded-lg">
+                            <div className="text-gray-400 text-xs">MP</div>
+                            <div className="text-blue-400">{playerDetails.character.stats?.mp}/{playerDetails.character.stats?.maxMp}</div>
                           </div>
-                          <div className="bg-void-900/50 p-2 rounded text-center">
-                            <div className="text-xs text-gray-400">Gold</div>
-                            <div className="text-yellow-400">{playerDetails.character.gold}</div>
+                          <div className="bg-void-900/50 p-3 rounded-lg">
+                            <div className="text-gray-400 text-xs">Energy</div>
+                            <div className="text-yellow-400">⚡ {playerDetails.character.energy}/100</div>
                           </div>
-                          <div className="bg-void-900/50 p-2 rounded text-center">
-                            <div className="text-xs text-gray-400">Tower</div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                          <div className="bg-void-900/50 p-3 rounded-lg">
+                            <div className="text-gray-400 text-xs">Tower</div>
                             <div className="text-white">{playerDetails.character.currentTower}</div>
                           </div>
-                          <div className="bg-void-900/50 p-2 rounded text-center">
-                            <div className="text-xs text-gray-400">Floor</div>
+                          <div className="bg-void-900/50 p-3 rounded-lg">
+                            <div className="text-gray-400 text-xs">Floor</div>
                             <div className="text-white">{playerDetails.character.currentFloor}</div>
                           </div>
-                        </div>
-
-                        {/* Character Stats */}
-                        <div className="grid grid-cols-5 gap-2 mb-4">
-                          <div className="bg-red-900/20 p-2 rounded text-center">
-                            <div className="text-xs text-red-400">STR</div>
-                            <div className="text-white font-bold">{playerDetails.character.stats.str}</div>
+                          <div className="bg-void-900/50 p-3 rounded-lg">
+                            <div className="text-gray-400 text-xs">Stat Points</div>
+                            <div className="text-purple-400">{playerDetails.character.statPoints}</div>
                           </div>
-                          <div className="bg-green-900/20 p-2 rounded text-center">
-                            <div className="text-xs text-green-400">AGI</div>
-                            <div className="text-white font-bold">{playerDetails.character.stats.agi}</div>
-                          </div>
-                          <div className="bg-blue-900/20 p-2 rounded text-center">
-                            <div className="text-xs text-blue-400">DEX</div>
-                            <div className="text-white font-bold">{playerDetails.character.stats.dex}</div>
-                          </div>
-                          <div className="bg-purple-900/20 p-2 rounded text-center">
-                            <div className="text-xs text-purple-400">INT</div>
-                            <div className="text-white font-bold">{playerDetails.character.stats.int}</div>
-                          </div>
-                          <div className="bg-yellow-900/20 p-2 rounded text-center">
-                            <div className="text-xs text-yellow-400">VIT</div>
-                            <div className="text-white font-bold">{playerDetails.character.stats.vit}</div>
-                          </div>
-                        </div>
-
-                        {/* GM Action Buttons */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
-                          <button onClick={handleRefreshEnergy} className="btn-secondary text-sm py-2">⚡ Energy</button>
-                          <button onClick={handleHealPlayer} className="btn-secondary text-sm py-2">❤️ Heal</button>
-                          <button onClick={handleOpenGoldModal} className="btn-secondary text-sm py-2">💰 Gold</button>
-                          <button onClick={handleSetLevel} className="btn-secondary text-sm py-2">📈 Level</button>
-                          <button onClick={handleOpenStatsModal} className="btn-secondary text-sm py-2">📊 Edit Stats</button>
-                          <button onClick={handleResetStats} className="btn-secondary text-sm py-2">🔄 Reset Stats</button>
-                          <button onClick={handleResetProgress} className="btn-secondary text-sm py-2">🗼 Reset Tower</button>
-                          {playerDetails.character.hiddenClass !== 'none' && (
-                            <button onClick={handleRemoveHiddenClass} className="btn-secondary text-sm py-2">📜 Remove Class</button>
-                          )}
-                        </div>
-
-                        {/* Danger Zone */}
-                        <div className="border border-red-500/30 rounded-lg p-3 mb-6">
-                          <h4 className="text-red-400 text-sm font-bold mb-2">⚠️ Danger Zone</h4>
-                          <button onClick={handleDeletePlayer} className="bg-red-600 hover:bg-red-500 text-white text-sm py-2 px-4 rounded">
-                            🗑️ Delete Player
-                          </button>
-                        </div>
-
-                        {/* Inventory */}
-                        <div className="bg-void-900/50 rounded-lg p-4">
-                          <div className="flex justify-between items-center mb-3">
-                            <h4 className="text-gray-400">Inventory ({playerDetails.character.inventory?.length || 0}/{playerDetails.character.inventorySize})</h4>
-                            <div className="flex gap-2">
-                              <button onClick={function() { setShowAddItemModal(true); }} className="text-xs bg-green-600 px-2 py-1 rounded">+ Add</button>
-                              <button onClick={handleClearInventory} className="text-xs bg-red-600 px-2 py-1 rounded">Clear</button>
+                          <div className="bg-void-900/50 p-3 rounded-lg">
+                            <div className="text-gray-400 text-xs">In Tower</div>
+                            <div className={playerDetails.character.isInTower ? 'text-red-400' : 'text-green-400'}>
+                              {playerDetails.character.isInTower ? 'Yes' : 'No'}
                             </div>
                           </div>
-                          <div className="grid grid-cols-4 md:grid-cols-6 gap-2 max-h-40 overflow-auto">
-                            {playerDetails.character.inventory?.map(function(item, i) {
-                              return (
-                                <div key={i} onClick={function() { handleRemoveItem(i); }} title={item.name + ' x' + item.quantity}
-                                  className="bg-void-800 p-2 rounded text-center cursor-pointer hover:bg-red-900/30">
-                                  <div className="text-lg">{item.icon || '📦'}</div>
-                                  <div className="text-xs text-gray-400 truncate">{item.name}</div>
-                                  <div className="text-xs text-gray-500">x{item.quantity}</div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                        </div>
+
+                        <h4 className="text-gray-400 text-sm mb-3">GM Actions</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          <button onClick={handleRefreshEnergy} className="px-3 py-2 bg-yellow-600 hover:bg-yellow-500 rounded text-sm">⚡ Max Energy</button>
+                          <button onClick={handleHealPlayer} className="px-3 py-2 bg-green-600 hover:bg-green-500 rounded text-sm">❤️ Full Heal</button>
+                          <button onClick={() => handleAddGold(1000)} className="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-sm">💰 +1000g</button>
+                          <button onClick={() => handleAddGold(10000)} className="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-sm">💰 +10000g</button>
+                          <button onClick={handleSetLevel} className="px-3 py-2 bg-purple-600 hover:bg-purple-500 rounded text-sm">📊 Set Level</button>
+                          <button onClick={handleResetStats} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-sm">🔄 Reset Stats</button>
+                          <button onClick={handleResetProgress} className="px-3 py-2 bg-orange-600 hover:bg-orange-500 rounded text-sm">🗼 Reset Tower</button>
+                          <button onClick={handleRemoveHiddenClass} disabled={playerDetails.character.hiddenClass === 'none'}
+                            className="px-3 py-2 bg-red-600 hover:bg-red-500 rounded text-sm disabled:opacity-50">📜 Remove Class</button>
+                          <button onClick={() => setShowAddItemModal(true)} className="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 rounded text-sm col-span-2">🎒 Add Item</button>
                         </div>
                       </div>
                     ) : (
-                      <p className="text-gray-400 text-center py-8">No character yet</p>
+                      <p className="text-gray-500 text-center py-8">No character created</p>
                     )}
                   </div>
                 ) : (
-                  <p className="text-gray-400 text-center py-8">Select a player</p>
+                  <p className="text-gray-500 text-center py-8">Select a player to view details</p>
                 )}
               </div>
             </div>
           )}
 
+          {/* PHASE 7: Hidden Classes Tab - Now shows 20 classes */}
           {activeTab === 'classes' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {hiddenClasses.map(function(cls) {
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {hiddenClasses.map(cls => {
+                const classId = cls.classId || cls.id;
+                const icon = HIDDEN_CLASS_ICONS[classId] || '📜';
+                const name = HIDDEN_CLASS_NAMES[classId] || classId;
+                const baseClass = HIDDEN_CLASS_BASE[classId] || cls.baseClass || 'Unknown';
+                const isOwned = cls.ownerId || cls.isAvailable === false;
+                const ownerName = cls.ownerName || '';
+                
                 return (
-                  <div key={cls.classId} className={'bg-void-800/50 rounded-xl p-6 border-2 ' + (cls.ownerId ? 'border-purple-500/50' : 'border-green-500/50')}>
-                    <div className="text-4xl text-center mb-4">
-                      {cls.classId === 'flameblade' ? '🔥' : cls.classId === 'shadowDancer' ? '🌑' : cls.classId === 'stormRanger' ? '⚡' : '❄️'}
-                    </div>
-                    <h3 className="font-display text-xl text-white text-center mb-2 capitalize">{cls.classId}</h3>
-                    <p className="text-gray-400 text-sm text-center mb-4">
-                      Requires: {cls.classId === 'flameblade' ? 'Swordsman' : cls.classId === 'shadowDancer' ? 'Thief' : cls.classId === 'stormRanger' ? 'Archer' : 'Mage'}
-                    </p>
-                    <div className={'text-center py-2 rounded ' + (cls.ownerId ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400')}>
-                      {cls.ownerId ? 'Owned by: ' + cls.ownerName : 'Available'}
+                  <div key={classId} className={'bg-void-800/50 rounded-xl p-4 border-2 ' + (isOwned ? 'border-purple-500/50' : 'border-green-500/50')}>
+                    <div className="text-4xl text-center mb-3">{icon}</div>
+                    <h3 className="font-display text-lg text-white text-center mb-1">{name}</h3>
+                    <p className="text-gray-400 text-xs text-center mb-3">Requires: {baseClass}</p>
+                    <div className={'text-center py-2 rounded text-sm ' + (isOwned ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400')}>
+                      {isOwned ? (ownerName ? 'Owned: ' + ownerName : 'Claimed') : 'Available'}
                     </div>
                   </div>
                 );
               })}
+              {hiddenClasses.length === 0 && (
+                <div className="col-span-full text-center text-gray-500 py-8">
+                  No hidden classes found. Check backend connection.
+                </div>
+              )}
             </div>
           )}
 
@@ -533,24 +483,22 @@ var GMDashboard = function() {
                       type="text"
                       placeholder="Search items..."
                       value={itemSearch}
-                      onChange={function(e) { handleItemSearch(e.target.value); }}
+                      onChange={(e) => handleItemSearch(e.target.value)}
                       className="input-field"
                     />
                     {searchResults.length > 0 && (
                       <div className="absolute top-full left-0 right-0 bg-void-800 border border-purple-500/30 rounded-lg mt-1 max-h-60 overflow-auto z-10">
-                        {searchResults.map(function(item) {
-                          return (
-                            <div
-                              key={item.id}
-                              onClick={function() { setSelectedItem(item); setItemSearch(item.name); setSearchResults([]); }}
-                              className="p-3 hover:bg-void-700 cursor-pointer flex items-center gap-2"
-                            >
-                              <span>{item.icon}</span>
-                              <span className="text-white">{item.name}</span>
-                              <span className="text-gray-500 text-xs">({item.type})</span>
-                            </div>
-                          );
-                        })}
+                        {searchResults.map(item => (
+                          <div
+                            key={item.id}
+                            onClick={() => { setSelectedItem(item); setItemSearch(item.name); setSearchResults([]); }}
+                            className="p-3 hover:bg-void-700 cursor-pointer flex items-center gap-2"
+                          >
+                            <span>{item.icon}</span>
+                            <span className="text-white">{item.name}</span>
+                            <span className="text-gray-500 text-xs">({item.type})</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -568,7 +516,7 @@ var GMDashboard = function() {
                         <input
                           type="number"
                           value={newShopPrice}
-                          onChange={function(e) { setNewShopPrice(parseInt(e.target.value) || 1); }}
+                          onChange={(e) => setNewShopPrice(parseInt(e.target.value) || 1)}
                           className="input-field w-24"
                           min={1}
                         />
@@ -590,42 +538,40 @@ var GMDashboard = function() {
               <div className="bg-void-800/50 rounded-xl p-6 neon-border">
                 <h3 className="font-display text-lg text-amber-400 mb-4">🏪 Current Shop Items</h3>
                 <div className="space-y-2 max-h-96 overflow-auto">
-                  {shopItems.map(function(item) {
-                    return (
-                      <div key={item.itemId} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xl">{item.icon}</span>
-                          <span className="text-white">{item.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            defaultValue={item.price}
-                            onBlur={function(e) {
-                              var newPrice = parseInt(e.target.value) || 1;
-                              if (newPrice !== item.price) {
-                                handleUpdateShopPrice(item.itemId, newPrice);
-                              }
-                            }}
-                            onKeyDown={function(e) {
-                              if (e.key === 'Enter') {
-                                e.target.blur();
-                              }
-                            }}
-                            className="w-20 bg-void-800 border border-gray-600 rounded px-2 py-1 text-yellow-400 text-sm"
-                            min={1}
-                          />
-                          <span className="text-gray-400 text-sm">g</span>
-                          <button
-                            onClick={function() { handleRemoveFromShop(item.itemId); }}
-                            className="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs"
-                          >
-                            ✕
-                          </button>
-                        </div>
+                  {shopItems.map(item => (
+                    <div key={item.itemId} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{item.icon}</span>
+                        <span className="text-white">{item.name}</span>
                       </div>
-                    );
-                  })}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          defaultValue={item.price}
+                          onBlur={(e) => {
+                            const newPrice = parseInt(e.target.value) || 1;
+                            if (newPrice !== item.price) {
+                              handleUpdateShopPrice(item.itemId, newPrice);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.target.blur();
+                            }
+                          }}
+                          className="w-20 bg-void-800 border border-gray-600 rounded px-2 py-1 text-yellow-400 text-sm"
+                          min={1}
+                        />
+                        <span className="text-gray-400 text-sm">g</span>
+                        <button
+                          onClick={() => handleRemoveFromShop(item.itemId)}
+                          className="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                   {shopItems.length === 0 && (
                     <p className="text-gray-500 text-center py-4">Shop is empty</p>
                   )}
@@ -640,31 +586,29 @@ var GMDashboard = function() {
               <h3 className="font-display text-lg text-purple-400 mb-4">🔄 Player Trading Listings</h3>
               <p className="text-gray-400 text-sm mb-4">Manage player trading listings. Removing a listing returns the item to the seller if they exist.</p>
               <div className="space-y-2 max-h-96 overflow-auto">
-                {tradingListings.map(function(listing) {
-                  return (
-                    <div key={listing._id} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{listing.icon || listing.itemIcon || '📦'}</span>
-                        <div>
-                          <span className="text-white">{listing.itemName}</span>
-                          <span className="text-gray-400 text-sm ml-2">x{listing.quantity}</span>
-                          <div className="text-xs text-gray-500">
-                            Seller: {listing.characterName || listing.sellerName || 'Unknown'}
-                          </div>
+                {tradingListings.map(listing => (
+                  <div key={listing._id} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">{listing.icon || '📦'}</span>
+                      <div>
+                        <span className="text-white">{listing.itemName}</span>
+                        <span className="text-gray-400 text-sm ml-2">x{listing.quantity}</span>
+                        <div className="text-xs text-gray-500">
+                          Seller: {listing.sellerCharacter || listing.sellerUsername || 'Unknown'}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-yellow-400">{listing.totalPrice || listing.price}g</span>
-                        <button
-                          onClick={function() { handleRemoveListing(listing._id); }}
-                          className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-sm"
-                        >
-                          Remove
-                        </button>
-                      </div>
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-3">
+                      <span className="text-yellow-400">{listing.price}g</span>
+                      <button
+                        onClick={() => handleRemoveListing(listing._id)}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-sm"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
                 {tradingListings.length === 0 && (
                   <p className="text-gray-500 text-center py-4">No active trading listings</p>
                 )}
@@ -677,24 +621,23 @@ var GMDashboard = function() {
         </div>
       </div>
 
-      {/* Create Account Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-void-800 rounded-xl p-6 w-full max-w-md neon-border">
             <h2 className="font-display text-xl text-purple-400 mb-6">Create Account</h2>
             <form onSubmit={handleCreateAccount} className="space-y-4">
-              <input type="text" placeholder="Username" value={createForm.username} onChange={function(e) { setCreateForm(Object.assign({}, createForm, { username: e.target.value })); }}
+              <input type="text" placeholder="Username" value={createForm.username} onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
                 className="input-field" required minLength={3} />
-              <input type="password" placeholder="Password" value={createForm.password} onChange={function(e) { setCreateForm(Object.assign({}, createForm, { password: e.target.value })); }}
+              <input type="password" placeholder="Password" value={createForm.password} onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
                 className="input-field" required minLength={6} />
               {isAdmin && (
-                <select value={createForm.role} onChange={function(e) { setCreateForm(Object.assign({}, createForm, { role: e.target.value })); }} className="input-field">
+                <select value={createForm.role} onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })} className="input-field">
                   <option value="player">Player</option>
                   <option value="gm">Game Master</option>
                 </select>
               )}
               <div className="flex gap-3">
-                <button type="button" onClick={function() { setShowCreateModal(false); }} className="flex-1 btn-secondary">Cancel</button>
+                <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 btn-secondary">Cancel</button>
                 <button type="submit" className="flex-1 btn-primary">Create</button>
               </div>
             </form>
@@ -702,7 +645,6 @@ var GMDashboard = function() {
         </div>
       )}
 
-      {/* Add Item Modal */}
       {showAddItemModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-void-800 rounded-xl p-6 w-full max-w-md neon-border">
@@ -713,11 +655,11 @@ var GMDashboard = function() {
                   type="text"
                   placeholder="Search items..."
                   value={addItemForm.name}
-                  onChange={async function(e) {
-                    setAddItemForm(Object.assign({}, addItemForm, { name: e.target.value }));
+                  onChange={async (e) => {
+                    setAddItemForm({ ...addItemForm, name: e.target.value });
                     if (e.target.value.length >= 1) {
-                      var response = await tavernAPI.searchItems(e.target.value);
-                      setSearchResults(response.data.items.slice(0, 8));
+                      const { data } = await tavernAPI.searchItems(e.target.value);
+                      setSearchResults(data.items.slice(0, 8));
                     } else {
                       setSearchResults([]);
                     }
@@ -726,27 +668,25 @@ var GMDashboard = function() {
                 />
                 {searchResults.length > 0 && (
                   <div className="absolute top-full left-0 right-0 bg-void-900 border border-purple-500/30 rounded-lg mt-1 max-h-48 overflow-auto z-10">
-                    {searchResults.map(function(item) {
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={function() {
-                            setAddItemForm({
-                              itemId: item.id,
-                              name: item.name,
-                              type: item.type,
-                              rarity: item.rarity,
-                              quantity: 1
-                            });
-                            setSearchResults([]);
-                          }}
-                          className="p-2 hover:bg-void-700 cursor-pointer flex items-center gap-2"
-                        >
-                          <span>{item.icon}</span>
-                          <span className="text-white text-sm">{item.name}</span>
-                        </div>
-                      );
-                    })}
+                    {searchResults.map(item => (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          setAddItemForm({
+                            itemId: item.id,
+                            name: item.name,
+                            type: item.type,
+                            rarity: item.rarity,
+                            quantity: 1
+                          });
+                          setSearchResults([]);
+                        }}
+                        className="p-2 hover:bg-void-700 cursor-pointer flex items-center gap-2"
+                      >
+                        <span>{item.icon}</span>
+                        <span className="text-white text-sm">{item.name}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -759,130 +699,23 @@ var GMDashboard = function() {
                 type="number"
                 placeholder="Quantity"
                 value={addItemForm.quantity}
-                onChange={function(e) { setAddItemForm(Object.assign({}, addItemForm, { quantity: parseInt(e.target.value) || 1 })); }}
+                onChange={(e) => setAddItemForm({ ...addItemForm, quantity: parseInt(e.target.value) || 1 })}
                 className="input-field"
                 min={1}
               />
               <div className="flex gap-3">
-                <button type="button" onClick={function() { setShowAddItemModal(false); setSearchResults([]); }} className="flex-1 btn-secondary">Cancel</button>
+                <button type="button" onClick={() => { setShowAddItemModal(false); setSearchResults([]); }} className="flex-1 btn-secondary">Cancel</button>
                 <button
                   type="button"
-                  onClick={async function() {
+                  onClick={async () => {
                     if (!addItemForm.itemId) return;
-                    await handleAddItem({ preventDefault: function() {} });
+                    await handleAddItem({ preventDefault: () => {} });
                   }}
                   disabled={!addItemForm.itemId}
                   className="flex-1 btn-primary disabled:opacity-50"
                 >
                   Add Item
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Gold Modal */}
-      {showGoldModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-void-800 rounded-xl p-6 w-full max-w-sm neon-border">
-            <h2 className="font-display text-xl text-yellow-400 mb-6">💰 Adjust Gold</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="text-gray-400 text-sm">Current Gold: <span className="text-yellow-400">{playerDetails?.character?.gold || 0}</span></label>
-              </div>
-              <div>
-                <label className="text-gray-400 text-sm">Amount (use negative to remove):</label>
-                <input
-                  type="number"
-                  value={goldAmount}
-                  onChange={function(e) { setGoldAmount(parseInt(e.target.value) || 0); }}
-                  className="input-field mt-1"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={function() { setGoldAmount(100); }} className="px-3 py-1 bg-void-700 rounded text-xs">+100</button>
-                <button onClick={function() { setGoldAmount(500); }} className="px-3 py-1 bg-void-700 rounded text-xs">+500</button>
-                <button onClick={function() { setGoldAmount(1000); }} className="px-3 py-1 bg-void-700 rounded text-xs">+1000</button>
-                <button onClick={function() { setGoldAmount(10000); }} className="px-3 py-1 bg-void-700 rounded text-xs">+10000</button>
-              </div>
-              <div className="text-center text-sm">
-                <span className="text-gray-400">New Total: </span>
-                <span className={goldAmount >= 0 ? 'text-green-400' : 'text-red-400'}>
-                  {(playerDetails?.character?.gold || 0) + goldAmount}
-                </span>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={function() { setShowGoldModal(false); }} className="flex-1 btn-secondary">Cancel</button>
-                <button onClick={handleAddGold} className="flex-1 btn-primary">Apply</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Stats Edit Modal */}
-      {showStatsModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-void-800 rounded-xl p-6 w-full max-w-md neon-border">
-            <h2 className="font-display text-xl text-purple-400 mb-6">📊 Edit Player Stats</h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-red-400 text-sm">STR</label>
-                  <input
-                    type="number"
-                    value={editStats.str}
-                    onChange={function(e) { setEditStats(Object.assign({}, editStats, { str: parseInt(e.target.value) || 0 })); }}
-                    className="input-field mt-1"
-                    min={1}
-                  />
-                </div>
-                <div>
-                  <label className="text-green-400 text-sm">AGI</label>
-                  <input
-                    type="number"
-                    value={editStats.agi}
-                    onChange={function(e) { setEditStats(Object.assign({}, editStats, { agi: parseInt(e.target.value) || 0 })); }}
-                    className="input-field mt-1"
-                    min={1}
-                  />
-                </div>
-                <div>
-                  <label className="text-blue-400 text-sm">DEX</label>
-                  <input
-                    type="number"
-                    value={editStats.dex}
-                    onChange={function(e) { setEditStats(Object.assign({}, editStats, { dex: parseInt(e.target.value) || 0 })); }}
-                    className="input-field mt-1"
-                    min={1}
-                  />
-                </div>
-                <div>
-                  <label className="text-purple-400 text-sm">INT</label>
-                  <input
-                    type="number"
-                    value={editStats.int}
-                    onChange={function(e) { setEditStats(Object.assign({}, editStats, { int: parseInt(e.target.value) || 0 })); }}
-                    className="input-field mt-1"
-                    min={1}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-yellow-400 text-sm">VIT</label>
-                  <input
-                    type="number"
-                    value={editStats.vit}
-                    onChange={function(e) { setEditStats(Object.assign({}, editStats, { vit: parseInt(e.target.value) || 0 })); }}
-                    className="input-field mt-1"
-                    min={1}
-                  />
-                </div>
-              </div>
-              <p className="text-gray-500 text-xs">Note: HP/MP will be recalculated based on new VIT/INT values.</p>
-              <div className="flex gap-3">
-                <button onClick={function() { setShowStatsModal(false); }} className="flex-1 btn-secondary">Cancel</button>
-                <button onClick={handleSaveStats} className="flex-1 btn-primary">Save Stats</button>
               </div>
             </div>
           </div>
