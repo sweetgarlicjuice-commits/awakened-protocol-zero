@@ -1,15 +1,19 @@
 // ============================================================
-// ENHANCED COMBAT SYSTEM - With Stat Scaling
+// ENHANCED COMBAT SYSTEM - With Stat Scaling & Null Safety
 // ============================================================
 
 import { SKILLS, calculateSkillDamage as calcSkillDmg, calculateManaCost as calcManaCost, calculateBuffEffect as calcBuffEffect } from '../data/skillSystem.js';
 import { getSetItemDrop, getRandomEquipment } from '../data/setItemData.js';
 
 // ============================================================
-// DAMAGE CALCULATION
+// DAMAGE CALCULATION - With comprehensive null safety
 // ============================================================
 
 export function calculateDamage(attacker, defender, skill = null) {
+  // Ensure we have valid objects
+  if (!attacker) attacker = {};
+  if (!defender) defender = {};
+  
   let baseDamage;
   let attackStat;
   const stats = attacker.stats || {};
@@ -21,23 +25,38 @@ export function calculateDamage(attacker, defender, skill = null) {
   
   if (skill && skill.scaling) {
     // Use skill system calculation
-    const result = calcSkillDmg(skill, stats, defender, attacker.buffs || {});
-    return { damage: result.damage, isCritical: false, hits: result.hits };
+    try {
+      const result = calcSkillDmg(skill, stats, defender, attacker.buffs || {});
+      return { damage: result.damage || 1, isCritical: false, hits: result.hits || 1 };
+    } catch (e) {
+      console.error('Skill damage calculation error:', e);
+      // Fallback to basic calculation
+    }
   }
   
-  // Basic attack
+  // Basic attack calculation with null safety
   attackStat = stats[primaryStat] || attacker.baseAtk || 10;
   baseDamage = attackStat + (stats.atk || 0);
   
-  // Defense reduction
-  const defense = defender.stats?.def || defender.baseDef || defender.def || 0;
+  // Ensure baseDamage is at least 1
+  if (!baseDamage || baseDamage < 1) baseDamage = 10;
+  
+  // Defense reduction with null safety
+  // Check multiple possible defense field names
+  const defense = defender.stats?.def || 
+                  defender.stats?.vit || 
+                  defender.def || 
+                  defender.baseDef || 
+                  defender.defense || 
+                  0;
+  
   const damageReduction = defense / (defense + 100);
   
-  // Variance
+  // Variance (90% to 110%)
   const variance = 0.9 + Math.random() * 0.2;
   let finalDamage = Math.max(1, Math.floor(baseDamage * (1 - damageReduction) * variance));
   
-  // Critical hit (based on AGI for thief, DEX for archer)
+  // Critical hit calculation
   let critChance = 0.05; // Base 5%
   if (baseClass === 'thief') critChance += (stats.agi || 0) * 0.005;
   else if (baseClass === 'archer') critChance += (stats.dex || 0) * 0.003;
@@ -48,6 +67,11 @@ export function calculateDamage(attacker, defender, skill = null) {
     finalDamage = Math.floor(finalDamage * critDmg);
   }
   
+  // Final safety check
+  if (!finalDamage || isNaN(finalDamage) || finalDamage < 1) {
+    finalDamage = 1;
+  }
+  
   return { damage: finalDamage, isCritical };
 }
 
@@ -56,24 +80,67 @@ export function calculateDamage(attacker, defender, skill = null) {
 // ============================================================
 
 export function scaleEnemyStats(enemy, floor, towerId) {
+  // Safety check
+  if (!enemy) {
+    return {
+      id: 'unknown_enemy',
+      name: 'Unknown Enemy',
+      hp: 50,
+      maxHp: 50,
+      baseHp: 50,
+      atk: 10,
+      baseAtk: 10,
+      def: 5,
+      baseDef: 5,
+      expReward: 10,
+      goldReward: { min: 5, max: 15 },
+      isBoss: false,
+      isElite: false
+    };
+  }
+  
   // Tower multipliers scale exponentially
   const towerMultipliers = { 1: 1, 2: 1.8, 3: 3, 4: 5, 5: 8, 6: 13, 7: 20, 8: 32, 9: 50, 10: 80 };
   
   const towerMult = towerMultipliers[towerId] || 1;
-  const floorMult = 1 + (floor - 1) * 0.08;
+  const floorMult = 1 + ((floor || 1) - 1) * 0.08;
   const totalMult = towerMult * floorMult;
+  
+  // Get base values with fallbacks
+  const baseHp = enemy.baseHp || enemy.hp || 50;
+  const baseAtk = enemy.baseAtk || enemy.atk || enemy.attack || 10;
+  const baseDef = enemy.baseDef || enemy.def || enemy.defense || 5;
+  const baseExp = enemy.expReward || enemy.exp || 15;
+  
+  // Handle goldReward - could be object or number
+  let goldMin = 5, goldMax = 15;
+  if (enemy.goldReward) {
+    if (typeof enemy.goldReward === 'object') {
+      goldMin = enemy.goldReward.min || 5;
+      goldMax = enemy.goldReward.max || 15;
+    } else if (typeof enemy.goldReward === 'number') {
+      goldMin = Math.floor(enemy.goldReward * 0.8);
+      goldMax = Math.floor(enemy.goldReward * 1.2);
+    }
+  }
   
   return {
     ...enemy,
-    hp: Math.floor(enemy.baseHp * totalMult),
-    maxHp: Math.floor(enemy.baseHp * totalMult),
-    atk: Math.floor(enemy.baseAtk * totalMult),
-    def: Math.floor(enemy.baseDef * totalMult),
-    expReward: Math.floor(enemy.expReward * totalMult),
+    id: enemy.id || enemy.name?.toLowerCase().replace(/\s+/g, '_') || 'enemy',
+    hp: Math.floor(baseHp * totalMult),
+    maxHp: Math.floor(baseHp * totalMult),
+    baseHp: baseHp,
+    atk: Math.floor(baseAtk * totalMult),
+    baseAtk: baseAtk,
+    def: Math.floor(baseDef * totalMult),
+    baseDef: baseDef,
+    expReward: Math.floor(baseExp * totalMult),
     goldReward: {
-      min: Math.floor(enemy.goldReward.min * totalMult),
-      max: Math.floor(enemy.goldReward.max * totalMult)
-    }
+      min: Math.floor(goldMin * totalMult),
+      max: Math.floor(goldMax * totalMult)
+    },
+    isBoss: enemy.isBoss || false,
+    isElite: enemy.isElite || false
   };
 }
 
@@ -82,21 +149,50 @@ export function scaleEnemyStats(enemy, floor, towerId) {
 // ============================================================
 
 export function getRandomEnemy(enemies, floor) {
-  if (!enemies || enemies.length === 0) return null;
+  if (!enemies || enemies.length === 0) {
+    // Return a default enemy if none provided
+    return {
+      id: 'default_enemy',
+      name: 'Monster',
+      icon: '👹',
+      baseHp: 50,
+      baseAtk: 10,
+      baseDef: 5,
+      expReward: 15,
+      goldReward: { min: 5, max: 15 }
+    };
+  }
+  
+  // Check if enemies have floor restrictions
   if (!enemies[0]?.floors) {
     return enemies[Math.floor(Math.random() * enemies.length)];
   }
+  
   const available = enemies.filter(e => e.floors?.includes(floor));
   if (available.length === 0) return enemies[0];
   return available[Math.floor(Math.random() * available.length)];
 }
 
 // ============================================================
-// GOLD DROP CALCULATION
+// GOLD DROP CALCULATION - With null safety
 // ============================================================
 
 export function calculateGoldDrop(goldReward) {
-  return Math.floor(goldReward.min + Math.random() * (goldReward.max - goldReward.min));
+  // Handle different goldReward formats
+  if (!goldReward) return 10;
+  
+  if (typeof goldReward === 'number') {
+    // If it's just a number, add some variance
+    return Math.floor(goldReward * (0.8 + Math.random() * 0.4));
+  }
+  
+  if (typeof goldReward === 'object') {
+    const min = goldReward.min || 5;
+    const max = goldReward.max || min + 10;
+    return Math.floor(min + Math.random() * (max - min));
+  }
+  
+  return 10; // Default fallback
 }
 
 // ============================================================
@@ -107,27 +203,50 @@ export function rollForDrops(enemy, dropRates, equipmentTable, playerClass, towe
   const drops = [];
   const tid = towerId || 1;
   
-  // Set item drop (rare)
-  if (enemy.isBoss && Math.random() < (dropRates.setItem || 0.15)) {
-    const setItem = getSetItemDrop(tid, playerClass);
-    if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
-  } else if (enemy.isElite && Math.random() < (dropRates.setItem || 0.05)) {
-    const setItem = getSetItemDrop(tid, playerClass);
-    if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
-  }
+  // Safety check for dropRates
+  if (!dropRates) dropRates = { equipment: 0.1, setItem: 0.05, potion: 0.15 };
   
-  // Regular equipment drop
-  if (Math.random() < dropRates.equipment) {
-    const item = getRandomEquipment(tid, playerClass, enemy.isElite, enemy.isBoss);
-    if (item) drops.push({ ...item, quantity: 1 });
+  try {
+    // Set item drop (rare)
+    if (enemy?.isBoss && Math.random() < (dropRates.setItem || 0.15)) {
+      const setItem = getSetItemDrop(tid, playerClass);
+      if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
+    } else if (enemy?.isElite && Math.random() < (dropRates.setItem || 0.05)) {
+      const setItem = getSetItemDrop(tid, playerClass);
+      if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
+    }
+    
+    // Regular equipment drop
+    if (Math.random() < (dropRates.equipment || 0.1)) {
+      const item = getRandomEquipment(tid, playerClass, enemy?.isElite, enemy?.isBoss);
+      if (item) drops.push({ ...item, quantity: 1 });
+    }
+  } catch (e) {
+    console.error('Error rolling for drops:', e);
   }
   
   // Potion drop
-  if (Math.random() < dropRates.potion) {
+  if (Math.random() < (dropRates.potion || 0.15)) {
     if (Math.random() < 0.5) {
-      drops.push({ itemId: 'health_potion_small', name: 'Small HP Potion', icon: '🧪', type: 'consumable', quantity: 1, stackable: true });
+      drops.push({ 
+        itemId: 'health_potion_small', 
+        name: 'Small HP Potion', 
+        icon: '🧪', 
+        type: 'consumable', 
+        quantity: 1, 
+        stackable: true,
+        sellPrice: 10
+      });
     } else {
-      drops.push({ itemId: 'mana_potion_small', name: 'Small MP Potion', icon: '💎', type: 'consumable', quantity: 1, stackable: true });
+      drops.push({ 
+        itemId: 'mana_potion_small', 
+        name: 'Small MP Potion', 
+        icon: '💎', 
+        type: 'consumable', 
+        quantity: 1, 
+        stackable: true,
+        sellPrice: 10
+      });
     }
   }
   
@@ -140,9 +259,9 @@ export function rollForDrops(enemy, dropRates, equipmentTable, playerClass, towe
 
 export function rollForScroll(enemy, playerClass) {
   let dropChance = 0;
-  if (enemy.isBoss) dropChance = 0.05;
-  else if (enemy.isElite) dropChance = 0.02;
-  else if (enemy.scrollDropChance) dropChance = enemy.scrollDropChance;
+  if (enemy?.isBoss) dropChance = 0.05;
+  else if (enemy?.isElite) dropChance = 0.02;
+  else if (enemy?.scrollDropChance) dropChance = enemy.scrollDropChance;
   
   if (dropChance <= 0 || Math.random() >= dropChance) return null;
   
@@ -162,10 +281,10 @@ export function rollForScroll(enemy, playerClass) {
 
 export function applySkillEffect(skill, target, source) {
   const effects = [];
-  const effect = skill.effect;
+  const effect = skill?.effect;
   if (!effect) return effects;
   
-  const stats = source.stats || {};
+  const stats = source?.stats || {};
   
   switch (effect.type) {
     case 'poison':
@@ -223,22 +342,22 @@ export function processStatusEffects(combatant) {
   const expiredEffects = [];
   const messages = [];
   
-  if (!combatant.statusEffects) return { damage, skipTurn, expiredEffects, messages };
+  if (!combatant?.statusEffects) return { damage, skipTurn, expiredEffects, messages };
   
   combatant.statusEffects.forEach((effect, index) => {
     switch (effect.type) {
       case 'poison':
-        damage += effect.damage;
-        messages.push(combatant.name + ' takes ' + effect.damage + ' poison damage!');
+        damage += effect.damage || 0;
+        messages.push((combatant.name || 'Target') + ' takes ' + (effect.damage || 0) + ' poison damage!');
         break;
       case 'burn':
-        damage += effect.damage;
-        messages.push(combatant.name + ' takes ' + effect.damage + ' burn damage!');
+        damage += effect.damage || 0;
+        messages.push((combatant.name || 'Target') + ' takes ' + (effect.damage || 0) + ' burn damage!');
         break;
       case 'freeze':
       case 'stun':
         skipTurn = true;
-        messages.push(combatant.name + ' is ' + effect.type + 'ed!');
+        messages.push((combatant.name || 'Target') + ' is ' + effect.type + 'ed!');
         break;
     }
     
@@ -251,7 +370,27 @@ export function processStatusEffects(combatant) {
   return { damage, skipTurn, expiredEffects, messages };
 }
 
-// Re-export skill functions
-export const calculateManaCost = calcManaCost;
-export const calculateSkillDamage = calcSkillDmg;
-export const calculateBuffEffect = calcBuffEffect;
+// Re-export skill functions with safety wrappers
+export const calculateManaCost = (skill, stats) => {
+  try {
+    return calcManaCost(skill, stats);
+  } catch (e) {
+    return skill?.mpCost || 10;
+  }
+};
+
+export const calculateSkillDamage = (skill, stats, defender, buffs) => {
+  try {
+    return calcSkillDmg(skill, stats, defender, buffs);
+  } catch (e) {
+    return { damage: 10, hits: 1 };
+  }
+};
+
+export const calculateBuffEffect = (buff, stats) => {
+  try {
+    return calcBuffEffect(buff, stats);
+  } catch (e) {
+    return { value: 0 };
+  }
+};
