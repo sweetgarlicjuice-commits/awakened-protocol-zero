@@ -3,7 +3,7 @@ import Character from '../models/Character.js';
 import HiddenClassOwnership from '../models/HiddenClassOwnership.js';
 import { authenticate } from '../middleware/auth.js';
 import { TOWERS, ENEMIES, DROP_RATES, EQUIPMENT_DROPS } from '../data/gameData.js';
-import { FLOOR_REQUIREMENTS, MATERIAL_DROPS, STORY_EVENTS, DOORKEEPER_DIALOGUES, HIDDEN_CLASS_INFO, CRAFTING_RECIPES, STORY_EVENTS_EXPANDED, FLOOR_REQUIREMENTS_EXPANDED } from '../data/storyData.js';
+import { FLOOR_REQUIREMENTS, MATERIAL_DROPS, STORY_EVENTS, DOORKEEPER_DIALOGUES, HIDDEN_CLASS_INFO, CRAFTING_RECIPES, STORY_EVENTS_EXPANDED, FLOOR_REQUIREMENTS_EXPANDED, SCROLL_TO_CLASS, CLASS_TO_SCROLL, SCROLL_NAMES } from '../data/storyData.js';
 import { 
   calculateDamage, 
   scaleEnemyStats, 
@@ -1608,8 +1608,9 @@ router.post('/unlock-hidden-class', authenticate, async (req, res) => {
     if (character.hiddenClass !== 'none') return res.status(400).json({ error: 'You already have a hidden class!' });
     const scrollItem = character.inventory[scrollItemIndex];
     if (!scrollItem || scrollItem.type !== 'scroll') return res.status(400).json({ error: 'Invalid scroll' });
-    const scrollToClass = { 'scroll_flameblade': { classId: 'flameblade', baseReq: 'swordsman' }, 'scroll_shadow_dancer': { classId: 'shadowDancer', baseReq: 'thief' }, 'scroll_storm_ranger': { classId: 'stormRanger', baseReq: 'archer' }, 'scroll_frost_weaver': { classId: 'frostWeaver', baseReq: 'mage' } };
-    const mapping = scrollToClass[scrollItem.itemId];
+    
+    // Phase 7: Use imported SCROLL_TO_CLASS mapping (20 classes)
+    const mapping = SCROLL_TO_CLASS[scrollItem.itemId];
     if (!mapping) return res.status(400).json({ error: 'Invalid scroll type' });
     if (character.baseClass !== mapping.baseReq) return res.status(400).json({ error: 'This scroll requires ' + mapping.baseReq + ' class!' });
     const classInfo = HIDDEN_CLASS_INFO[mapping.classId];
@@ -1632,9 +1633,11 @@ router.post('/remove-hidden-class', authenticate, async (req, res) => {
     if (character.hiddenClass === 'none') return res.status(400).json({ error: 'You do not have a hidden class!' });
     const crystalIndex = character.inventory.findIndex(i => i.itemId === 'memory_crystal');
     if (crystalIndex === -1) return res.status(400).json({ error: 'You need a Memory Crystal to remove your hidden class!' });
-    const classToScroll = { 'flameblade': 'scroll_flameblade', 'shadowDancer': 'scroll_shadow_dancer', 'stormRanger': 'scroll_storm_ranger', 'frostWeaver': 'scroll_frost_weaver' };
-    const scrollId = classToScroll[character.hiddenClass];
-    const scrollNames = { 'scroll_flameblade': 'Flameblade Scroll', 'scroll_shadow_dancer': 'Shadow Dancer Scroll', 'scroll_storm_ranger': 'Storm Ranger Scroll', 'scroll_frost_weaver': 'Frost Weaver Scroll' };
+    
+    // Phase 7: Use imported mappings (20 classes)
+    const scrollId = CLASS_TO_SCROLL[character.hiddenClass];
+    if (!scrollId) return res.status(400).json({ error: 'Unknown hidden class' });
+    
     await HiddenClassOwnership.releaseClass(character.hiddenClass);
     const hiddenClassInfo = HIDDEN_CLASS_INFO[character.hiddenClass];
     if (hiddenClassInfo) {
@@ -1644,9 +1647,9 @@ router.post('/remove-hidden-class', authenticate, async (req, res) => {
     character.hiddenClass = 'none';
     if (character.inventory[crystalIndex].quantity > 1) character.inventory[crystalIndex].quantity -= 1;
     else character.inventory.splice(crystalIndex, 1);
-    character.inventory.push({ itemId: scrollId, name: scrollNames[scrollId], icon: '📜', type: 'scroll', rarity: 'legendary', quantity: 1 });
+    character.inventory.push({ itemId: scrollId, name: SCROLL_NAMES[scrollId], icon: '📜', type: 'scroll', rarity: 'legendary', quantity: 1 });
     await character.save();
-    res.json({ message: 'Hidden class removed! The scroll has returned to your inventory.', scrollReturned: scrollNames[scrollId] });
+    res.json({ message: 'Hidden class removed! The scroll has returned to your inventory.', scrollReturned: SCROLL_NAMES[scrollId] });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -1792,7 +1795,7 @@ async function handleDefeat(character, res, combatLog) {
   // Clear in-tower flag on defeat
   character.isInTower = false;
   
-   // Clear combat buffs on defeat
+   // Clear combat buffs on victory
   character.activeBuffs = [];
   
   await character.save();
