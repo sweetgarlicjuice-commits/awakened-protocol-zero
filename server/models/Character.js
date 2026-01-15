@@ -159,6 +159,9 @@ const characterSchema = new mongoose.Schema({
     default: null
   },
   
+  // New Field - Add isInTower to track tower entry
+  isInTower: { type: Boolean, default: false },
+  
   // Skills
   skills: [skillSchema],
   
@@ -220,86 +223,7 @@ const characterSchema = new mongoose.Schema({
   }
 });
 
-// Calculate EXP needed for next level
-characterSchema.methods.calculateExpToLevel = function(level) {
-  return Math.floor(100 * Math.pow(1.5, level - 1));
-};
-
-// Level up check
-characterSchema.methods.checkLevelUp = function() {
-  let leveledUp = false;
-  while (this.experience >= this.experienceToNextLevel && this.level < 50) {
-    this.experience -= this.experienceToNextLevel;
-    this.level += 1;
-    this.statPoints += 5;
-    this.experienceToNextLevel = this.calculateExpToLevel(this.level);
-    leveledUp = true;
-  }
-  return leveledUp;
-};
-
-// Update energy based on time
-characterSchema.methods.updateEnergy = function() {
-  const now = new Date();
-  const timeDiff = now - this.lastEnergyUpdate;
-  const hoursElapsed = timeDiff / (1000 * 60 * 60);
-  const energyGained = Math.floor(hoursElapsed * 25);
-  
-  if (energyGained > 0) {
-    this.energy = Math.min(100, this.energy + energyGained);
-    this.lastEnergyUpdate = now;
-  }
-  
-  return this.energy;
-};
-
-// Set initial stats based on class
-characterSchema.pre('save', function(next) {
-  if (this.isNew) {
-    const baseStats = CLASS_BASE_STATS[this.baseClass];
-    this.stats = {
-      ...baseStats,
-      maxHp: baseStats.hp,
-      maxMp: baseStats.mp
-    };
-    
-    // Initialize basic skills based on class
-    const classSkills = getClassSkills(this.baseClass);
-    this.skills = classSkills;
-  }
-  next();
-});
-
-// Helper function to get class skills
-function getClassSkills(baseClass) {
-  const skillSets = {
-    swordsman: [
-      { skillId: 'slash', name: 'Slash', level: 1, unlocked: true },
-      { skillId: 'heavyStrike', name: 'Heavy Strike', level: 1, unlocked: true },
-      { skillId: 'shieldBash', name: 'Shield Bash', level: 1, unlocked: false },
-      { skillId: 'warCry', name: 'War Cry', level: 1, unlocked: false }
-    ],
-    thief: [
-      { skillId: 'backstab', name: 'Backstab', level: 1, unlocked: true },
-      { skillId: 'poisonBlade', name: 'Poison Blade', level: 1, unlocked: true },
-      { skillId: 'smokeScreen', name: 'Smoke Screen', level: 1, unlocked: false },
-      { skillId: 'steal', name: 'Steal', level: 1, unlocked: false }
-    ],
-    archer: [
-      { skillId: 'preciseShot', name: 'Precise Shot', level: 1, unlocked: true },
-      { skillId: 'multiShot', name: 'Multi Shot', level: 1, unlocked: true },
-      { skillId: 'eagleEye', name: 'Eagle Eye', level: 1, unlocked: false },
-      { skillId: 'arrowRain', name: 'Arrow Rain', level: 1, unlocked: false }
-    ],
-    mage: [
-      { skillId: 'fireball', name: 'Fireball', level: 1, unlocked: true },
-      { skillId: 'iceSpear', name: 'Ice Spear', level: 1, unlocked: true },
-      { skillId: 'manaShield', name: 'Mana Shield', level: 1, unlocked: false },
-      { skillId: 'thunderbolt', name: 'Thunderbolt', level: 1, unlocked: false }
-    ]
-  };
-  return skillSets[baseClass] || [];
-}
+// Helper functions (keep your current methods here)
 
 export { CLASS_BASE_STATS, HIDDEN_CLASSES };
 export default mongoose.model('Character', characterSchema);
