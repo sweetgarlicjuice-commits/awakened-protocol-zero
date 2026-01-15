@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 
-// Base stats configuration for each class
+// ============================================================
+// BASE STATS CONFIGURATION
+// ============================================================
+
 const CLASS_BASE_STATS = {
   swordsman: { hp: 150, mp: 50, str: 15, agi: 8, dex: 8, int: 5, vit: 14 },
   thief: { hp: 100, mp: 70, str: 8, agi: 15, dex: 12, int: 7, vit: 8 },
@@ -8,15 +11,44 @@ const CLASS_BASE_STATS = {
   mage: { hp: 80, mp: 120, str: 5, agi: 7, dex: 8, int: 15, vit: 5 }
 };
 
-// Hidden classes configuration
+// ============================================================
+// HIDDEN CLASSES (20 Total - 5 per base class)
+// ============================================================
+
 const HIDDEN_CLASSES = {
-  flameblade: { baseClass: 'swordsman', tier: 'rare', element: 'fire' },
-  shadowDancer: { baseClass: 'thief', tier: 'rare', element: 'dark' },
-  stormRanger: { baseClass: 'archer', tier: 'rare', element: 'lightning' },
-  frostWeaver: { baseClass: 'mage', tier: 'rare', element: 'ice' }
+  // Swordsman Hidden Classes
+  flameblade: { baseClass: 'swordsman', element: 'fire', icon: '🔥' },
+  berserker: { baseClass: 'swordsman', element: 'none', icon: '💢' },
+  paladin: { baseClass: 'swordsman', element: 'holy', icon: '✨' },
+  earthshaker: { baseClass: 'swordsman', element: 'earth', icon: '🌍' },
+  frostguard: { baseClass: 'swordsman', element: 'ice', icon: '❄️' },
+  
+  // Thief Hidden Classes
+  shadowDancer: { baseClass: 'thief', element: 'dark', icon: '🌑' },
+  venomancer: { baseClass: 'thief', element: 'nature', icon: '🐍' },
+  assassin: { baseClass: 'thief', element: 'none', icon: '⚫' },
+  phantom: { baseClass: 'thief', element: 'dark', icon: '👻' },
+  bloodreaper: { baseClass: 'thief', element: 'none', icon: '🩸' },
+  
+  // Archer Hidden Classes
+  stormRanger: { baseClass: 'archer', element: 'lightning', icon: '⚡' },
+  pyroArcher: { baseClass: 'archer', element: 'fire', icon: '🔥' },
+  frostSniper: { baseClass: 'archer', element: 'ice', icon: '❄️' },
+  natureWarden: { baseClass: 'archer', element: 'nature', icon: '🌿' },
+  voidHunter: { baseClass: 'archer', element: 'dark', icon: '🌀' },
+  
+  // Mage Hidden Classes
+  frostWeaver: { baseClass: 'mage', element: 'ice', icon: '❄️' },
+  pyromancer: { baseClass: 'mage', element: 'fire', icon: '🔥' },
+  stormcaller: { baseClass: 'mage', element: 'lightning', icon: '⚡' },
+  necromancer: { baseClass: 'mage', element: 'dark', icon: '💀' },
+  arcanist: { baseClass: 'mage', element: 'holy', icon: '✨' }
 };
 
-// Default skills for each class - IMPORTANT: This ensures characters have skills!
+// ============================================================
+// DEFAULT SKILLS BY CLASS
+// ============================================================
+
 const CLASS_DEFAULT_SKILLS = {
   swordsman: [
     { skillId: 'slash', name: 'Slash', level: 1, unlocked: true },
@@ -44,6 +76,134 @@ const CLASS_DEFAULT_SKILLS = {
   ]
 };
 
+// Hidden class skills mapping
+const HIDDEN_CLASS_SKILLS = {
+  flameblade: [
+    { skillId: 'flameSlash', name: 'Flame Slash', level: 1, unlocked: true },
+    { skillId: 'infernoStrike', name: 'Inferno Strike', level: 1, unlocked: true },
+    { skillId: 'fireAura', name: 'Fire Aura', level: 1, unlocked: true },
+    { skillId: 'volcanicRage', name: 'Volcanic Rage', level: 1, unlocked: true }
+  ],
+  berserker: [
+    { skillId: 'rageSlash', name: 'Rage Slash', level: 1, unlocked: true },
+    { skillId: 'bloodFury', name: 'Blood Fury', level: 1, unlocked: true },
+    { skillId: 'recklessCharge', name: 'Reckless Charge', level: 1, unlocked: true },
+    { skillId: 'deathwish', name: 'Deathwish', level: 1, unlocked: true }
+  ],
+  paladin: [
+    { skillId: 'holyStrike', name: 'Holy Strike', level: 1, unlocked: true },
+    { skillId: 'divineShield', name: 'Divine Shield', level: 1, unlocked: true },
+    { skillId: 'healingLight', name: 'Healing Light', level: 1, unlocked: true },
+    { skillId: 'judgment', name: 'Judgment', level: 1, unlocked: true }
+  ],
+  earthshaker: [
+    { skillId: 'groundSlam', name: 'Ground Slam', level: 1, unlocked: true },
+    { skillId: 'stoneSkin', name: 'Stone Skin', level: 1, unlocked: true },
+    { skillId: 'earthquake', name: 'Earthquake', level: 1, unlocked: true },
+    { skillId: 'titansWrath', name: 'Titan\'s Wrath', level: 1, unlocked: true }
+  ],
+  frostguard: [
+    { skillId: 'frostStrike', name: 'Frost Strike', level: 1, unlocked: true },
+    { skillId: 'iceBarrier', name: 'Ice Barrier', level: 1, unlocked: true },
+    { skillId: 'frozenBlade', name: 'Frozen Blade', level: 1, unlocked: true },
+    { skillId: 'glacialFortress', name: 'Glacial Fortress', level: 1, unlocked: true }
+  ],
+  shadowDancer: [
+    { skillId: 'shadowStrike', name: 'Shadow Strike', level: 1, unlocked: true },
+    { skillId: 'vanish', name: 'Vanish', level: 1, unlocked: true },
+    { skillId: 'deathMark', name: 'Death Mark', level: 1, unlocked: true },
+    { skillId: 'shadowDance', name: 'Shadow Dance', level: 1, unlocked: true }
+  ],
+  venomancer: [
+    { skillId: 'toxicStrike', name: 'Toxic Strike', level: 1, unlocked: true },
+    { skillId: 'venomCoat', name: 'Venom Coat', level: 1, unlocked: true },
+    { skillId: 'plague', name: 'Plague', level: 1, unlocked: true },
+    { skillId: 'pandemic', name: 'Pandemic', level: 1, unlocked: true }
+  ],
+  assassin: [
+    { skillId: 'exposeWeakness', name: 'Expose Weakness', level: 1, unlocked: true },
+    { skillId: 'markForDeath', name: 'Mark for Death', level: 1, unlocked: true },
+    { skillId: 'execute', name: 'Execute', level: 1, unlocked: true },
+    { skillId: 'assassination', name: 'Assassination', level: 1, unlocked: true }
+  ],
+  phantom: [
+    { skillId: 'haunt', name: 'Haunt', level: 1, unlocked: true },
+    { skillId: 'nightmare', name: 'Nightmare', level: 1, unlocked: true },
+    { skillId: 'soulDrain', name: 'Soul Drain', level: 1, unlocked: true },
+    { skillId: 'dread', name: 'Dread', level: 1, unlocked: true }
+  ],
+  bloodreaper: [
+    { skillId: 'bloodlet', name: 'Bloodlet', level: 1, unlocked: true },
+    { skillId: 'sanguineBlade', name: 'Sanguine Blade', level: 1, unlocked: true },
+    { skillId: 'crimsonSlash', name: 'Crimson Slash', level: 1, unlocked: true },
+    { skillId: 'exsanguinate', name: 'Exsanguinate', level: 1, unlocked: true }
+  ],
+  stormRanger: [
+    { skillId: 'lightningArrow', name: 'Lightning Arrow', level: 1, unlocked: true },
+    { skillId: 'chainLightning', name: 'Chain Lightning', level: 1, unlocked: true },
+    { skillId: 'stormEye', name: 'Storm Eye', level: 1, unlocked: true },
+    { skillId: 'thunderstorm', name: 'Thunderstorm', level: 1, unlocked: true }
+  ],
+  pyroArcher: [
+    { skillId: 'fireArrow', name: 'Fire Arrow', level: 1, unlocked: true },
+    { skillId: 'explosiveShot', name: 'Explosive Shot', level: 1, unlocked: true },
+    { skillId: 'ignite', name: 'Ignite', level: 1, unlocked: true },
+    { skillId: 'meteorArrow', name: 'Meteor Arrow', level: 1, unlocked: true }
+  ],
+  frostSniper: [
+    { skillId: 'iceArrow', name: 'Ice Arrow', level: 1, unlocked: true },
+    { skillId: 'frozenAim', name: 'Frozen Aim', level: 1, unlocked: true },
+    { skillId: 'piercingCold', name: 'Piercing Cold', level: 1, unlocked: true },
+    { skillId: 'absoluteShot', name: 'Absolute Shot', level: 1, unlocked: true }
+  ],
+  natureWarden: [
+    { skillId: 'thornArrow', name: 'Thorn Arrow', level: 1, unlocked: true },
+    { skillId: 'naturesGift', name: 'Nature\'s Gift', level: 1, unlocked: true },
+    { skillId: 'vineTrap', name: 'Vine Trap', level: 1, unlocked: true },
+    { skillId: 'overgrowth', name: 'Overgrowth', level: 1, unlocked: true }
+  ],
+  voidHunter: [
+    { skillId: 'voidArrow', name: 'Void Arrow', level: 1, unlocked: true },
+    { skillId: 'nullZone', name: 'Null Zone', level: 1, unlocked: true },
+    { skillId: 'darkVolley', name: 'Dark Volley', level: 1, unlocked: true },
+    { skillId: 'oblivion', name: 'Oblivion', level: 1, unlocked: true }
+  ],
+  frostWeaver: [
+    { skillId: 'frostBolt', name: 'Frost Bolt', level: 1, unlocked: true },
+    { skillId: 'blizzard', name: 'Blizzard', level: 1, unlocked: true },
+    { skillId: 'iceArmor', name: 'Ice Armor', level: 1, unlocked: true },
+    { skillId: 'absoluteZero', name: 'Absolute Zero', level: 1, unlocked: true }
+  ],
+  pyromancer: [
+    { skillId: 'flameBurst', name: 'Flame Burst', level: 1, unlocked: true },
+    { skillId: 'combustion', name: 'Combustion', level: 1, unlocked: true },
+    { skillId: 'inferno', name: 'Inferno', level: 1, unlocked: true },
+    { skillId: 'hellfire', name: 'Hellfire', level: 1, unlocked: true }
+  ],
+  stormcaller: [
+    { skillId: 'shock', name: 'Shock', level: 1, unlocked: true },
+    { skillId: 'lightningBolt', name: 'Lightning Bolt', level: 1, unlocked: true },
+    { skillId: 'thunderChain', name: 'Thunder Chain', level: 1, unlocked: true },
+    { skillId: 'tempest', name: 'Tempest', level: 1, unlocked: true }
+  ],
+  necromancer: [
+    { skillId: 'lifeDrain', name: 'Life Drain', level: 1, unlocked: true },
+    { skillId: 'curse', name: 'Curse', level: 1, unlocked: true },
+    { skillId: 'soulRend', name: 'Soul Rend', level: 1, unlocked: true },
+    { skillId: 'deathPact', name: 'Death Pact', level: 1, unlocked: true }
+  ],
+  arcanist: [
+    { skillId: 'arcaneMissile', name: 'Arcane Missile', level: 1, unlocked: true },
+    { skillId: 'empower', name: 'Empower', level: 1, unlocked: true },
+    { skillId: 'arcaneBurst', name: 'Arcane Burst', level: 1, unlocked: true },
+    { skillId: 'transcendence', name: 'Transcendence', level: 1, unlocked: true }
+  ]
+};
+
+// ============================================================
+// SCHEMAS
+// ============================================================
+
 const skillSchema = new mongoose.Schema({
   skillId: String,
   name: String,
@@ -60,8 +220,7 @@ const inventoryItemSchema = new mongoose.Schema({
   rarity: { type: String, enum: ['common', 'uncommon', 'rare', 'epic', 'legendary'], default: 'common' },
   quantity: { type: Number, default: 1 },
   stackable: { type: Boolean, default: true },
-  stats: mongoose.Schema.Types.Mixed,
-  sellPrice: { type: Number, default: 5 }
+  stats: mongoose.Schema.Types.Mixed
 });
 
 const equipmentSlotSchema = new mongoose.Schema({
@@ -72,6 +231,25 @@ const equipmentSlotSchema = new mongoose.Schema({
   rarity: String,
   stats: mongoose.Schema.Types.Mixed
 });
+
+// Active buff schema for combat
+const activeBuffSchema = new mongoose.Schema({
+  id: String,
+  name: String,
+  icon: String,
+  color: String,
+  type: { type: String, enum: ['buff', 'debuff', 'dot', 'control'] },
+  category: String,
+  value: Number,
+  duration: Number,
+  damagePerTurn: Number,  // For DoTs
+  source: String,
+  stacks: { type: Number, default: 1 }
+});
+
+// ============================================================
+// MAIN CHARACTER SCHEMA
+// ============================================================
 
 const characterSchema = new mongoose.Schema({
   userId: {
@@ -96,7 +274,16 @@ const characterSchema = new mongoose.Schema({
   },
   hiddenClass: {
     type: String,
-    enum: ['none', 'flameblade', 'shadowDancer', 'stormRanger', 'frostWeaver'],
+    enum: ['none', 
+      // Swordsman
+      'flameblade', 'berserker', 'paladin', 'earthshaker', 'frostguard',
+      // Thief  
+      'shadowDancer', 'venomancer', 'assassin', 'phantom', 'bloodreaper',
+      // Archer
+      'stormRanger', 'pyroArcher', 'frostSniper', 'natureWarden', 'voidHunter',
+      // Mage
+      'frostWeaver', 'pyromancer', 'stormcaller', 'necromancer', 'arcanist'
+    ],
     default: 'none'
   },
   hiddenClassUnlocked: {
@@ -104,12 +291,19 @@ const characterSchema = new mongoose.Schema({
     default: false
   },
   
+  // Element (derived from hidden class)
+  element: {
+    type: String,
+    enum: ['none', 'fire', 'water', 'lightning', 'earth', 'nature', 'ice', 'dark', 'holy'],
+    default: 'none'
+  },
+  
   // Level & Experience
   level: {
     type: Number,
     default: 1,
     min: 1,
-    max: 200
+    max: 200  // Increased for 10 towers
   },
   experience: {
     type: Number,
@@ -120,7 +314,7 @@ const characterSchema = new mongoose.Schema({
     default: 100
   },
   
-  // Stats
+  // Base Stats (allocated by player)
   stats: {
     hp: { type: Number, default: 100 },
     maxHp: { type: Number, default: 100 },
@@ -132,6 +326,32 @@ const characterSchema = new mongoose.Schema({
     int: { type: Number, default: 10 },
     vit: { type: Number, default: 10 }
   },
+  
+  // Derived Stats (calculated from base + equipment)
+  derivedStats: {
+    pDmg: { type: Number, default: 0 },     // Physical Damage
+    mDmg: { type: Number, default: 0 },     // Magic Damage
+    pDef: { type: Number, default: 0 },     // Physical Defense
+    mDef: { type: Number, default: 0 },     // Magic Defense
+    critRate: { type: Number, default: 5 }, // Critical Rate %
+    critDmg: { type: Number, default: 150 },// Critical Damage %
+    accuracy: { type: Number, default: 90 },// Hit Rate %
+    evasion: { type: Number, default: 0 },  // Dodge %
+    hpRegen: { type: Number, default: 0 },  // HP per turn
+    mpRegen: { type: Number, default: 0 },  // MP per turn
+    // Elemental Resistances
+    fireRes: { type: Number, default: 0 },
+    waterRes: { type: Number, default: 0 },
+    lightningRes: { type: Number, default: 0 },
+    earthRes: { type: Number, default: 0 },
+    natureRes: { type: Number, default: 0 },
+    iceRes: { type: Number, default: 0 },
+    darkRes: { type: Number, default: 0 },
+    holyRes: { type: Number, default: 0 }
+  },
+  
+  // Active Buffs/Debuffs (for combat persistence)
+  activeBuffs: [activeBuffSchema],
   
   // Unallocated stat points
   statPoints: {
@@ -177,18 +397,14 @@ const characterSchema = new mongoose.Schema({
     towerId: { type: Number, default: 1 },
     floor: { type: Number, default: 1 }
   },
-  // Per-tower progress tracking
   towerProgress: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
-  // Tower lockout (curse effect)
   towerLockoutUntil: {
     type: Date,
     default: null
   },
-  
-  // Track if player is inside tower
   isInTower: { type: Boolean, default: false },
   
   // Exploration progress for multi-event system
@@ -197,10 +413,10 @@ const characterSchema = new mongoose.Schema({
     default: null
   },
   
-  // Skills - initialized based on class
+  // Skills
   skills: [skillSchema],
   
-  // Inventory (max 50 slots)
+  // Inventory
   inventory: [inventoryItemSchema],
   inventorySize: {
     type: Number,
@@ -213,8 +429,8 @@ const characterSchema = new mongoose.Schema({
     body: equipmentSlotSchema,
     leg: equipmentSlotSchema,
     shoes: equipmentSlotSchema,
-    leftHand: equipmentSlotSchema,  // Main weapon
-    rightHand: equipmentSlotSchema, // Offhand/Shield
+    leftHand: equipmentSlotSchema,
+    rightHand: equipmentSlotSchema,
     ring: equipmentSlotSchema,
     necklace: equipmentSlotSchema
   },
@@ -245,8 +461,7 @@ const characterSchema = new mongoose.Schema({
     totalDamageDealt: { type: Number, default: 0 },
     totalGoldEarned: { type: Number, default: 0 },
     scrollsFound: { type: Number, default: 0 },
-    floorsCleared: { type: Number, default: 0 },
-    hiddenClassUnlocked: { type: Boolean, default: false }
+    floorsCleared: { type: Number, default: 0 }
   },
   
   createdAt: {
@@ -259,79 +474,141 @@ const characterSchema = new mongoose.Schema({
   }
 });
 
-// Pre-save middleware to initialize skills if empty
+// ============================================================
+// PRE-SAVE MIDDLEWARE - Initialize skills if empty
+// ============================================================
+
 characterSchema.pre('save', function(next) {
-  // Initialize skills based on class if skills array is empty
+  // Initialize base class skills if empty
   if (!this.skills || this.skills.length === 0) {
-    const defaultSkills = CLASS_DEFAULT_SKILLS[this.baseClass];
-    if (defaultSkills) {
-      this.skills = defaultSkills;
-    }
+    const baseSkills = CLASS_DEFAULT_SKILLS[this.baseClass] || [];
+    this.skills = [...baseSkills];
   }
   
-  // Initialize stats based on class if this is a new character
-  if (this.isNew) {
-    const baseStats = CLASS_BASE_STATS[this.baseClass];
-    if (baseStats) {
-      this.stats.hp = baseStats.hp;
-      this.stats.maxHp = baseStats.hp;
-      this.stats.mp = baseStats.mp;
-      this.stats.maxMp = baseStats.mp;
-      this.stats.str = baseStats.str;
-      this.stats.agi = baseStats.agi;
-      this.stats.dex = baseStats.dex;
-      this.stats.int = baseStats.int;
-      this.stats.vit = baseStats.vit;
+  // Add hidden class skills if they have one and don't have them yet
+  if (this.hiddenClass && this.hiddenClass !== 'none') {
+    const hiddenSkills = HIDDEN_CLASS_SKILLS[this.hiddenClass] || [];
+    const existingSkillIds = this.skills.map(s => s.skillId);
+    
+    hiddenSkills.forEach(skill => {
+      if (!existingSkillIds.includes(skill.skillId)) {
+        this.skills.push(skill);
+      }
+    });
+    
+    // Set element from hidden class
+    const hiddenClassInfo = HIDDEN_CLASSES[this.hiddenClass];
+    if (hiddenClassInfo) {
+      this.element = hiddenClassInfo.element;
     }
   }
   
   next();
 });
 
-// Method to update energy based on time passed
-characterSchema.methods.updateEnergy = function() {
-  const now = new Date();
-  const lastUpdate = this.lastEnergyUpdate || now;
-  const hoursPassed = (now - lastUpdate) / (1000 * 60 * 60);
-  const energyGain = Math.floor(hoursPassed * 25); // 25 energy per hour
+// ============================================================
+// STATIC METHOD - Calculate derived stats
+// ============================================================
+
+characterSchema.statics.calculateDerivedStats = function(character) {
+  const stats = character.stats;
+  const equipment = character.equipment;
   
-  if (energyGain > 0) {
-    this.energy = Math.min(100, this.energy + energyGain);
-    this.lastEnergyUpdate = now;
+  // Base formulas
+  const derived = {
+    pDmg: 5 + (stats.str * 3),
+    mDmg: 5 + (stats.int * 4),
+    pDef: (stats.str * 1) + (stats.vit * 2),
+    mDef: (stats.vit * 1) + (stats.int * 1),
+    critRate: 5 + (stats.agi * 0.5),
+    critDmg: 150 + (stats.dex * 1),
+    accuracy: 90 + (stats.dex * 0.5),
+    evasion: (stats.agi * 0.3),
+    hpRegen: Math.floor(stats.vit * 1),
+    mpRegen: Math.floor(stats.int * 0.5),
+    fireRes: 0, waterRes: 0, lightningRes: 0, earthRes: 0,
+    natureRes: 0, iceRes: 0, darkRes: 0, holyRes: 0
+  };
+  
+  // Add equipment bonuses
+  if (equipment) {
+    const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
+    slots.forEach(slot => {
+      const item = equipment[slot];
+      if (item && item.stats) {
+        Object.keys(item.stats).forEach(stat => {
+          if (derived[stat] !== undefined) {
+            derived[stat] += item.stats[stat];
+          }
+        });
+      }
+    });
   }
   
-  return this.energy;
+  // Apply level bonus (+2% per level)
+  const levelBonus = 1 + (character.level - 1) * 0.02;
+  derived.pDmg = Math.floor(derived.pDmg * levelBonus);
+  derived.mDmg = Math.floor(derived.mDmg * levelBonus);
+  
+  // Cap certain stats
+  derived.critRate = Math.min(derived.critRate, 80);
+  derived.accuracy = Math.min(derived.accuracy, 100);
+  derived.evasion = Math.min(derived.evasion, 60);
+  
+  return derived;
 };
 
-// Method to check for level up
-characterSchema.methods.checkLevelUp = function() {
-  let leveledUp = false;
-  
-  while (this.experience >= this.experienceToNextLevel && this.level < 200) {
-    this.experience -= this.experienceToNextLevel;
-    this.level += 1;
-    this.statPoints += 5; // 5 stat points per level
-    this.experienceToNextLevel = Math.floor(100 * Math.pow(1.15, this.level - 1));
-    leveledUp = true;
-  }
-  
-  return leveledUp;
-};
+// ============================================================
+// STATIC METHOD - Repair skills for existing characters
+// ============================================================
 
-// Method to repair/initialize skills for existing characters
-characterSchema.methods.repairSkills = function() {
-  const defaultSkills = CLASS_DEFAULT_SKILLS[this.baseClass] || [];
-  const existingSkillIds = (this.skills || []).map(s => s.skillId);
+characterSchema.statics.repairSkills = function(character) {
+  const baseSkills = CLASS_DEFAULT_SKILLS[character.baseClass] || [];
+  const existingSkillIds = (character.skills || []).map(s => s.skillId);
   
-  // Add any missing base class skills
-  defaultSkills.forEach(skill => {
+  // Add missing base skills
+  baseSkills.forEach(skill => {
     if (!existingSkillIds.includes(skill.skillId)) {
-      this.skills.push(skill);
+      character.skills.push({ ...skill });
     }
   });
   
-  return this.skills;
+  // Add hidden class skills if applicable
+  if (character.hiddenClass && character.hiddenClass !== 'none') {
+    const hiddenSkills = HIDDEN_CLASS_SKILLS[character.hiddenClass] || [];
+    hiddenSkills.forEach(skill => {
+      if (!existingSkillIds.includes(skill.skillId)) {
+        character.skills.push({ ...skill });
+      }
+    });
+  }
+  
+  return character;
 };
 
-export { CLASS_BASE_STATS, HIDDEN_CLASSES, CLASS_DEFAULT_SKILLS };
+// ============================================================
+// STATIC METHOD - Get skills for class combo
+// ============================================================
+
+characterSchema.statics.getSkillsForClass = function(baseClass, hiddenClass = 'none') {
+  const skills = [...(CLASS_DEFAULT_SKILLS[baseClass] || [])];
+  
+  if (hiddenClass && hiddenClass !== 'none') {
+    skills.push(...(HIDDEN_CLASS_SKILLS[hiddenClass] || []));
+  }
+  
+  return skills;
+};
+
+// ============================================================
+// EXPORTS
+// ============================================================
+
+export { 
+  CLASS_BASE_STATS, 
+  HIDDEN_CLASSES, 
+  CLASS_DEFAULT_SKILLS, 
+  HIDDEN_CLASS_SKILLS 
+};
+
 export default mongoose.model('Character', characterSchema);
