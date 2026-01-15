@@ -1,78 +1,468 @@
 // ============================================================
-// ENHANCED COMBAT SYSTEM - With Stat Scaling & Null Safety
+// COMBAT SYSTEM - Phase 7 Complete Overhaul
+// ============================================================
+// Integrates: statSystem, elementSystem, buffSystem, skillDatabase
 // ============================================================
 
-import { SKILLS, calculateSkillDamage as calcSkillDmg, calculateManaCost as calcManaCost, calculateBuffEffect as calcBuffEffect } from '../data/skillSystem.js';
+import { calculateDerivedStats, applyBuffsToDerivedStats } from '../data/statSystem.js';
+import { getElementMultiplier, getElementEffectivenessText, createElementalStatusEffect, processDotEffects as processElementDots, checkControlEffects, tickEffectDurations } from '../data/elementSystem.js';
+import { createBuff, createDot, addBuff, tickBuffs, processDots, processShieldDamage, processReflectDamage, processLifesteal, checkAndConsumeVanish, hasDebuffImmunity, removeAllDebuffs, formatBuffsForDisplay } from '../data/buffSystem.js';
+import { getSkill, getAllSkillsForCharacter } from '../data/skillDatabase.js';
 import { getSetItemDrop, getRandomEquipment } from '../data/setItemData.js';
 
 // ============================================================
-// DAMAGE CALCULATION - With comprehensive null safety
+// MAIN DAMAGE CALCULATION
 // ============================================================
 
-export function calculateDamage(attacker, defender, skill = null) {
-  // Ensure we have valid objects
-  if (!attacker) attacker = {};
-  if (!defender) defender = {};
+export function calculateDamage(attacker, defender, skill = null, options = {}) {
+  const result = {
+    damage: 0,
+    isCritical: false,
+    element: 'none',
+    elementEffect: null,
+    hits: 1,
+    messages: [],
+    lifestealHeal: 0,
+    reflectDamage: 0,
+    missed: false,
+    blocked: false
+  };
+
+  // Get attacker's derived stats (with buffs applied)
+  const attackerDerived = getEffectiveStats(attacker);
+  const defenderDerived = getEffectiveStats(defender);
   
-  let baseDamage;
-  let attackStat;
-  const stats = attacker.stats || {};
-  const baseClass = attacker.baseClass || 'swordsman';
+  // Check for control effects (stun/freeze) - attacker can't act
+  if (attacker.activeBuffs && attacker.activeBuffs.length > 0) {
+    const control = checkControlEffects(attacker.activeBuffs);
+    if (control.skipTurn) {
+      result.damage = 0;
+      result.messages.push(control.reason);
+      return result;
+    }
+  }
+
+  // === ACCURACY CHECK (Can Miss) ===
+  if (!options.neverMiss) {
+    const hitChance = Math.min(100, attackerDerived.accuracy - (defenderDerived.evasion || 0));
+    if (Math.random() * 100 > hitChance) {
+      result.missed = true;
+      result.messages.push('Attack missed!');
+      return result;
+    }
+  }
+
+  // === BASE DAMAGE CALCULATION ===
+  let baseDamage = 0;
+  let damageType = 'physical'; // 'physical' or 'magical'
+  let element = 'none';
+  let hits = 1;
+  let critBonus = 0;
+  let armorPen = 0;
+
+  if (skill) {
+    // Skill-based damage
+    const skillData = typeof skill === 'string' ? getSkill(skill) : skill;
+    if (!skillData) {
+      // Fallback to basic attack if skill not found
+      baseDamage = attackerDerived.pDmg;
+    } else {
+      element = skillData.element || 'none';
+      hits = skillData.hits || 1;
+      
+      if (skillData.scaling) {
+        const scalingStat = skillData.scaling.stat;
+        const multiplier = skillData.scaling.multiplier;
+        
+        if (scalingStat === 'pDmg') {
+          baseDamage = attackerDerived.pDmg * multiplier;
+          damageType = 'physical';
+        } else if (scalingStat === 'mDmg') {
+          baseDamage = attackerDerived.mDmg * multiplier;
+          damageType = 'magical';
+        } else if (scalingStat === 'maxHp') {
+          // Healing skills
+          baseDamage = attackerDerived.maxHp * multiplier;
+          damageType = 'heal';
+        }
+      }
+      
+      // Process skill effects for bonuses
+      if (skillData.effects) {
+        skillData.effects.forEach(effect => {
+          if (effect.type === 'critBonus') {
+            critBonus += effect.value;
+          }
+          if (effect.type === 'armorPen') {
+            armorPen += effect.value;
+          }
+          if (effect.type === 'neverMiss') {
+            options.neverMiss = true;
+          }
+        });
+      }
+    }
+  } else {
+    // Basic attack - use primary damage stat
+    const attackerClass = attacker.baseClass || 'swordsman';
+    if (attackerClass === 'mage') {
+      baseDamage = attackerDerived.mDmg;
+      damageType = 'magical';
+    } else {
+      baseDamage = attackerDerived.pDmg;
+      damageType = 'physical';
+    }
+  }
+
+  // === HEALING (Skip damage calculation) ===
+  if (damageType === 'heal') {
+    result.damage = Math.floor(baseDamage);
+    result.isHeal = true;
+    result.messages.push(`Healed for ${result.damage} HP!`);
+    return result;
+  }
+
+  // === CHECK VANISH BUFF (Auto-crit) ===
+  let autoCrit = false;
+  let vanishBonus = 0;
+  if (attacker.activeBuffs) {
+    const vanishResult = checkAndConsumeVanish(attacker.activeBuffs);
+    if (vanishResult) {
+      autoCrit = true;
+      vanishBonus = vanishResult.bonusDamage;
+      result.messages.push('💨 Striking from the shadows!');
+    }
+  }
+
+  // === ELEMENT MULTIPLIER ===
+  const defenderElement = defender.element || 'none';
+  const defenderResistances = defender.resistances || {};
+  const elementMult = getElementMultiplier(element, defenderElement, defenderResistances);
   
-  // Get primary stat based on class
-  const primaryStatMap = { swordsman: 'str', thief: 'agi', archer: 'dex', mage: 'int' };
-  const primaryStat = primaryStatMap[baseClass] || 'str';
+  if (element !== 'none') {
+    const effectText = getElementEffectivenessText(element, defenderElement);
+    if (effectText.text) {
+      result.messages.push(effectText.text);
+    }
+  }
+  result.element = element;
+  result.elementMultiplier = elementMult;
+
+  // === DEFENSE REDUCTION ===
+  let defense = damageType === 'physical' ? defenderDerived.pDef : defenderDerived.mDef;
   
-  if (skill && skill.scaling) {
-    // Use skill system calculation
-    try {
-      const result = calcSkillDmg(skill, stats, defender, attacker.buffs || {});
-      return { damage: result.damage || 1, isCritical: false, hits: result.hits || 1 };
-    } catch (e) {
-      console.error('Skill damage calculation error:', e);
-      // Fallback to basic calculation
+  // Apply armor penetration
+  if (armorPen > 0) {
+    defense = defense * (1 - armorPen / 100);
+  }
+  
+  // Defense formula: damage reduction = DEF / (DEF + 100)
+  const defReduction = defense / (defense + 100);
+
+  // === CRITICAL HIT ===
+  let critRate = attackerDerived.critRate + critBonus;
+  let critDmg = attackerDerived.critDmg;
+  
+  // Check for mark debuff on defender (increases crit received)
+  if (defender.activeBuffs) {
+    const markDebuff = defender.activeBuffs.find(b => b.id === 'critReceivedUp');
+    if (markDebuff) {
+      critRate += markDebuff.value;
     }
   }
   
-  // Basic attack calculation with null safety
-  attackStat = stats[primaryStat] || attacker.baseAtk || 10;
-  baseDamage = attackStat + (stats.atk || 0);
+  const isCritical = autoCrit || (Math.random() * 100 < critRate);
   
-  // Ensure baseDamage is at least 1
-  if (!baseDamage || baseDamage < 1) baseDamage = 10;
+  // === CALCULATE FINAL DAMAGE ===
+  let totalDamage = 0;
   
-  // Defense reduction with null safety
-  // Check multiple possible defense field names
-  const defense = defender.stats?.def || 
-                  defender.stats?.vit || 
-                  defender.def || 
-                  defender.baseDef || 
-                  defender.defense || 
-                  0;
+  for (let i = 0; i < hits; i++) {
+    let hitDamage = baseDamage / hits; // Divide damage among hits
+    
+    // Apply element multiplier
+    hitDamage *= elementMult;
+    
+    // Apply defense reduction
+    hitDamage *= (1 - defReduction);
+    
+    // Apply critical
+    if (isCritical) {
+      hitDamage *= (critDmg / 100);
+      if (vanishBonus > 0) {
+        hitDamage *= (1 + vanishBonus / 100);
+      }
+    }
+    
+    // Damage variance (±10%)
+    hitDamage *= (0.9 + Math.random() * 0.2);
+    
+    // Check for damage taken modifier on defender
+    if (defender.activeBuffs) {
+      const damageTakenUp = defender.activeBuffs.find(b => b.id === 'damageTakenUp');
+      if (damageTakenUp) {
+        hitDamage *= (1 + damageTakenUp.value / 100);
+      }
+    }
+    
+    totalDamage += Math.max(1, Math.floor(hitDamage));
+  }
+
+  // === PROCESS SHIELD ===
+  if (defender.activeBuffs) {
+    const shieldResult = processShieldDamage(defender.activeBuffs, totalDamage);
+    if (shieldResult.shieldAbsorbed > 0) {
+      result.messages.push(`🔷 Shield absorbed ${shieldResult.shieldAbsorbed} damage!`);
+      if (shieldResult.shieldBroken) {
+        result.messages.push('🔷 Shield broken!');
+      }
+    }
+    totalDamage = shieldResult.remainingDamage;
+  }
+
+  // === PROCESS REFLECT ===
+  if (defender.activeBuffs) {
+    const reflectDmg = processReflectDamage(defender.activeBuffs, totalDamage);
+    if (reflectDmg > 0) {
+      result.reflectDamage = reflectDmg;
+      result.messages.push(`🪞 Reflected ${reflectDmg} damage!`);
+    }
+  }
+
+  // === PROCESS LIFESTEAL (from skill or buff) ===
+  let lifestealPercent = 0;
   
-  const damageReduction = defense / (defense + 100);
-  
-  // Variance (90% to 110%)
-  const variance = 0.9 + Math.random() * 0.2;
-  let finalDamage = Math.max(1, Math.floor(baseDamage * (1 - damageReduction) * variance));
-  
-  // Critical hit calculation
-  let critChance = 0.05; // Base 5%
-  if (baseClass === 'thief') critChance += (stats.agi || 0) * 0.005;
-  else if (baseClass === 'archer') critChance += (stats.dex || 0) * 0.003;
-  
-  const isCritical = Math.random() < critChance;
-  if (isCritical) {
-    const critDmg = 1.5 + (baseClass === 'thief' ? (stats.agi || 0) * 0.003 : 0);
-    finalDamage = Math.floor(finalDamage * critDmg);
+  // From skill effect
+  if (skill && typeof skill === 'object' && skill.effects) {
+    const lsEffect = skill.effects.find(e => e.type === 'lifesteal');
+    if (lsEffect) {
+      lifestealPercent += lsEffect.value;
+    }
   }
   
-  // Final safety check
-  if (!finalDamage || isNaN(finalDamage) || finalDamage < 1) {
-    finalDamage = 1;
+  // From active buff
+  if (attacker.activeBuffs) {
+    const lsBuff = attacker.activeBuffs.find(b => b.id === 'lifesteal');
+    if (lsBuff) {
+      lifestealPercent += lsBuff.value;
+    }
   }
   
-  return { damage: finalDamage, isCritical };
+  if (lifestealPercent > 0) {
+    result.lifestealHeal = Math.floor(totalDamage * lifestealPercent / 100);
+    result.messages.push(`🩸 Lifesteal healed ${result.lifestealHeal} HP!`);
+  }
+
+  result.damage = totalDamage;
+  result.isCritical = isCritical;
+  result.hits = hits;
+
+  return result;
+}
+
+// ============================================================
+// GET EFFECTIVE STATS (Base + Equipment + Buffs)
+// ============================================================
+
+export function getEffectiveStats(combatant) {
+  // If already has derivedStats calculated, use those
+  if (combatant.derivedStats) {
+    // Apply active buffs
+    if (combatant.activeBuffs && combatant.activeBuffs.length > 0) {
+      return applyBuffsToDerivedStats(combatant.derivedStats, combatant.activeBuffs);
+    }
+    return combatant.derivedStats;
+  }
+  
+  // Calculate from base stats
+  const baseStats = combatant.stats || {
+    str: combatant.baseAtk || 10,
+    agi: 10,
+    dex: 10,
+    int: 10,
+    vit: combatant.baseDef || 10
+  };
+  
+  const derived = calculateDerivedStats(baseStats, null, combatant.level || 1);
+  
+  // For mobs, also add their base atk/def
+  if (combatant.atk) {
+    derived.pDmg += combatant.atk;
+    derived.mDmg += combatant.atk;
+  }
+  if (combatant.def) {
+    derived.pDef += combatant.def;
+    derived.mDef += combatant.def;
+  }
+  
+  // Apply buffs
+  if (combatant.activeBuffs && combatant.activeBuffs.length > 0) {
+    return applyBuffsToDerivedStats(derived, combatant.activeBuffs);
+  }
+  
+  return derived;
+}
+
+// ============================================================
+// APPLY SKILL EFFECTS (Buffs, Debuffs, DoTs)
+// ============================================================
+
+export function applySkillEffects(skill, attacker, defender) {
+  const results = {
+    attackerBuffs: [],
+    defenderDebuffs: [],
+    messages: []
+  };
+  
+  const skillData = typeof skill === 'string' ? getSkill(skill) : skill;
+  if (!skillData || !skillData.effects) return results;
+  
+  const attackerDerived = getEffectiveStats(attacker);
+  
+  // Check if defender has debuff immunity
+  const defenderImmune = defender.activeBuffs ? hasDebuffImmunity(defender.activeBuffs) : false;
+  
+  skillData.effects.forEach(effect => {
+    switch (effect.type) {
+      case 'buff': {
+        const buff = createBuff(effect.buffType, effect.value, effect.duration);
+        if (buff) {
+          if (effect.target === 'self') {
+            results.attackerBuffs.push(buff);
+            results.messages.push(`${buff.icon} ${attacker.name || 'You'} gained ${buff.name}!`);
+          }
+        }
+        break;
+      }
+      
+      case 'debuff': {
+        if (defenderImmune) {
+          results.messages.push(`🌟 ${defender.name || 'Enemy'} is immune to debuffs!`);
+          break;
+        }
+        const debuff = createBuff(effect.buffType, effect.value, effect.duration);
+        if (debuff) {
+          results.defenderDebuffs.push(debuff);
+          results.messages.push(`${debuff.icon} ${defender.name || 'Enemy'} received ${debuff.name}!`);
+        }
+        break;
+      }
+      
+      case 'dot': {
+        if (defenderImmune) {
+          results.messages.push(`🌟 ${defender.name || 'Enemy'} is immune to debuffs!`);
+          break;
+        }
+        // Calculate DoT damage based on scaling
+        const scalingStat = effect.dotType === 'burn' ? attackerDerived.mDmg : attackerDerived.pDmg;
+        const dotDamage = Math.floor(scalingStat * effect.scaling);
+        const dot = createDot(effect.dotType, dotDamage, effect.duration);
+        if (dot) {
+          results.defenderDebuffs.push(dot);
+          results.messages.push(`${dot.icon} ${defender.name || 'Enemy'} is ${dot.name}! (${dotDamage}/turn)`);
+        }
+        break;
+      }
+      
+      case 'control': {
+        if (defenderImmune) {
+          results.messages.push(`🌟 ${defender.name || 'Enemy'} is immune to debuffs!`);
+          break;
+        }
+        const chance = effect.chance || 1.0;
+        if (Math.random() < chance) {
+          const controlBuff = createBuff(effect.controlType, 0, effect.duration);
+          if (controlBuff) {
+            results.defenderDebuffs.push(controlBuff);
+            results.messages.push(`💫 ${defender.name || 'Enemy'} is ${effect.controlType}ned!`);
+          }
+        }
+        break;
+      }
+      
+      case 'shield': {
+        let shieldValue = 0;
+        if (effect.scalingStat === 'currentMp') {
+          shieldValue = Math.floor((attacker.stats?.mp || 50) * effect.multiplier);
+        } else if (effect.scalingStat === 'pDef') {
+          shieldValue = Math.floor(attackerDerived.pDef * effect.multiplier);
+        } else if (effect.scalingStat === 'maxHp') {
+          shieldValue = Math.floor(attackerDerived.maxHp * effect.multiplier);
+        }
+        const shieldBuff = createBuff('shield', shieldValue, 99);
+        if (shieldBuff) {
+          results.attackerBuffs.push(shieldBuff);
+          results.messages.push(`🔷 Created shield (${shieldValue} HP)!`);
+        }
+        break;
+      }
+      
+      case 'cleanse': {
+        if (effect.target === 'self' && attacker.activeBuffs) {
+          attacker.activeBuffs = removeAllDebuffs(attacker.activeBuffs);
+          results.messages.push('✨ Debuffs removed!');
+        }
+        break;
+      }
+      
+      case 'selfDamage': {
+        const selfDmg = Math.floor((attacker.stats?.hp || 100) * effect.percent / 100);
+        results.selfDamage = selfDmg;
+        results.messages.push(`💢 Took ${selfDmg} self-damage!`);
+        break;
+      }
+    }
+  });
+  
+  return results;
+}
+
+// ============================================================
+// PROCESS TURN START (DoTs, Buff Ticks)
+// ============================================================
+
+export function processTurnStart(combatant) {
+  const results = {
+    damage: 0,
+    healing: 0,
+    skipTurn: false,
+    messages: [],
+    expiredBuffs: []
+  };
+  
+  if (!combatant.activeBuffs || combatant.activeBuffs.length === 0) {
+    return results;
+  }
+  
+  // Check for stun/freeze
+  const controlCheck = checkControlEffects(combatant.activeBuffs);
+  if (controlCheck.skipTurn) {
+    results.skipTurn = true;
+    results.messages.push(controlCheck.reason);
+  }
+  
+  // Process DoTs
+  const dotResult = processDots(combatant.activeBuffs);
+  results.damage = dotResult.totalDamage;
+  results.messages.push(...dotResult.messages.map(m => m.text));
+  
+  // Tick buff durations
+  const tickResult = tickBuffs(combatant.activeBuffs);
+  combatant.activeBuffs = tickResult.remaining;
+  
+  tickResult.expired.forEach(buff => {
+    results.expiredBuffs.push(buff);
+    results.messages.push(`${buff.icon} ${buff.name} expired.`);
+  });
+  
+  // HP/MP Regen (if not a mob)
+  if (combatant.derivedStats && !combatant.isMob) {
+    if (combatant.derivedStats.hpRegen > 0 && combatant.stats.hp < combatant.stats.maxHp) {
+      results.healing = combatant.derivedStats.hpRegen;
+      results.messages.push(`💚 Regenerated ${results.healing} HP.`);
+    }
+  }
+  
+  return results;
 }
 
 // ============================================================
@@ -80,68 +470,46 @@ export function calculateDamage(attacker, defender, skill = null) {
 // ============================================================
 
 export function scaleEnemyStats(enemy, floor, towerId) {
-  // Safety check
-  if (!enemy) {
-    return {
-      id: 'unknown_enemy',
-      name: 'Unknown Enemy',
-      hp: 50,
-      maxHp: 50,
-      baseHp: 50,
-      atk: 10,
-      baseAtk: 10,
-      def: 5,
-      baseDef: 5,
-      expReward: 10,
-      goldReward: { min: 5, max: 15 },
-      isBoss: false,
-      isElite: false
-    };
-  }
-  
-  // Tower multipliers scale exponentially
   const towerMultipliers = { 1: 1, 2: 1.8, 3: 3, 4: 5, 5: 8, 6: 13, 7: 20, 8: 32, 9: 50, 10: 80 };
   
   const towerMult = towerMultipliers[towerId] || 1;
-  const floorMult = 1 + ((floor || 1) - 1) * 0.08;
+  const floorMult = 1 + (floor - 1) * 0.08;
   const totalMult = towerMult * floorMult;
   
-  // Get base values with fallbacks
-  const baseHp = enemy.baseHp || enemy.hp || 50;
-  const baseAtk = enemy.baseAtk || enemy.atk || enemy.attack || 10;
-  const baseDef = enemy.baseDef || enemy.def || enemy.defense || 5;
-  const baseExp = enemy.expReward || enemy.exp || 15;
-  
-  // Handle goldReward - could be object or number
-  let goldMin = 5, goldMax = 15;
-  if (enemy.goldReward) {
-    if (typeof enemy.goldReward === 'object') {
-      goldMin = enemy.goldReward.min || 5;
-      goldMax = enemy.goldReward.max || 15;
-    } else if (typeof enemy.goldReward === 'number') {
-      goldMin = Math.floor(enemy.goldReward * 0.8);
-      goldMax = Math.floor(enemy.goldReward * 1.2);
-    }
-  }
-  
-  return {
-    ...enemy,
-    id: enemy.id || enemy.name?.toLowerCase().replace(/\s+/g, '_') || 'enemy',
-    hp: Math.floor(baseHp * totalMult),
-    maxHp: Math.floor(baseHp * totalMult),
-    baseHp: baseHp,
-    atk: Math.floor(baseAtk * totalMult),
-    baseAtk: baseAtk,
-    def: Math.floor(baseDef * totalMult),
-    baseDef: baseDef,
-    expReward: Math.floor(baseExp * totalMult),
-    goldReward: {
-      min: Math.floor(goldMin * totalMult),
-      max: Math.floor(goldMax * totalMult)
-    },
-    isBoss: enemy.isBoss || false,
-    isElite: enemy.isElite || false
+  // Create base stats for enemy
+  const enemyStats = {
+    str: Math.floor(10 * totalMult),
+    agi: Math.floor(8 * totalMult),
+    dex: Math.floor(8 * totalMult),
+    int: Math.floor(6 * totalMult),
+    vit: Math.floor(12 * totalMult)
   };
+  
+  const scaledEnemy = {
+    ...enemy,
+    hp: Math.floor(enemy.baseHp * totalMult),
+    maxHp: Math.floor(enemy.baseHp * totalMult),
+    atk: Math.floor(enemy.baseAtk * totalMult),
+    def: Math.floor(enemy.baseDef * totalMult),
+    expReward: Math.floor(enemy.expReward * totalMult),
+    goldReward: {
+      min: Math.floor((enemy.goldReward?.min || 10) * totalMult),
+      max: Math.floor((enemy.goldReward?.max || 20) * totalMult)
+    },
+    stats: enemyStats,
+    activeBuffs: [],
+    element: enemy.element || 'none',
+    resistances: enemy.resistances || {}
+  };
+  
+  // Calculate derived stats for enemy
+  scaledEnemy.derivedStats = calculateDerivedStats(enemyStats, null, floor);
+  scaledEnemy.derivedStats.pDmg += scaledEnemy.atk;
+  scaledEnemy.derivedStats.mDmg += scaledEnemy.atk;
+  scaledEnemy.derivedStats.pDef += scaledEnemy.def;
+  scaledEnemy.derivedStats.mDef += Math.floor(scaledEnemy.def * 0.5);
+  
+  return scaledEnemy;
 }
 
 // ============================================================
@@ -149,107 +517,72 @@ export function scaleEnemyStats(enemy, floor, towerId) {
 // ============================================================
 
 export function getRandomEnemy(enemies, floor) {
-  if (!enemies || enemies.length === 0) {
-    // Return a default enemy if none provided
-    return {
-      id: 'default_enemy',
-      name: 'Monster',
-      icon: '👹',
-      baseHp: 50,
-      baseAtk: 10,
-      baseDef: 5,
-      expReward: 15,
-      goldReward: { min: 5, max: 15 }
-    };
-  }
-  
-  // Check if enemies have floor restrictions
+  if (!enemies || enemies.length === 0) return null;
   if (!enemies[0]?.floors) {
     return enemies[Math.floor(Math.random() * enemies.length)];
   }
-  
   const available = enemies.filter(e => e.floors?.includes(floor));
   if (available.length === 0) return enemies[0];
   return available[Math.floor(Math.random() * available.length)];
 }
 
 // ============================================================
-// GOLD DROP CALCULATION - With null safety
+// GOLD DROP CALCULATION
 // ============================================================
 
 export function calculateGoldDrop(goldReward) {
-  // Handle different goldReward formats
-  if (!goldReward) return 10;
-  
-  if (typeof goldReward === 'number') {
-    // If it's just a number, add some variance
-    return Math.floor(goldReward * (0.8 + Math.random() * 0.4));
-  }
-  
-  if (typeof goldReward === 'object') {
-    const min = goldReward.min || 5;
-    const max = goldReward.max || min + 10;
-    return Math.floor(min + Math.random() * (max - min));
-  }
-  
-  return 10; // Default fallback
+  if (typeof goldReward === 'number') return goldReward;
+  if (!goldReward || typeof goldReward !== 'object') return 10;
+  return Math.floor(goldReward.min + Math.random() * (goldReward.max - goldReward.min));
 }
 
 // ============================================================
-// ITEM DROPS (Enhanced with Set Items)
+// ITEM DROPS
 // ============================================================
 
 export function rollForDrops(enemy, dropRates, equipmentTable, playerClass, towerId) {
   const drops = [];
   const tid = towerId || 1;
   
-  // Safety check for dropRates
-  if (!dropRates) dropRates = { equipment: 0.1, setItem: 0.05, potion: 0.20 };
-  
-  try {
-    // Set item drop (rare)
-    if (enemy?.isBoss && Math.random() < (dropRates.setItem || 0.18)) {
-      const setItem = getSetItemDrop(tid, playerClass);
-      if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
-    } else if (enemy?.isElite && Math.random() < (dropRates.setItem || 0.07)) {
-      const setItem = getSetItemDrop(tid, playerClass);
-      if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
-    } else if (Math.random() < (dropRates.setItem || 0.02)) {
-      const setItem = getSetItemDrop(tid, playerClass);
-      if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
-    }
-    
-    // Regular equipment drop
-    if (Math.random() < (dropRates.equipment || 0.1)) {
-      const item = getRandomEquipment(tid, playerClass, enemy?.isElite, enemy?.isBoss);
-      if (item) drops.push({ ...item, quantity: 1 });
-    }
-  } catch (e) {
-    console.error('Error rolling for drops:', e);
+  // Set item drop
+  if (enemy.isBoss && Math.random() < (dropRates.setItem || 0.18)) {
+    const setItem = getSetItemDrop(tid, playerClass);
+    if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
+  } else if (enemy.isElite && Math.random() < (dropRates.setItemElite || 0.07)) {
+    const setItem = getSetItemDrop(tid, playerClass);
+    if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
+  } else if (Math.random() < (dropRates.setItemNormal || 0.02)) {
+    const setItem = getSetItemDrop(tid, playerClass);
+    if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
   }
   
-  // Potion drop - 20% chance
+  // Regular equipment drop
+  const equipRate = enemy.isBoss ? 0.25 : (enemy.isElite ? 0.15 : 0.07);
+  if (Math.random() < (dropRates.equipment || equipRate)) {
+    const item = getRandomEquipment(tid, playerClass, enemy.isElite, enemy.isBoss);
+    if (item) drops.push({ ...item, quantity: 1 });
+  }
+  
+  // Material drop
+  const matRate = enemy.isBoss ? 0.50 : (enemy.isElite ? 0.30 : 0.18);
+  if (Math.random() < (dropRates.material || matRate)) {
+    drops.push({
+      itemId: `material_t${tid}_${Math.random().toString(36).substr(2, 5)}`,
+      name: `Tower ${tid} Material`,
+      icon: '💎',
+      type: 'material',
+      quantity: enemy.isBoss ? 3 : (enemy.isElite ? 2 : 1),
+      stackable: true,
+      rarity: enemy.isBoss ? 'rare' : 'common'
+    });
+  }
+  
+  // Potion drop
   if (Math.random() < (dropRates.potion || 0.20)) {
     if (Math.random() < 0.5) {
-      drops.push({ 
-        itemId: 'health_potion_small', 
-        name: 'Small HP Potion', 
-        icon: '🧪', 
-        type: 'consumable', 
-        quantity: 1, 
-        stackable: true,
-        sellPrice: 10
-      });
+      drops.push({ itemId: 'health_potion_small', name: 'Small HP Potion', icon: '🧪', type: 'consumable', quantity: 1, stackable: true });
     } else {
-      drops.push({ 
-        itemId: 'mana_potion_small', 
-        name: 'Small MP Potion', 
-        icon: '💎', 
-        type: 'consumable', 
-        quantity: 1, 
-        stackable: true,
-        sellPrice: 10
-      });
+      drops.push({ itemId: 'mana_potion_small', name: 'Small MP Potion', icon: '💎', type: 'consumable', quantity: 1, stackable: true });
     }
   }
   
@@ -257,143 +590,148 @@ export function rollForDrops(enemy, dropRates, equipmentTable, playerClass, towe
 }
 
 // ============================================================
-// HIDDEN CLASS SCROLL DROP
+// HIDDEN CLASS SCROLL DROP (Boss Only)
 // ============================================================
 
 export function rollForScroll(enemy, playerClass) {
-  let dropChance = 0;
-  if (enemy?.isBoss) dropChance = 0.05;
-  else if (enemy?.isElite) dropChance = 0.02;
-  else if (enemy?.scrollDropChance) dropChance = enemy.scrollDropChance;
+  // Only bosses can drop scrolls
+  if (!enemy.isBoss) return null;
   
-  if (dropChance <= 0 || Math.random() >= dropChance) return null;
+  const dropChance = 0.06; // 6% from bosses
+  if (Math.random() >= dropChance) return null;
   
+  // All possible scrolls for the player's base class
   const scrollMap = {
-    swordsman: { id: 'scroll_flameblade', name: 'Flameblade Scroll', icon: '📜🔥', rarity: 'legendary' },
-    thief: { id: 'scroll_shadow_dancer', name: 'Shadow Dancer Scroll', icon: '📜🌑', rarity: 'legendary' },
-    archer: { id: 'scroll_storm_ranger', name: 'Storm Ranger Scroll', icon: '📜⚡', rarity: 'legendary' },
-    mage: { id: 'scroll_frost_weaver', name: 'Frost Weaver Scroll', icon: '📜❄️', rarity: 'legendary' }
+    swordsman: [
+      { id: 'scroll_flameblade', name: 'Flameblade Scroll', icon: '📜🔥', hiddenClass: 'flameblade' },
+      { id: 'scroll_berserker', name: 'Berserker Scroll', icon: '📜💢', hiddenClass: 'berserker' },
+      { id: 'scroll_paladin', name: 'Paladin Scroll', icon: '📜✨', hiddenClass: 'paladin' },
+      { id: 'scroll_earthshaker', name: 'Earthshaker Scroll', icon: '📜🌍', hiddenClass: 'earthshaker' },
+      { id: 'scroll_frostguard', name: 'Frostguard Scroll', icon: '📜❄️', hiddenClass: 'frostguard' }
+    ],
+    thief: [
+      { id: 'scroll_shadowDancer', name: 'Shadow Dancer Scroll', icon: '📜🌑', hiddenClass: 'shadowDancer' },
+      { id: 'scroll_venomancer', name: 'Venomancer Scroll', icon: '📜🐍', hiddenClass: 'venomancer' },
+      { id: 'scroll_assassin', name: 'Assassin Scroll', icon: '📜⚫', hiddenClass: 'assassin' },
+      { id: 'scroll_phantom', name: 'Phantom Scroll', icon: '📜👻', hiddenClass: 'phantom' },
+      { id: 'scroll_bloodreaper', name: 'Bloodreaper Scroll', icon: '📜🩸', hiddenClass: 'bloodreaper' }
+    ],
+    archer: [
+      { id: 'scroll_stormRanger', name: 'Storm Ranger Scroll', icon: '📜⚡', hiddenClass: 'stormRanger' },
+      { id: 'scroll_pyroArcher', name: 'Pyro Archer Scroll', icon: '📜🔥', hiddenClass: 'pyroArcher' },
+      { id: 'scroll_frostSniper', name: 'Frost Sniper Scroll', icon: '📜❄️', hiddenClass: 'frostSniper' },
+      { id: 'scroll_natureWarden', name: 'Nature Warden Scroll', icon: '📜🌿', hiddenClass: 'natureWarden' },
+      { id: 'scroll_voidHunter', name: 'Void Hunter Scroll', icon: '📜🌀', hiddenClass: 'voidHunter' }
+    ],
+    mage: [
+      { id: 'scroll_frostWeaver', name: 'Frost Weaver Scroll', icon: '📜❄️', hiddenClass: 'frostWeaver' },
+      { id: 'scroll_pyromancer', name: 'Pyromancer Scroll', icon: '📜🔥', hiddenClass: 'pyromancer' },
+      { id: 'scroll_stormcaller', name: 'Stormcaller Scroll', icon: '📜⚡', hiddenClass: 'stormcaller' },
+      { id: 'scroll_necromancer', name: 'Necromancer Scroll', icon: '📜💀', hiddenClass: 'necromancer' },
+      { id: 'scroll_arcanist', name: 'Arcanist Scroll', icon: '📜✨', hiddenClass: 'arcanist' }
+    ]
   };
   
-  return scrollMap[playerClass] || null;
+  const scrolls = scrollMap[playerClass];
+  if (!scrolls || scrolls.length === 0) return null;
+  
+  // Pick random scroll
+  const scroll = scrolls[Math.floor(Math.random() * scrolls.length)];
+  return { ...scroll, rarity: 'legendary', type: 'scroll', quantity: 1 };
 }
 
 // ============================================================
-// SKILL EFFECT APPLICATION
+// CHECK EXECUTE CONDITION
 // ============================================================
 
-export function applySkillEffect(skill, target, source) {
-  const effects = [];
-  const effect = skill?.effect;
-  if (!effect) return effects;
+export function checkExecuteCondition(skill, defender) {
+  const skillData = typeof skill === 'string' ? getSkill(skill) : skill;
+  if (!skillData || !skillData.effects) return { canUse: true, bonusMultiplier: 0 };
   
-  const stats = source?.stats || {};
+  const hpPercent = (defender.hp / defender.maxHp) * 100;
   
-  switch (effect.type) {
-    case 'poison':
-      const poisonDmg = (effect.baseDot || 20) + (stats.agi || 0) * (effect.agiMult || 0.2);
-      effects.push({ type: 'poison', duration: effect.duration || 3, damage: Math.floor(poisonDmg) });
-      break;
-    case 'burn':
-      const burnDmg = (effect.baseDot || 30) + (stats.str || 0) * (effect.strMult || 0.3) + (stats.mp || 0) * (effect.manaMult || 0);
-      effects.push({ type: 'burn', duration: effect.duration || 3, damage: Math.floor(burnDmg) });
-      break;
-    case 'freeze':
-      if (!effect.chance || Math.random() < effect.chance) effects.push({ type: 'freeze', duration: effect.duration || 1 });
-      break;
-    case 'slow':
-      effects.push({ type: 'slow', duration: effect.duration || 2, atkReduction: effect.atkReduction || 0.2 });
-      break;
-    case 'defense':
-      const defBoost = (stats.str || 0) * (effect.strMult || 0.5) + (stats.vit || 0) * (effect.vitMult || 0.3);
-      effects.push({ type: 'defense', duration: effect.duration || 2, value: Math.floor(defBoost) });
-      break;
-    case 'evasion':
-      effects.push({ type: 'evasion', duration: effect.duration || 2, value: effect.evasionBoost || 50 });
-      break;
-    case 'precision':
-      effects.push({ type: 'precision', duration: effect.duration || 3, precisionBoost: effect.precisionBoost || 30, critBoost: effect.critBoost || 20 });
-      break;
-    case 'shield':
-      const shieldValue = (stats.int || 0) * (effect.intMult || 2);
-      effects.push({ type: 'shield', duration: effect.duration || 3, value: Math.floor(shieldValue) });
-      break;
-    case 'mark':
-      effects.push({ type: 'mark', duration: effect.duration || 3, damageTakenBonus: effect.damageTakenBonus || 0.3 });
-      break;
-    case 'vanish':
-      effects.push({ type: 'vanish', duration: effect.duration || 2, nextAttackCrit: true, damageBonus: effect.damageBonus || 2.0 });
-      break;
-    case 'aura':
-      effects.push({ type: 'aura', duration: effect.duration || 3, atkBoost: effect.atkBoost || 30 });
-      break;
-    case 'armor':
-      effects.push({ type: 'armor', duration: effect.duration || 3, defBoost: effect.defBoost || 50, reflectDamage: effect.reflectDamage || 0.2 });
-      break;
-  }
-  
-  return effects;
-}
-
-// ============================================================
-// STATUS EFFECT PROCESSING
-// ============================================================
-
-export function processStatusEffects(combatant) {
-  let damage = 0;
-  let skipTurn = false;
-  const expiredEffects = [];
-  const messages = [];
-  
-  if (!combatant?.statusEffects) return { damage, skipTurn, expiredEffects, messages };
-  
-  combatant.statusEffects.forEach((effect, index) => {
-    switch (effect.type) {
-      case 'poison':
-        damage += effect.damage || 0;
-        messages.push((combatant.name || 'Target') + ' takes ' + (effect.damage || 0) + ' poison damage!');
-        break;
-      case 'burn':
-        damage += effect.damage || 0;
-        messages.push((combatant.name || 'Target') + ' takes ' + (effect.damage || 0) + ' burn damage!');
-        break;
-      case 'freeze':
-      case 'stun':
-        skipTurn = true;
-        messages.push((combatant.name || 'Target') + ' is ' + effect.type + 'ed!');
-        break;
+  for (const effect of skillData.effects) {
+    // Execute bonus (extra damage below threshold)
+    if (effect.type === 'executeBonus') {
+      if (hpPercent < effect.threshold) {
+        return { canUse: true, bonusMultiplier: effect.bonusMultiplier };
+      }
     }
     
-    effect.duration--;
-    if (effect.duration <= 0) {
-      expiredEffects.push(index);
+    // Require HP threshold (can only use below threshold)
+    if (effect.type === 'requireHpThreshold') {
+      if (hpPercent >= effect.threshold) {
+        return { canUse: false, reason: `Can only use when enemy HP < ${effect.threshold}%` };
+      }
     }
-  });
+  }
   
-  return { damage, skipTurn, expiredEffects, messages };
+  return { canUse: true, bonusMultiplier: 0 };
 }
 
-// Re-export skill functions with safety wrappers
-export const calculateManaCost = (skill, stats) => {
-  try {
-    return calcManaCost(skill, stats);
-  } catch (e) {
-    return skill?.mpCost || 10;
-  }
-};
+// ============================================================
+// FORMAT COMBAT LOG MESSAGE
+// ============================================================
 
-export const calculateSkillDamage = (skill, stats, defender, buffs) => {
-  try {
-    return calcSkillDmg(skill, stats, defender, buffs);
-  } catch (e) {
-    return { damage: 10, hits: 1 };
+export function formatCombatMessage(result, attackerName, defenderName, skillName = null) {
+  const messages = [];
+  
+  if (result.missed) {
+    messages.push(`${attackerName}'s attack missed!`);
+    return messages;
   }
-};
+  
+  if (result.isHeal) {
+    messages.push(`${attackerName} healed for ${result.damage} HP!`);
+    return messages;
+  }
+  
+  let mainMsg = '';
+  if (skillName) {
+    mainMsg = `${attackerName} used ${skillName}`;
+  } else {
+    mainMsg = `${attackerName} attacked`;
+  }
+  
+  if (result.hits > 1) {
+    mainMsg += ` (${result.hits} hits)`;
+  }
+  
+  mainMsg += ` for ${result.damage} damage`;
+  
+  if (result.isCritical) {
+    mainMsg += ' 💥CRIT!';
+  }
+  
+  if (result.element && result.element !== 'none') {
+    const elementIcons = { fire: '🔥', water: '💧', lightning: '⚡', earth: '🌍', nature: '🌿', ice: '❄️', dark: '🌑', holy: '✨' };
+    mainMsg += ` ${elementIcons[result.element] || ''}`;
+  }
+  
+  messages.push(mainMsg);
+  
+  // Add additional messages
+  if (result.messages) {
+    messages.push(...result.messages);
+  }
+  
+  return messages;
+}
 
-export const calculateBuffEffect = (buff, stats) => {
-  try {
-    return calcBuffEffect(buff, stats);
-  } catch (e) {
-    return { value: 0 };
-  }
+// ============================================================
+// EXPORTS
+// ============================================================
+
+export default {
+  calculateDamage,
+  getEffectiveStats,
+  applySkillEffects,
+  processTurnStart,
+  scaleEnemyStats,
+  getRandomEnemy,
+  calculateGoldDrop,
+  rollForDrops,
+  rollForScroll,
+  checkExecuteCondition,
+  formatCombatMessage
 };
