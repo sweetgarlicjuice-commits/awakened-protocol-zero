@@ -162,76 +162,97 @@ router.get('/', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Get character error:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error fetching character.' });
   }
 });
 
-// POST /api/character/allocate-stats
+// POST /api/character/allocate-stats - Allocate stat points
 router.post('/allocate-stats', authenticate, async (req, res) => {
   try {
-    const { stats } = req.body;
+    const { stats } = req.body; // { str: 2, agi: 1, etc. }
+    
     const character = await Character.findOne({ userId: req.userId });
     
     if (!character) {
-      return res.status(404).json({ error: 'Character not found' });
+      return res.status(404).json({ error: 'Character not found.' });
     }
     
+    // Calculate total points being allocated
     const totalPoints = Object.values(stats).reduce((sum, val) => sum + val, 0);
     
     if (totalPoints > character.statPoints) {
-      return res.status(400).json({ error: 'Not enough stat points' });
+      return res.status(400).json({ error: 'Not enough stat points.' });
+    }
+    
+    // Validate stat names
+    const validStats = ['str', 'agi', 'dex', 'int', 'vit'];
+    for (const stat of Object.keys(stats)) {
+      if (!validStats.includes(stat)) {
+        return res.status(400).json({ error: `Invalid stat: ${stat}` });
+      }
+      if (stats[stat] < 0) {
+        return res.status(400).json({ error: 'Cannot allocate negative points.' });
+      }
     }
     
     // Apply stats
-    if (stats.str) character.stats.str += stats.str;
-    if (stats.agi) character.stats.agi += stats.agi;
-    if (stats.dex) character.stats.dex += stats.dex;
-    if (stats.int) character.stats.int += stats.int;
-    if (stats.vit) {
-      character.stats.vit += stats.vit;
-      // VIT increases max HP
-      character.stats.maxHp += stats.vit * 10;
-      character.stats.hp = character.stats.maxHp;
+    for (const [stat, points] of Object.entries(stats)) {
+      character.stats[stat] += points;
     }
     
-    // INT increases max MP
-    if (stats.int) {
-      character.stats.maxMp += stats.int * 5;
-      character.stats.mp = character.stats.maxMp;
-    }
+    // Update derived stats
+    character.stats.maxHp = character.stats.vit * 10 + 50;
+    character.stats.maxMp = character.stats.int * 8 + 20;
+    character.stats.hp = Math.min(character.stats.hp, character.stats.maxHp);
+    character.stats.mp = Math.min(character.stats.mp, character.stats.maxMp);
     
     character.statPoints -= totalPoints;
     await character.save();
     
-    res.json({ message: 'Stats allocated successfully', character });
+    res.json({
+      message: 'Stats allocated successfully',
+      character
+    });
   } catch (error) {
     console.error('Allocate stats error:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error allocating stats.' });
   }
 });
 
-// POST /api/character/rest - Full heal for gold
+// POST /api/character/rest - Rest to recover HP/MP (costs gold)
+// REST COST = level × 250 gold
 router.post('/rest', authenticate, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.userId });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    // Check if in tower
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found.' });
+    }
+    
+    // Check if player is inside tower - cannot rest while in tower
     if (character.isInTower) {
       return res.status(400).json({ error: 'Cannot rest while inside a tower! Leave the tower first.' });
     }
     
     const restCost = character.level * 250;
-    if (character.gold < restCost) return res.status(400).json({ error: 'Not enough gold' });
+    
+    if (character.gold < restCost) {
+      return res.status(400).json({ error: `Not enough gold. Rest costs ${restCost} gold.` });
+    }
     
     character.gold -= restCost;
     character.stats.hp = character.stats.maxHp;
     character.stats.mp = character.stats.maxMp;
     await character.save();
     
-    res.json({ message: 'You feel fully rested!', goldSpent: restCost, character });
+    res.json({
+      message: 'You rest and recover fully.',
+      goldSpent: restCost,
+      character
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Server error' });
+    console.error('Rest error:', error);
+    res.status(500).json({ error: 'Server error during rest.' });
   }
 });
 
