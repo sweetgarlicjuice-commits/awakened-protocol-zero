@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { towerAPI } from '../services/api';
 
-const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
+const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }) => {
   const [towers, setTowers] = useState([]);
   const [selectedTower, setSelectedTower] = useState(null);
   const [floors, setFloors] = useState([]);
@@ -61,6 +61,8 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
         await towerAPI.selectFloor(selectedTower.id, selectedFloor);
       }
       setGameState('in_tower');
+      // Notify parent that we are now in tower
+      if (onTowerStateChange) onTowerStateChange(true);
       onCharacterUpdate();
     } catch (err) { 
       const error = err.response?.data?.error || 'Failed to enter';
@@ -131,6 +133,8 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
           setGameState('cursed');
           setLockoutTime(data.lockoutMinutes);
           addLog('error', data.message);
+          // Notify parent that we left the tower (due to curse)
+          if (onTowerStateChange) onTowerStateChange(false);
           break;
           
         case 'damage':
@@ -287,6 +291,8 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
       addLog('info', data.message);
       setGameState('tower_select');
       setSelectedTower(null);
+      // Notify parent that we left the tower
+      if (onTowerStateChange) onTowerStateChange(false);
       onCharacterUpdate();
     } catch (err) { addLog('error', 'Failed to leave'); }
     setIsLoading(false);
@@ -312,6 +318,8 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
     setTreasureAfter(null);
     setStoryText(data.message);
     addLog('error', 'Defeated! Reset to Floor ' + data.resetFloor);
+    // Notify parent that we left the tower (due to defeat)
+    if (onTowerStateChange) onTowerStateChange(false);
   };
 
   const getSkillMpCost = (skillId) => {
@@ -519,11 +527,14 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
       </div>
       <button
         onClick={handleEnterTower}
-        disabled={isLoading}
-        className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-lg shadow-lg shadow-blue-500/30"
+        disabled={isLoading || character?.energy < 10}
+        className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:opacity-50 rounded-lg font-bold text-lg shadow-lg shadow-blue-500/30"
       >
-        ⚔️ Enter Floor {selectedFloor}
+        ⚔️ Enter Floor {selectedFloor} (-10⚡)
       </button>
+      {character?.energy < 10 && (
+        <p className="text-red-400 text-sm text-center mt-2">⚠️ Not enough energy to enter tower</p>
+      )}
     </div>
   );
 
@@ -549,8 +560,8 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog }) => {
       </div>
       {storyText && <p className="text-gray-300 italic whitespace-pre-line">{storyText}</p>}
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={handleExplore} disabled={isLoading || character?.energy < 10} className="py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:opacity-50 rounded-lg font-bold">
-          🔍 Explore (-10⚡)
+        <button onClick={handleExplore} disabled={isLoading} className="py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:opacity-50 rounded-lg font-bold">
+          🔍 Explore
         </button>
         <button onClick={handleCheckDoorkeeper} disabled={isLoading} className="py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold">
           ⛩️ Doorkeeper
