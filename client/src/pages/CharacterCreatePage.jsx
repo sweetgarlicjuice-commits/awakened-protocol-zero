@@ -166,24 +166,37 @@ const CharacterCreatePage = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between text-gray-400">
                     <span>HP</span>
-                    <span className="text-green-400">{classData.baseStats.hp}</span>
+                    <span className="text-green-400">{classData.baseStats?.hp || classData.baseStats?.maxHp || '?'}</span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>MP</span>
-                    <span className="text-blue-400">{classData.baseStats.mp}</span>
+                    <span className="text-blue-400">{classData.baseStats?.mp || classData.baseStats?.maxMp || '?'}</span>
                   </div>
                   <div className="flex justify-between text-gray-400">
                     <span>Primary ({classData.primaryStat})</span>
-                    <span className="text-purple-400">{classData.baseStats[classData.primaryStat.toLowerCase()]}</span>
+                    <span className="text-purple-400">{classData.baseStats?.[classData.primaryStat?.toLowerCase()] || '?'}</span>
                   </div>
                 </div>
 
-                {/* Hidden Class Preview */}
+                {/* Hidden Classes Preview - PHASE 7: Show all 5 */}
                 <div className="mt-6 pt-4 border-t border-gray-700/50">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-gray-600">HIDDEN CLASS:</span>
-                    <span className="text-purple-400">{classData.hiddenClass.icon} {classData.hiddenClass.name}</span>
-                  </div>
+                  <div className="text-xs text-gray-600 mb-2">HIDDEN CLASSES:</div>
+                  {classData.hiddenClasses && classData.hiddenClasses.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {classData.hiddenClasses.map((hc, idx) => (
+                        <span key={idx} className="text-purple-400 text-xs bg-purple-500/10 px-2 py-1 rounded">
+                          {hc.icon} {hc.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : classData.hiddenClass ? (
+                    // Fallback to single hiddenClass if hiddenClasses array not available
+                    <span className="text-purple-400 text-xs">
+                      {classData.hiddenClass.icon} {classData.hiddenClass.name}
+                    </span>
+                  ) : (
+                    <span className="text-gray-500 text-xs">Loading...</span>
+                  )}
                 </div>
               </button>
             ))}
@@ -204,6 +217,20 @@ const CharacterCreatePage = () => {
                 {selectedClass.name.toUpperCase()}
               </h3>
               <p className="text-gray-400 text-sm mt-1">{selectedClass.playstyle}</p>
+              
+              {/* Show available hidden classes for this base */}
+              {selectedClass.hiddenClasses && selectedClass.hiddenClasses.length > 0 && (
+                <div className="mt-4 p-3 bg-purple-500/10 rounded-lg">
+                  <div className="text-xs text-gray-500 mb-2">Available Hidden Classes:</div>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {selectedClass.hiddenClasses.map((hc, idx) => (
+                      <span key={idx} className="text-purple-400 text-xs bg-void-900 px-2 py-1 rounded">
+                        {hc.icon} {hc.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Name Form */}
