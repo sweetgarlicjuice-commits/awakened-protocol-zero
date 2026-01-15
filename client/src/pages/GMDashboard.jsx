@@ -13,6 +13,8 @@ const GMDashboard = () => {
   const [playerDetails, setPlayerDetails] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [showEditStatsModal, setShowEditStatsModal] = useState(false);
+  const [editStats, setEditStats] = useState({ str: 0, agi: 0, dex: 0, int: 0, vit: 0 });
   const [createForm, setCreateForm] = useState({ username: '', password: '', role: 'player' });
   const [addItemForm, setAddItemForm] = useState({ itemId: '', name: '', type: 'material', rarity: 'common', quantity: 1 });
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -237,6 +239,28 @@ const GMDashboard = () => {
     } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
   };
 
+  const openEditStatsModal = () => {
+    if (playerDetails?.character?.stats) {
+      setEditStats({
+        str: playerDetails.character.stats.str || 10,
+        agi: playerDetails.character.stats.agi || 10,
+        dex: playerDetails.character.stats.dex || 10,
+        int: playerDetails.character.stats.int || 10,
+        vit: playerDetails.character.stats.vit || 10
+      });
+      setShowEditStatsModal(true);
+    }
+  };
+
+  const handleEditStats = async () => {
+    try {
+      await gmAPI.updateStats(selectedPlayer, editStats);
+      showMessage('success', 'Stats updated!');
+      setShowEditStatsModal(false);
+      fetchPlayerDetails(selectedPlayer);
+    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
+  };
+
   const handleAddItem = async (e) => {
     e.preventDefault();
     try {
@@ -432,7 +456,8 @@ const GMDashboard = () => {
                           <button onClick={handleHealPlayer} className="btn-secondary text-sm py-2">❤️ Heal</button>
                           <button onClick={() => handleAddGold(1000)} className="btn-secondary text-sm py-2">💰 +1000g</button>
                           <button onClick={handleSetLevel} className="btn-secondary text-sm py-2">📈 Level</button>
-                          <button onClick={handleResetStats} className="btn-secondary text-sm py-2">🔄 Stats</button>
+                          <button onClick={openEditStatsModal} className="btn-secondary text-sm py-2">✏️ Edit Stats</button>
+                          <button onClick={handleResetStats} className="btn-secondary text-sm py-2">🔄 Reset Stats</button>
                           <button onClick={handleResetProgress} className="btn-secondary text-sm py-2">🗼 Tower</button>
                           {playerDetails.character.hiddenClass !== 'none' && (
                             <button onClick={handleRemoveHiddenClass} className="btn-secondary text-sm py-2">📜 Class</button>
@@ -472,9 +497,27 @@ const GMDashboard = () => {
           )}
 
           {activeTab === 'classes' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {hiddenClasses.map(cls => {
-                const classId = cls.classId || cls.id;
+            <div className="space-y-4">
+              {/* Summary Stats */}
+              <div className="bg-void-800/50 rounded-xl p-4 neon-border">
+                <div className="flex flex-wrap gap-6 justify-center">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-400">{hiddenClasses.filter(c => !c.ownerId && c.isAvailable !== false).length}</div>
+                    <div className="text-xs text-gray-500">Available</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-400">{hiddenClasses.filter(c => c.ownerId || c.isAvailable === false).length}</div>
+                    <div className="text-xs text-gray-500">Claimed</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-400">{hiddenClasses.length}</div>
+                    <div className="text-xs text-gray-500">Total</div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Grouped by Base Class */}
+              {['Swordsman', 'Thief', 'Archer', 'Mage'].map(baseClass => {
                 const ICONS = {
                   flameblade: '🔥', berserker: '💢', paladin: '✨', earthshaker: '🌍', frostguard: '❄️',
                   shadowDancer: '🌑', venomancer: '🐍', assassin: '⚫', phantom: '👻', bloodreaper: '🩸',
@@ -493,24 +536,59 @@ const GMDashboard = () => {
                   stormRanger: 'Archer', pyroArcher: 'Archer', frostSniper: 'Archer', natureWarden: 'Archer', voidHunter: 'Archer',
                   frostWeaver: 'Mage', pyromancer: 'Mage', stormcaller: 'Mage', necromancer: 'Mage', arcanist: 'Mage'
                 };
-                const icon = ICONS[classId] || '📜';
-                const name = NAMES[classId] || classId;
-                const baseClass = BASES[classId] || 'Unknown';
-                const isOwned = cls.ownerId || cls.isAvailable === false;
+                const BASE_ICONS = { Swordsman: '⚔️', Thief: '🗡️', Archer: '🏹', Mage: '🔮' };
+                const BASE_COLORS = { Swordsman: 'border-red-500/50', Thief: 'border-indigo-500/50', Archer: 'border-green-500/50', Mage: 'border-purple-500/50' };
+                
+                const classesInGroup = hiddenClasses.filter(cls => {
+                  const classId = cls.classId || cls.id;
+                  return BASES[classId] === baseClass;
+                });
+                
+                const claimedCount = classesInGroup.filter(c => c.ownerId || c.isAvailable === false).length;
                 
                 return (
-                  <div key={classId} className={'bg-void-800/50 rounded-xl p-4 border-2 ' + (isOwned ? 'border-purple-500/50' : 'border-green-500/50')}>
-                    <div className="text-4xl text-center mb-3">{icon}</div>
-                    <h3 className="font-display text-lg text-white text-center mb-1">{name}</h3>
-                    <p className="text-gray-400 text-xs text-center mb-3">Requires: {baseClass}</p>
-                    <div className={'text-center py-2 rounded text-sm ' + (isOwned ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400')}>
-                      {isOwned ? (cls.ownerName ? 'Owned: ' + cls.ownerName : 'Claimed') : 'Available'}
+                  <div key={baseClass} className={`bg-void-800/50 rounded-xl border ${BASE_COLORS[baseClass]} overflow-hidden`}>
+                    {/* Header */}
+                    <div className="bg-void-900/50 px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">{BASE_ICONS[baseClass]}</span>
+                        <span className="font-display text-lg text-white">{baseClass}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-purple-400">{claimedCount}</span>
+                        <span className="text-sm text-gray-500">/</span>
+                        <span className="text-sm text-gray-400">{classesInGroup.length}</span>
+                        <span className="text-xs text-gray-500">claimed</span>
+                      </div>
+                    </div>
+                    
+                    {/* Classes Grid */}
+                    <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                      {classesInGroup.map(cls => {
+                        const classId = cls.classId || cls.id;
+                        const icon = ICONS[classId] || '📜';
+                        const name = NAMES[classId] || classId;
+                        const isOwned = cls.ownerId || cls.isAvailable === false;
+                        
+                        return (
+                          <div key={classId} className={`bg-void-900/50 rounded-lg p-3 border ${isOwned ? 'border-purple-500/30' : 'border-green-500/30'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xl">{icon}</span>
+                              <span className="text-sm text-white truncate">{name}</span>
+                            </div>
+                            <div className={`text-xs px-2 py-1 rounded text-center ${isOwned ? 'bg-purple-500/20 text-purple-400' : 'bg-green-500/20 text-green-400'}`}>
+                              {isOwned ? (cls.ownerName ? cls.ownerName : 'Claimed') : 'Available'}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
               })}
+              
               {hiddenClasses.length === 0 && (
-                <div className="col-span-full text-center text-gray-500 py-8">
+                <div className="text-center text-gray-500 py-8">
                   No hidden classes found.
                 </div>
               )}
@@ -761,6 +839,41 @@ const GMDashboard = () => {
                 >
                   Add Item
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Stats Modal */}
+      {showEditStatsModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-void-800 rounded-xl p-6 w-full max-w-md neon-border">
+            <h2 className="font-display text-xl text-purple-400 mb-6">✏️ Edit Player Stats</h2>
+            <div className="space-y-4">
+              {['str', 'agi', 'dex', 'int', 'vit'].map(stat => (
+                <div key={stat} className="flex items-center gap-4">
+                  <label className="w-16 text-gray-400 uppercase text-sm font-bold">{stat}</label>
+                  <button 
+                    onClick={() => setEditStats(prev => ({ ...prev, [stat]: Math.max(1, prev[stat] - 1) }))}
+                    className="w-8 h-8 bg-red-600 hover:bg-red-500 rounded text-white font-bold"
+                  >-</button>
+                  <input
+                    type="number"
+                    value={editStats[stat]}
+                    onChange={(e) => setEditStats(prev => ({ ...prev, [stat]: Math.max(1, parseInt(e.target.value) || 1) }))}
+                    className="flex-1 input-field text-center"
+                    min={1}
+                  />
+                  <button 
+                    onClick={() => setEditStats(prev => ({ ...prev, [stat]: prev[stat] + 1 }))}
+                    className="w-8 h-8 bg-green-600 hover:bg-green-500 rounded text-white font-bold"
+                  >+</button>
+                </div>
+              ))}
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => setShowEditStatsModal(false)} className="flex-1 btn-secondary">Cancel</button>
+                <button onClick={handleEditStats} className="flex-1 btn-primary">Save Stats</button>
               </div>
             </div>
           </div>
