@@ -704,3 +704,87 @@ export const HIDDEN_CLASS_INFO = {
   }
 };
 
+
+// ============================================================
+// PHASE 7: Scroll Mappings for Hidden Class System
+// ============================================================
+
+// Scroll item ID -> Hidden Class mapping
+export const SCROLL_TO_CLASS = {
+  // Swordsman scrolls
+  'scroll_flameblade': { classId: 'flameblade', baseReq: 'swordsman' },
+  'scroll_berserker': { classId: 'berserker', baseReq: 'swordsman' },
+  'scroll_paladin': { classId: 'paladin', baseReq: 'swordsman' },
+  'scroll_earthshaker': { classId: 'earthshaker', baseReq: 'swordsman' },
+  'scroll_frostguard': { classId: 'frostguard', baseReq: 'swordsman' },
+  // Thief scrolls
+  'scroll_shadow_dancer': { classId: 'shadowDancer', baseReq: 'thief' },
+  'scroll_venomancer': { classId: 'venomancer', baseReq: 'thief' },
+  'scroll_assassin': { classId: 'assassin', baseReq: 'thief' },
+  'scroll_phantom': { classId: 'phantom', baseReq: 'thief' },
+  'scroll_bloodreaper': { classId: 'bloodreaper', baseReq: 'thief' },
+  // Archer scrolls
+  'scroll_storm_ranger': { classId: 'stormRanger', baseReq: 'archer' },
+  'scroll_pyro_archer': { classId: 'pyroArcher', baseReq: 'archer' },
+  'scroll_frost_sniper': { classId: 'frostSniper', baseReq: 'archer' },
+  'scroll_nature_warden': { classId: 'natureWarden', baseReq: 'archer' },
+  'scroll_void_hunter': { classId: 'voidHunter', baseReq: 'archer' },
+  // Mage scrolls
+  'scroll_frost_weaver': { classId: 'frostWeaver', baseReq: 'mage' },
+  'scroll_pyromancer': { classId: 'pyromancer', baseReq: 'mage' },
+  'scroll_stormcaller': { classId: 'stormcaller', baseReq: 'mage' },
+  'scroll_necromancer': { classId: 'necromancer', baseReq: 'mage' },
+  'scroll_arcanist': { classId: 'arcanist', baseReq: 'mage' }
+};
+
+// Hidden Class ID -> Scroll item ID mapping
+export const CLASS_TO_SCROLL = {
+  // Swordsman
+  'flameblade': 'scroll_flameblade',
+  'berserker': 'scroll_berserker',
+  'paladin': 'scroll_paladin',
+  'earthshaker': 'scroll_earthshaker',
+  'frostguard': 'scroll_frostguard',
+  // Thief
+  'shadowDancer': 'scroll_shadow_dancer',
+  'venomancer': 'scroll_venomancer',
+  'assassin': 'scroll_assassin',
+  'phantom': 'scroll_phantom',
+  'bloodreaper': 'scroll_bloodreaper',
+  // Archer
+  'stormRanger': 'scroll_storm_ranger',
+  'pyroArcher': 'scroll_pyro_archer',
+  'frostSniper': 'scroll_frost_sniper',
+  'natureWarden': 'scroll_nature_warden',
+  'voidHunter': 'scroll_void_hunter',
+  // Mage
+  'frostWeaver': 'scroll_frost_weaver',
+  'pyromancer': 'scroll_pyromancer',
+  'stormcaller': 'scroll_stormcaller',
+  'necromancer': 'scroll_necromancer',
+  'arcanist': 'scroll_arcanist'
+};
+
+// Scroll display names
+export const SCROLL_NAMES = {
+  'scroll_flameblade': 'Flameblade Scroll',
+  'scroll_berserker': 'Berserker Scroll',
+  'scroll_paladin': 'Paladin Scroll',
+  'scroll_earthshaker': 'Earthshaker Scroll',
+  'scroll_frostguard': 'Frostguard Scroll',
+  'scroll_shadow_dancer': 'Shadow Dancer Scroll',
+  'scroll_venomancer': 'Venomancer Scroll',
+  'scroll_assassin': 'Assassin Scroll',
+  'scroll_phantom': 'Phantom Scroll',
+  'scroll_bloodreaper': 'Bloodreaper Scroll',
+  'scroll_storm_ranger': 'Storm Ranger Scroll',
+  'scroll_pyro_archer': 'Pyro Archer Scroll',
+  'scroll_frost_sniper': 'Frost Sniper Scroll',
+  'scroll_nature_warden': 'Nature Warden Scroll',
+  'scroll_void_hunter': 'Void Hunter Scroll',
+  'scroll_frost_weaver': 'Frost Weaver Scroll',
+  'scroll_pyromancer': 'Pyromancer Scroll',
+  'scroll_stormcaller': 'Stormcaller Scroll',
+  'scroll_necromancer': 'Necromancer Scroll',
+  'scroll_arcanist': 'Arcanist Scroll'
+};
