@@ -20,48 +20,165 @@ const CLASS_COLORS = {
   mage: 'text-purple-400'
 };
 
-// Skill information with descriptions
-const SKILL_INFO = {
-  // Swordsman
-  slash: { mpCost: 5, damage: 1.3, desc: 'Quick slash attack. Low cost, decent DMG.' },
-  heavyStrike: { mpCost: 12, damage: 1.8, desc: 'Powerful overhead strike. High single-target DMG.' },
-  shieldBash: { mpCost: 8, damage: 1.0, desc: 'Bash with shield. Chance to stun enemy.', effect: 'stun' },
-  warCry: { mpCost: 15, damage: 0, desc: 'Battle cry. +20% ATK for 3 turns.', effect: 'buff' },
-  // Thief
-  backstab: { mpCost: 8, damage: 2.2, desc: 'Strike from behind. +40% crit chance.', effect: '+40% crit' },
-  poisonBlade: { mpCost: 10, damage: 1.3, desc: 'Poisoned attack. DoT for 3 turns.', effect: 'poison' },
-  smokeScreen: { mpCost: 12, damage: 0, desc: 'Create smoke. +30% evasion for 2 turns.', effect: 'evasion' },
-  steal: { mpCost: 5, damage: 0, desc: 'Attempt to steal gold from enemy.', effect: 'gold' },
-  // Archer
-  preciseShot: { mpCost: 6, damage: 1.6, desc: 'Aimed shot. Never misses, bonus DMG.' },
-  multiShot: { mpCost: 14, damage: 0.6, hits: 3, desc: 'Fire 3 arrows at once.' },
-  eagleEye: { mpCost: 10, damage: 0, desc: 'Focus aim. +20% crit for 3 turns.', effect: 'crit buff' },
-  arrowRain: { mpCost: 20, damage: 2.0, desc: 'Rain of arrows. High DMG attack.' },
-  // Mage
-  fireball: { mpCost: 10, damage: 1.8, desc: 'Hurl a fireball. Burns for 3 turns.', effect: 'burn' },
-  iceSpear: { mpCost: 12, damage: 1.5, desc: 'Ice projectile. Chance to freeze.', effect: 'freeze' },
-  manaShield: { mpCost: 15, damage: 0, desc: 'Absorb DMG with MP. Shield = INT × 2.', effect: 'shield' },
-  thunderbolt: { mpCost: 18, damage: 2.2, desc: 'Lightning strike. High magic DMG.' },
-  // Flameblade
-  flameSlash: { mpCost: 15, damage: 2.0, desc: 'Slash with burning blade. DMG + burn effect.', effect: 'burn' },
-  infernoStrike: { mpCost: 25, damage: 2.8, desc: 'Powerful fire-infused strike. High single-target DMG.' },
-  fireAura: { mpCost: 20, damage: 0, desc: 'Surround yourself in flames. +30% ATK for 3 turns.', effect: 'buff' },
-  volcanicRage: { mpCost: 40, damage: 3.5, desc: 'Erupt with volcanic power. Massive DMG + burn.', effect: 'burn' },
-  // Shadow Dancer
-  shadowStrike: { mpCost: 12, damage: 2.5, desc: 'Strike from the shadows. High crit chance.', effect: '+50% crit' },
-  vanish: { mpCost: 20, damage: 0, desc: 'Become invisible. Next attack auto-crits +100% DMG.', effect: 'stealth' },
-  deathMark: { mpCost: 18, damage: 1.5, desc: 'Mark target. +30% damage taken for 3 turns.', effect: 'debuff' },
-  shadowDance: { mpCost: 35, damage: 2.0, hits: 5, desc: 'Rapid 5-hit combo from the shadows.' },
-  // Storm Ranger
-  lightningArrow: { mpCost: 14, damage: 2.2, desc: 'Arrow charged with lightning. High DMG + shock.', effect: 'shock' },
-  chainLightning: { mpCost: 22, damage: 1.8, hits: 3, desc: 'Lightning chains to hit 3 times.' },
-  stormEye: { mpCost: 18, damage: 0, desc: 'Enter focus state. +50% Precision, +30% Crit.', effect: 'buff' },
-  thunderstorm: { mpCost: 45, damage: 3.0, hits: 4, desc: 'Call down a devastating thunderstorm.', effect: 'shock' },
-  // Frost Weaver
-  frostBolt: { mpCost: 12, damage: 2.0, desc: 'Ice bolt that slows enemy. -20% ATK.', effect: 'slow' },
-  blizzard: { mpCost: 28, damage: 2.2, hits: 3, desc: 'Ice storm hits 3 times. 30% freeze chance.', effect: 'freeze' },
-  iceArmor: { mpCost: 20, damage: 0, desc: 'Armor of ice. +50 DEF, reflect 20% DMG.', effect: 'defense' },
-  absoluteZero: { mpCost: 50, damage: 4.0, desc: 'Ultimate cold. Massive DMG + 2-turn freeze.', effect: 'freeze' }
+// ============================================================
+// PHASE 7: Complete Skill Database for Display
+// ============================================================
+const SKILL_DATABASE = {
+  // ==================== BASE SWORDSMAN ====================
+  slash: { name: 'Slash', mpCost: 5, damage: 1.2, element: 'none', desc: 'Quick slash attack. Low cost, decent DMG.' },
+  heavyStrike: { name: 'Heavy Strike', mpCost: 12, damage: 1.8, element: 'none', desc: 'Powerful overhead strike. High single-target DMG.' },
+  shieldBash: { name: 'Shield Bash', mpCost: 8, damage: 1.0, element: 'none', desc: 'Bash with shield. Reduces enemy ATK by 15%.', effect: '-15% ATK' },
+  warCry: { name: 'War Cry', mpCost: 15, damage: 0, element: 'none', desc: 'Battle cry. +25% P.DMG for 3 turns.', effect: '+25% P.DMG' },
+  
+  // ==================== BASE THIEF ====================
+  backstab: { name: 'Backstab', mpCost: 8, damage: 2.0, element: 'none', desc: 'Strike from behind. +30% crit chance.', effect: '+30% crit' },
+  poisonBlade: { name: 'Poison Blade', mpCost: 10, damage: 1.0, element: 'nature', desc: 'Poisoned attack. DoT for 3 turns.', effect: 'poison' },
+  smokeScreen: { name: 'Smoke Screen', mpCost: 12, damage: 0, element: 'none', desc: 'Create smoke. +40% evasion for 2 turns.', effect: '+40% evasion' },
+  steal: { name: 'Steal', mpCost: 5, damage: 0, element: 'none', desc: 'Attempt to steal 5-15% gold from enemy.', effect: 'gold steal' },
+  
+  // ==================== BASE ARCHER ====================
+  preciseShot: { name: 'Precise Shot', mpCost: 6, damage: 1.5, element: 'none', desc: 'Aimed shot. Never misses, bonus DMG.' },
+  multiShot: { name: 'Multi Shot', mpCost: 14, damage: 0.6, hits: 3, element: 'none', desc: 'Fire 3 arrows at once.' },
+  eagleEye: { name: 'Eagle Eye', mpCost: 10, damage: 0, element: 'none', desc: 'Focus aim. +25% crit, +20% crit DMG for 3 turns.', effect: '+25% crit' },
+  arrowRain: { name: 'Arrow Rain', mpCost: 20, damage: 2.2, element: 'none', desc: 'Rain of arrows. High DMG attack.' },
+  
+  // ==================== BASE MAGE ====================
+  fireball: { name: 'Fireball', mpCost: 10, damage: 1.6, element: 'fire', desc: 'Hurl a fireball. Burns for 3 turns.', effect: 'burn' },
+  iceSpear: { name: 'Ice Spear', mpCost: 12, damage: 1.4, element: 'ice', desc: 'Ice projectile. -20% enemy ATK.', effect: '-20% ATK' },
+  manaShield: { name: 'Mana Shield', mpCost: 15, damage: 0, element: 'none', desc: 'Create shield equal to 50% of current MP.', effect: 'shield' },
+  thunderbolt: { name: 'Thunderbolt', mpCost: 18, damage: 2.0, element: 'lightning', desc: 'Lightning strike. High magic DMG.' },
+  
+  // ==================== FLAMEBLADE (Swordsman) ====================
+  flameSlash: { name: 'Flame Slash', mpCost: 15, damage: 1.8, element: 'fire', desc: 'Fire-infused slash. Applies burn.', effect: 'burn' },
+  infernoStrike: { name: 'Inferno Strike', mpCost: 25, damage: 2.8, element: 'fire', desc: 'Powerful fire strike. High single-target DMG.' },
+  fireAura: { name: 'Fire Aura', mpCost: 20, damage: 0, element: 'fire', desc: '+30% P.DMG, reflect 15% DMG for 3 turns.', effect: '+30% P.DMG' },
+  volcanicRage: { name: 'Volcanic Rage', mpCost: 40, damage: 3.5, element: 'fire', desc: 'Massive fire eruption + burn.', effect: 'burn' },
+  
+  // ==================== BERSERKER (Swordsman) ====================
+  rageSlash: { name: 'Rage Slash', mpCost: 10, damage: 2.0, element: 'none', desc: 'Furious slash. Costs 5% HP.', effect: '-5% HP' },
+  bloodFury: { name: 'Blood Fury', mpCost: 20, damage: 0, element: 'none', desc: '+50% P.DMG, -20% DEF for 3 turns.', effect: '+50% P.DMG' },
+  recklessCharge: { name: 'Reckless Charge', mpCost: 15, damage: 2.5, element: 'none', desc: 'Charging attack. Costs 10% HP.', effect: '-10% HP' },
+  deathwish: { name: 'Deathwish', mpCost: 35, damage: 4.0, element: 'none', desc: 'Ultimate attack. Costs 20% HP.', effect: '-20% HP' },
+  
+  // ==================== PALADIN (Swordsman) ====================
+  holyStrike: { name: 'Holy Strike', mpCost: 12, damage: 1.6, element: 'holy', desc: 'Holy-infused attack. Bonus vs undead.' },
+  divineShield: { name: 'Divine Shield', mpCost: 18, damage: 0, element: 'holy', desc: 'Shield = 200% P.DEF.', effect: 'shield' },
+  healingLight: { name: 'Healing Light', mpCost: 20, damage: 0, element: 'holy', desc: 'Heal 35% of max HP.', effect: 'heal 35%' },
+  judgment: { name: 'Judgment', mpCost: 35, damage: 3.0, element: 'holy', desc: 'Divine judgment. Removes debuffs.', effect: 'purify' },
+  
+  // ==================== EARTHSHAKER (Swordsman) ====================
+  groundSlam: { name: 'Ground Slam', mpCost: 12, damage: 1.5, element: 'earth', desc: 'Slam ground. -20% enemy DEF.', effect: '-20% DEF' },
+  stoneSkin: { name: 'Stone Skin', mpCost: 15, damage: 0, element: 'earth', desc: '+50% P.DEF for 3 turns.', effect: '+50% P.DEF' },
+  earthquake: { name: 'Earthquake', mpCost: 25, damage: 2.2, element: 'earth', desc: 'Massive quake. -30% enemy DEF.', effect: '-30% DEF' },
+  titansWrath: { name: "Titan's Wrath", mpCost: 40, damage: 3.2, element: 'earth', desc: 'Ultimate earth attack + stun.', effect: 'stun' },
+  
+  // ==================== FROSTGUARD (Swordsman) ====================
+  frostStrike: { name: 'Frost Strike', mpCost: 12, damage: 1.4, element: 'ice', desc: 'Ice slash. -15% enemy ATK.', effect: '-15% ATK' },
+  iceBarrier: { name: 'Ice Barrier', mpCost: 18, damage: 0, element: 'ice', desc: 'Ice shield = 150% P.DEF, reflect 20%.', effect: 'shield' },
+  glacialSlash: { name: 'Glacial Slash', mpCost: 22, damage: 2.0, element: 'ice', desc: 'Powerful ice slash. 30% freeze.', effect: 'freeze' },
+  absoluteDefense: { name: 'Absolute Defense', mpCost: 35, damage: 0, element: 'ice', desc: '+100% DEF, immune to debuffs 2 turns.', effect: '+100% DEF' },
+  
+  // ==================== SHADOW DANCER (Thief) ====================
+  shadowStrike: { name: 'Shadow Strike', mpCost: 12, damage: 2.2, element: 'dark', desc: 'Strike from shadows. +40% crit.', effect: '+40% crit' },
+  vanish: { name: 'Vanish', mpCost: 20, damage: 0, element: 'dark', desc: 'Invisible. Next attack auto-crits.', effect: 'stealth' },
+  deathMark: { name: 'Death Mark', mpCost: 18, damage: 1.2, element: 'dark', desc: 'Mark target. +30% DMG taken.', effect: '+30% vuln' },
+  shadowDance: { name: 'Shadow Dance', mpCost: 35, damage: 0.8, hits: 5, element: 'dark', desc: '5-hit combo from the shadows.' },
+  
+  // ==================== VENOMANCER (Thief) ====================
+  toxicStab: { name: 'Toxic Stab', mpCost: 10, damage: 1.4, element: 'nature', desc: 'Poison stab. Strong DoT.', effect: 'poison' },
+  acidSpray: { name: 'Acid Spray', mpCost: 15, damage: 1.2, element: 'nature', desc: 'Acid attack. -25% DEF.', effect: '-25% DEF' },
+  plagueCloud: { name: 'Plague Cloud', mpCost: 22, damage: 0.8, element: 'nature', desc: 'Poison cloud. Heavy DoT.', effect: 'poison' },
+  venomousEnd: { name: 'Venomous End', mpCost: 38, damage: 2.5, element: 'nature', desc: 'Execute <30% HP. Massive poison.', effect: 'execute' },
+  
+  // ==================== ASSASSIN (Thief) ====================
+  assassinate: { name: 'Assassinate', mpCost: 15, damage: 3.0, element: 'none', desc: 'Execute <25% HP. +100% crit DMG.', effect: 'execute' },
+  shadowStep: { name: 'Shadow Step', mpCost: 12, damage: 1.5, element: 'dark', desc: 'Teleport strike. +50% evasion.', effect: '+50% evasion' },
+  markedForDeath: { name: 'Marked for Death', mpCost: 18, damage: 0, element: 'dark', desc: '+50% crit chance on target.', effect: '+50% crit' },
+  deathLotus: { name: 'Death Lotus', mpCost: 40, damage: 1.0, hits: 6, element: 'dark', desc: '6-hit spinning attack.' },
+  
+  // ==================== PHANTOM (Thief) ====================
+  phantomStrike: { name: 'Phantom Strike', mpCost: 12, damage: 1.8, element: 'dark', desc: 'Ghostly attack. Ignores 30% DEF.', effect: 'armor pierce' },
+  phaseShift: { name: 'Phase Shift', mpCost: 15, damage: 0, element: 'dark', desc: '+60% evasion for 2 turns.', effect: '+60% evasion' },
+  soulDrain: { name: 'Soul Drain', mpCost: 20, damage: 1.5, element: 'dark', desc: 'Drain HP and MP from enemy.', effect: 'lifesteal' },
+  etherealBurst: { name: 'Ethereal Burst', mpCost: 35, damage: 3.0, element: 'dark', desc: 'Massive dark explosion.' },
+  
+  // ==================== BLOODREAPER (Thief) ====================
+  bloodSlash: { name: 'Blood Slash', mpCost: 10, damage: 1.8, element: 'dark', desc: 'Slash that heals 20% DMG dealt.', effect: 'lifesteal' },
+  crimsonDance: { name: 'Crimson Dance', mpCost: 18, damage: 0.6, hits: 4, element: 'dark', desc: '4-hit attack, each heals.' },
+  bloodPact: { name: 'Blood Pact', mpCost: 15, damage: 0, element: 'dark', desc: '-20% HP, +40% P.DMG 3 turns.', effect: '+40% P.DMG' },
+  sanguineHarvest: { name: 'Sanguine Harvest', mpCost: 40, damage: 3.5, element: 'dark', desc: 'Massive attack. Heal 50% DMG.', effect: 'lifesteal' },
+  
+  // ==================== STORM RANGER (Archer) ====================
+  lightningArrow: { name: 'Lightning Arrow', mpCost: 14, damage: 2.0, element: 'lightning', desc: 'Electric arrow. High DMG.', effect: 'shock' },
+  chainLightning: { name: 'Chain Lightning', mpCost: 22, damage: 0.7, hits: 3, element: 'lightning', desc: 'Lightning chains 3 times.' },
+  stormEye: { name: 'Storm Eye', mpCost: 18, damage: 0, element: 'lightning', desc: '+50% accuracy, +30% crit.', effect: '+30% crit' },
+  thunderstorm: { name: 'Thunderstorm', mpCost: 45, damage: 0.8, hits: 4, element: 'lightning', desc: '4-hit lightning storm.' },
+  
+  // ==================== PYRO ARCHER (Archer) ====================
+  flameArrow: { name: 'Flame Arrow', mpCost: 12, damage: 1.8, element: 'fire', desc: 'Fire arrow + burn.', effect: 'burn' },
+  explosiveShot: { name: 'Explosive Shot', mpCost: 20, damage: 2.5, element: 'fire', desc: 'Exploding arrow. High DMG.' },
+  infernoQuiver: { name: 'Inferno Quiver', mpCost: 18, damage: 0, element: 'fire', desc: '+30% fire DMG for 3 turns.', effect: '+30% fire' },
+  phoenixArrow: { name: 'Phoenix Arrow', mpCost: 42, damage: 3.8, element: 'fire', desc: 'Ultimate fire arrow + burn.', effect: 'burn' },
+  
+  // ==================== FROST SNIPER (Archer) ====================
+  iceArrow: { name: 'Ice Arrow', mpCost: 12, damage: 1.6, element: 'ice', desc: 'Freezing arrow. -20% ATK.', effect: '-20% ATK' },
+  piercingCold: { name: 'Piercing Cold', mpCost: 18, damage: 2.2, element: 'ice', desc: 'Ice shot that ignores 25% DEF.', effect: 'armor pierce' },
+  frozenPrecision: { name: 'Frozen Precision', mpCost: 15, damage: 0, element: 'ice', desc: '+40% crit DMG for 3 turns.', effect: '+40% crit DMG' },
+  avalancheShot: { name: 'Avalanche Shot', mpCost: 40, damage: 3.2, element: 'ice', desc: 'Massive ice attack + freeze.', effect: 'freeze' },
+  
+  // ==================== NATURE WARDEN (Archer) ====================
+  vineArrow: { name: 'Vine Arrow', mpCost: 10, damage: 1.4, element: 'nature', desc: 'Nature arrow. -15% evasion.', effect: '-15% evasion' },
+  natureBounty: { name: "Nature's Bounty", mpCost: 18, damage: 0, element: 'nature', desc: 'Heal 25% HP + regen.', effect: 'heal' },
+  thornBarrage: { name: 'Thorn Barrage', mpCost: 22, damage: 0.6, hits: 4, element: 'nature', desc: '4 thorn shots.' },
+  gaiaWrath: { name: "Gaia's Wrath", mpCost: 38, damage: 3.0, element: 'nature', desc: 'Nature explosion + heal 20%.', effect: 'heal' },
+  
+  // ==================== VOID HUNTER (Archer) ====================
+  voidArrow: { name: 'Void Arrow', mpCost: 14, damage: 1.8, element: 'dark', desc: 'Dark arrow. Ignores 20% DEF.' },
+  dimensionalRift: { name: 'Dimensional Rift', mpCost: 20, damage: 2.0, element: 'dark', desc: 'Create rift. -25% DEF.', effect: '-25% DEF' },
+  voidSight: { name: 'Void Sight', mpCost: 16, damage: 0, element: 'dark', desc: '+100% accuracy, see stealth.', effect: '+100% acc' },
+  oblivionShot: { name: 'Oblivion Shot', mpCost: 45, damage: 4.0, element: 'dark', desc: 'Ultimate void arrow.' },
+  
+  // ==================== FROST WEAVER (Mage) ====================
+  frostBolt: { name: 'Frost Bolt', mpCost: 12, damage: 1.6, element: 'ice', desc: 'Ice bolt. -20% ATK.', effect: '-20% ATK' },
+  blizzard: { name: 'Blizzard', mpCost: 28, damage: 0.8, hits: 3, element: 'ice', desc: '3-hit ice storm. 30% freeze.', effect: 'freeze' },
+  iceArmor: { name: 'Ice Armor', mpCost: 20, damage: 0, element: 'ice', desc: '+50 DEF, reflect 20% DMG.', effect: '+50 DEF' },
+  absoluteZero: { name: 'Absolute Zero', mpCost: 50, damage: 4.0, element: 'ice', desc: 'Ultimate ice. 2-turn freeze.', effect: 'freeze' },
+  
+  // ==================== PYROMANCER (Mage) ====================
+  flameBurst: { name: 'Flame Burst', mpCost: 12, damage: 1.8, element: 'fire', desc: 'Fire explosion + burn.', effect: 'burn' },
+  meteorShower: { name: 'Meteor Shower', mpCost: 30, damage: 0.9, hits: 3, element: 'fire', desc: '3 meteors + burn.', effect: 'burn' },
+  combustion: { name: 'Combustion', mpCost: 18, damage: 0, element: 'fire', desc: '+40% fire DMG for 3 turns.', effect: '+40% fire' },
+  inferno: { name: 'Inferno', mpCost: 48, damage: 4.2, element: 'fire', desc: 'Ultimate fire + strong burn.', effect: 'burn' },
+  
+  // ==================== STORMCALLER (Mage) ====================
+  lightningBolt: { name: 'Lightning Bolt', mpCost: 14, damage: 1.8, element: 'lightning', desc: 'Lightning strike. High accuracy.' },
+  staticField: { name: 'Static Field', mpCost: 18, damage: 1.2, element: 'lightning', desc: 'AoE shock. -20% accuracy.', effect: '-20% acc' },
+  stormShield: { name: 'Storm Shield', mpCost: 20, damage: 0, element: 'lightning', desc: 'Shield + 25% reflect.', effect: 'shield' },
+  tempest: { name: 'Tempest', mpCost: 45, damage: 1.0, hits: 4, element: 'lightning', desc: '4-hit ultimate storm.' },
+  
+  // ==================== NECROMANCER (Mage) ====================
+  darkBolt: { name: 'Dark Bolt', mpCost: 12, damage: 1.6, element: 'dark', desc: 'Dark attack + lifesteal.', effect: 'lifesteal' },
+  curseOfWeakness: { name: 'Curse of Weakness', mpCost: 16, damage: 0.8, element: 'dark', desc: '-30% ATK and DEF.', effect: 'weaken' },
+  lifeLeech: { name: 'Life Leech', mpCost: 22, damage: 1.8, element: 'dark', desc: 'Drain HP. Heal 40% DMG.', effect: 'lifesteal' },
+  deathCoil: { name: 'Death Coil', mpCost: 42, damage: 3.8, element: 'dark', desc: 'Ultimate dark + massive heal.', effect: 'lifesteal' },
+  
+  // ==================== ARCANIST (Mage) ====================
+  arcaneMissile: { name: 'Arcane Missile', mpCost: 10, damage: 0.6, hits: 3, element: 'none', desc: '3 magic missiles.' },
+  spellAmplify: { name: 'Spell Amplify', mpCost: 18, damage: 0, element: 'none', desc: '+50% M.DMG for 3 turns.', effect: '+50% M.DMG' },
+  manaSurge: { name: 'Mana Surge', mpCost: 15, damage: 0, element: 'none', desc: 'Restore 30% max MP.', effect: 'MP restore' },
+  arcaneBarrage: { name: 'Arcane Barrage', mpCost: 40, damage: 0.7, hits: 6, element: 'none', desc: '6 powerful missiles.' }
+};
+
+// Element icons for skills
+const ELEMENT_ICONS = {
+  fire: '🔥',
+  ice: '❄️',
+  lightning: '⚡',
+  earth: '🌍',
+  nature: '🌿',
+  dark: '🌑',
+  holy: '✨',
+  none: ''
 };
 
 const StatBar = ({ label, current, max, color, icon }) => {
@@ -158,6 +275,7 @@ const GamePage = () => {
   const [activeTab, setActiveTab] = useState('status');
   const [isResting, setIsResting] = useState(false);
   const [showStatModal, setShowStatModal] = useState(false);
+  const [showCombatStats, setShowCombatStats] = useState(false); // NEW: Combat stats popup
   const [pendingStats, setPendingStats] = useState({ str: 0, agi: 0, dex: 0, int: 0, vit: 0 });
   const [isAllocating, setIsAllocating] = useState(false);
   const [isInTower, setIsInTower] = useState(false);
@@ -314,6 +432,14 @@ const GamePage = () => {
               <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-500">INT</span><span className="text-purple-400">{character.stats.int}</span></div>
               <div className="col-span-2 flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-500">VIT</span><span className="text-amber-400">{character.stats.vit}</span></div>
             </div>
+            
+            {/* NEW: Combat Stats Button */}
+            <button 
+              onClick={() => setShowCombatStats(true)}
+              className="w-full mt-3 py-2 px-3 bg-gradient-to-r from-purple-600/20 to-blue-600/20 border border-purple-500/30 rounded-lg text-purple-400 text-sm hover:from-purple-600/30 hover:to-blue-600/30 transition-all flex items-center justify-center gap-2"
+            >
+              ⚔️ Combat Stats
+            </button>
           </div>
         </aside>
 
@@ -353,9 +479,7 @@ const GamePage = () => {
           </nav>
 
           <div className="flex-1 p-4 md:p-6 overflow-auto">
-            {/* ============================================================ */}
-            {/* STATUS TAB - PHASE 7 UPDATED WITH DERIVED STATS */}
-            {/* ============================================================ */}
+            {/* STATUS TAB */}
             {activeTab === 'status' && (
               <div className="max-w-4xl mx-auto space-y-6">
                 {/* Hunter Status Card */}
@@ -406,66 +530,6 @@ const GamePage = () => {
                     </div>
                   </div>
                 </div>
-
-                {/* NEW: Combat Stats Card */}
-                {derivedStats && (
-                  <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                    <h3 className="font-display text-lg text-purple-400 mb-4">⚔️ COMBAT STATS</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-red-500/20">
-                        <div className="text-2xl font-bold text-red-400">{derivedStats.pDmg}</div>
-                        <div className="text-xs text-gray-500">⚔️ P.DMG</div>
-                      </div>
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-purple-500/20">
-                        <div className="text-2xl font-bold text-purple-400">{derivedStats.mDmg}</div>
-                        <div className="text-xs text-gray-500">✨ M.DMG</div>
-                      </div>
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-yellow-500/20">
-                        <div className="text-2xl font-bold text-yellow-400">{derivedStats.critRate.toFixed(1)}%</div>
-                        <div className="text-xs text-gray-500">🎯 Crit Rate</div>
-                      </div>
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-orange-500/20">
-                        <div className="text-2xl font-bold text-orange-400">{derivedStats.critDmg}%</div>
-                        <div className="text-xs text-gray-500">💥 Crit DMG</div>
-                      </div>
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-blue-500/20">
-                        <div className="text-2xl font-bold text-blue-400">{derivedStats.accuracy.toFixed(1)}%</div>
-                        <div className="text-xs text-gray-500">👁️ Accuracy</div>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-gray-500/20">
-                        <div className="text-2xl font-bold text-gray-300">{derivedStats.pDef}</div>
-                        <div className="text-xs text-gray-500">🛡️ P.DEF</div>
-                      </div>
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-indigo-500/20">
-                        <div className="text-2xl font-bold text-indigo-400">{derivedStats.mDef}</div>
-                        <div className="text-xs text-gray-500">🔰 M.DEF</div>
-                      </div>
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-cyan-500/20">
-                        <div className="text-2xl font-bold text-cyan-400">{derivedStats.evasion.toFixed(1)}%</div>
-                        <div className="text-xs text-gray-500">💨 Evasion</div>
-                      </div>
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-green-500/20">
-                        <div className="text-2xl font-bold text-green-400">{derivedStats.hpRegen}</div>
-                        <div className="text-xs text-gray-500">💚 HP Regen</div>
-                      </div>
-                      <div className="text-center p-3 bg-void-900/50 rounded-lg border border-blue-500/20">
-                        <div className="text-2xl font-bold text-blue-400">{derivedStats.mpRegen}</div>
-                        <div className="text-xs text-gray-500">💙 MP Regen</div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 text-xs text-gray-600 grid grid-cols-2 md:grid-cols-3 gap-2">
-                      <div>💪 STR → P.DMG, P.DEF</div>
-                      <div>⚡ AGI → Crit Rate, Evasion</div>
-                      <div>🎯 DEX → Accuracy, Crit DMG</div>
-                      <div>🔮 INT → M.DMG, M.DEF, MP Regen</div>
-                      <div>❤️ VIT → HP, HP Regen, DEF</div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Statistics Card */}
                 <div className="bg-void-800/50 rounded-xl p-6 neon-border">
@@ -534,26 +598,44 @@ const GamePage = () => {
               </div>
             )}
 
+            {/* SKILLS TAB - PHASE 7 UPDATED */}
             {activeTab === 'skills' && (
               <div className="max-w-4xl mx-auto">
                 <div className="bg-void-800/50 rounded-xl p-6 neon-border">
                   <h3 className="font-display text-lg text-purple-400 mb-4">⚔️ COMBAT SKILLS</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {character.skills?.map((skill, index) => {
-                      const skillInfo = SKILL_INFO[skill.skillId] || {};
+                      const skillData = SKILL_DATABASE[skill.skillId] || {};
+                      const elementIcon = ELEMENT_ICONS[skillData.element] || '';
+                      
                       return (
                         <div key={index} className={`p-4 rounded-lg border ${skill.unlocked ? 'bg-void-900/50 border-purple-500/30' : 'bg-void-900/20 border-gray-700/30 opacity-50'}`}>
                           <div className="flex items-center justify-between mb-2">
-                            <h4 className={`font-semibold ${skill.unlocked ? 'text-white' : 'text-gray-500'}`}>{skill.name}</h4>
-                            <span className="text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-400">{skillInfo.mpCost || '?'} MP</span>
+                            <h4 className={`font-semibold ${skill.unlocked ? 'text-white' : 'text-gray-500'}`}>
+                              {elementIcon} {skillData.name || skill.name}
+                            </h4>
+                            <span className="text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-400">
+                              {skillData.mpCost || '?'} MP
+                            </span>
                           </div>
-                          <p className="text-sm text-gray-400">{skillInfo.desc || 'No description available.'}</p>
-                          {skillInfo.damage && (
-                            <div className="mt-2 text-xs text-gray-500">
-                              DMG: {skillInfo.damage}x {skillInfo.hits && '× ' + skillInfo.hits + ' hits'}
-                              {skillInfo.effect && <span className="ml-2 text-purple-400">• {skillInfo.effect}</span>}
-                            </div>
-                          )}
+                          <p className="text-sm text-gray-400">{skillData.desc || 'No description available.'}</p>
+                          <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-2">
+                            {skillData.damage > 0 && (
+                              <span className="px-2 py-0.5 bg-red-500/20 rounded text-red-400">
+                                {skillData.damage}x DMG{skillData.hits > 1 ? ` ×${skillData.hits}` : ''}
+                              </span>
+                            )}
+                            {skillData.effect && (
+                              <span className="px-2 py-0.5 bg-purple-500/20 rounded text-purple-400">
+                                {skillData.effect}
+                              </span>
+                            )}
+                            {skillData.element && skillData.element !== 'none' && (
+                              <span className="px-2 py-0.5 bg-cyan-500/20 rounded text-cyan-400">
+                                {skillData.element}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -625,6 +707,101 @@ const GamePage = () => {
                 {isAllocating ? 'Allocating...' : 'Confirm'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Combat Stats Modal */}
+      {showCombatStats && derivedStats && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+          <div className="bg-void-800 rounded-xl p-6 w-full max-w-lg neon-border">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-xl text-purple-400">⚔️ Combat Stats</h2>
+              <button 
+                onClick={() => setShowCombatStats(false)}
+                className="text-gray-400 hover:text-white text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* Offensive Stats */}
+            <div className="mb-4">
+              <h3 className="text-sm text-gray-500 mb-2 font-semibold">OFFENSIVE</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-void-900/50 rounded-lg border border-red-500/20">
+                  <div className="text-2xl font-bold text-red-400">{derivedStats.pDmg}</div>
+                  <div className="text-xs text-gray-500">⚔️ Physical DMG</div>
+                </div>
+                <div className="p-3 bg-void-900/50 rounded-lg border border-purple-500/20">
+                  <div className="text-2xl font-bold text-purple-400">{derivedStats.mDmg}</div>
+                  <div className="text-xs text-gray-500">✨ Magic DMG</div>
+                </div>
+                <div className="p-3 bg-void-900/50 rounded-lg border border-yellow-500/20">
+                  <div className="text-2xl font-bold text-yellow-400">{derivedStats.critRate.toFixed(1)}%</div>
+                  <div className="text-xs text-gray-500">🎯 Crit Rate</div>
+                </div>
+                <div className="p-3 bg-void-900/50 rounded-lg border border-orange-500/20">
+                  <div className="text-2xl font-bold text-orange-400">{derivedStats.critDmg}%</div>
+                  <div className="text-xs text-gray-500">💥 Crit DMG</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Defensive Stats */}
+            <div className="mb-4">
+              <h3 className="text-sm text-gray-500 mb-2 font-semibold">DEFENSIVE</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-void-900/50 rounded-lg border border-gray-500/20">
+                  <div className="text-2xl font-bold text-gray-300">{derivedStats.pDef}</div>
+                  <div className="text-xs text-gray-500">🛡️ Physical DEF</div>
+                </div>
+                <div className="p-3 bg-void-900/50 rounded-lg border border-indigo-500/20">
+                  <div className="text-2xl font-bold text-indigo-400">{derivedStats.mDef}</div>
+                  <div className="text-xs text-gray-500">🔰 Magic DEF</div>
+                </div>
+                <div className="p-3 bg-void-900/50 rounded-lg border border-cyan-500/20">
+                  <div className="text-2xl font-bold text-cyan-400">{derivedStats.evasion.toFixed(1)}%</div>
+                  <div className="text-xs text-gray-500">💨 Evasion</div>
+                </div>
+                <div className="p-3 bg-void-900/50 rounded-lg border border-blue-500/20">
+                  <div className="text-2xl font-bold text-blue-400">{derivedStats.accuracy.toFixed(1)}%</div>
+                  <div className="text-xs text-gray-500">👁️ Accuracy</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Regen Stats */}
+            <div className="mb-4">
+              <h3 className="text-sm text-gray-500 mb-2 font-semibold">REGENERATION</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-void-900/50 rounded-lg border border-green-500/20">
+                  <div className="text-2xl font-bold text-green-400">{derivedStats.hpRegen}</div>
+                  <div className="text-xs text-gray-500">💚 HP Regen/turn</div>
+                </div>
+                <div className="p-3 bg-void-900/50 rounded-lg border border-blue-500/20">
+                  <div className="text-2xl font-bold text-blue-400">{derivedStats.mpRegen}</div>
+                  <div className="text-xs text-gray-500">💙 MP Regen/turn</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Stat Formulas */}
+            <div className="text-xs text-gray-600 space-y-1 border-t border-gray-700/50 pt-3">
+              <div className="font-semibold text-gray-500 mb-1">Stat Formulas:</div>
+              <div>💪 STR → P.DMG (+3), P.DEF (+1)</div>
+              <div>⚡ AGI → Crit Rate (+0.5%), Evasion (+0.3%)</div>
+              <div>🎯 DEX → Accuracy (+0.5%), Crit DMG (+1%)</div>
+              <div>🔮 INT → M.DMG (+4), M.DEF (+1), MP Regen (+0.5)</div>
+              <div>❤️ VIT → P.DEF (+2), M.DEF (+1), HP Regen (+1)</div>
+            </div>
+            
+            <button 
+              onClick={() => setShowCombatStats(false)}
+              className="w-full mt-4 btn-primary"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
