@@ -17,6 +17,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
   const [treasureAfter, setTreasureAfter] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lockoutTime, setLockoutTime] = useState(null);
+  const [eventProgress, setEventProgress] = useState(null); // Track multi-event progress
   const logRef = useRef(null);
 
   useEffect(() => { fetchTowers(); }, []);
@@ -47,7 +48,6 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
       return;
     }
     setSelectedTower(tower);
-    // Don't auto-navigate to floor_select, let user see details first
   };
 
   const handleEnterTower = async () => {
@@ -56,18 +56,15 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     try {
       const { data } = await towerAPI.enter(selectedTower.id);
       addLog('system', data.message);
-      // Select the floor
       if (selectedFloor > 1) {
         await towerAPI.selectFloor(selectedTower.id, selectedFloor);
       }
       setGameState('in_tower');
-      // Notify parent that we are now in tower
       if (onTowerStateChange) onTowerStateChange(true);
       onCharacterUpdate();
     } catch (err) { 
       const error = err.response?.data?.error || 'Failed to enter';
       addLog('error', error);
-      // Check for lockout
       if (error.includes('cursed')) {
         const match = error.match(/(\d+) more minutes/);
         if (match) setLockoutTime(parseInt(match[1]));
@@ -89,6 +86,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     setCombatLog([]);
     setRewards(null);
     setTreasureAfter(null);
+    setEventProgress(null);
     try {
       const { data } = await towerAPI.explore();
       if (data.type === 'safe_zone') {
@@ -99,6 +97,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
         setStoryText(data.story);
         setChoices(data.choices);
         setScenarioId(data.scenarioId);
+        setEventProgress(data.eventProgress || null);
         setGameState('choosing_path');
       }
       onCharacterUpdate();
@@ -112,13 +111,40 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     setIsLoading(false);
   };
 
+  // Handle next event in multi-event exploration
+  const handleNextEvent = (nextEvent, progress) => {
+    setStoryText(nextEvent.story);
+    setChoices(nextEvent.choices);
+    setScenarioId(nextEvent.scenarioId);
+    setEventProgress(progress);
+    setGameState('choosing_path');
+  };
+
   const handleChoosePath = async (choice) => {
     setIsLoading(true);
     try {
       const { data } = await towerAPI.choosePath(choice, scenarioId);
       
-      // Handle different outcome types
-      switch (data.type) {
+      // Handle different outcome types - including _continue types for multi-event
+      const type = data.type;
+      
+      // Check if this is a "continue" type with next event
+      if (type.endsWith('_continue') && data.nextEvent) {
+        // Show result message briefly, then transition to next event
+        const resultMsg = data.message;
+        addLog('info', resultMsg);
+        
+        // Update HP/MP display
+        onCharacterUpdate();
+        
+        // Move to next event
+        handleNextEvent(data.nextEvent, data.eventProgress);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Handle standard outcome types
+      switch (type) {
         case 'combat_start':
           setStoryText(data.story);
           setCurrentEnemy(data.enemy);
@@ -133,45 +159,90 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
           setGameState('cursed');
           setLockoutTime(data.lockoutMinutes);
           addLog('error', data.message);
-          // Notify parent that we left the tower (due to curse)
           if (onTowerStateChange) onTowerStateChange(false);
           break;
           
         case 'damage':
         case 'trap':
-          setStoryText(data.message + '\n\n-' + data.damage + ' HP!');
-          addLog('error', data.message);
+        case 'poison':
+          setStoryText(data.message + '\n\n⚠️ -' + data.damage + ' HP!');
+          addLog('error', '-' + data.damage + ' HP!');
           setGameState('in_tower');
           onCharacterUpdate();
           break;
           
         case 'heal':
         case 'blessing':
-          setStoryText(data.message + '\n\n+' + data.heal + ' HP!');
-          addLog('success', data.message);
+        case 'major_heal':
+        case 'nature_blessing':
+          let healMsg = data.message + '\n\n💚 +' + data.heal + ' HP!';
+          if (data.mpRestore) healMsg += '\n💙 +' + data.mpRestore + ' MP!';
+          setStoryText(healMsg);
+          addLog('success', '+' + data.heal + ' HP!' + (data.mpRestore ? ' +' + data.mpRestore + ' MP!' : ''));
           setGameState('in_tower');
           onCharacterUpdate();
           break;
           
-        case 'reward':
-          setStoryText(data.message + '\n\n+' + data.gold + ' Gold!');
-          addLog('success', '+' + data.gold + ' Gold!');
+        case 'buff':
+        case 'buff_reward':
+          setStoryText(data.message + '\n\n✨ Gained ' + (data.buffType || 'buff') + '!');
+          addLog('success', 'Buff gained: ' + (data.buffType || 'unknown'));
+          setGameState('in_tower');
+          onCharacterUpdate();
+          break;
+          
+        case 'material':
+        case 'material_reward':
+          setStoryText(data.message + '\n\n📦 +' + (data.quantity || 1) + ' ' + (data.material?.name || 'material') + '!');
+          addLog('success', 'Found: ' + (data.material?.name || 'materials'));
+          setGameState('in_tower');
+          onCharacterUpdate();
+          break;
+          
+        case 'item':
+        case 'item_reward':
+        case 'artifact_find':
+          setStoryText(data.message + '\n\n📦 Received ' + (data.item || 'item') + '!');
+          addLog('success', 'Received: ' + (data.item || 'item'));
+          setGameState('in_tower');
+          onCharacterUpdate();
+          break;
+          
+        case 'lore':
+        case 'lore_reward':
+        case 'spell_knowledge':
+          setStoryText(data.message + '\n\n📚 +' + (data.exp || 0) + ' EXP!');
+          addLog('success', '+' + (data.exp || 0) + ' EXP from knowledge!');
           setGameState('in_tower');
           onCharacterUpdate();
           break;
           
         case 'treasure':
-          setStoryText(data.message);
-          if (data.foundChest) addLog('success', '+' + data.gold + ' Gold from chest!');
-          else addLog('info', 'The chest was empty...');
+        case 'treasure_room':
+        case 'secret_room':
+          let treasureMsg = data.message;
+          if (data.gold) treasureMsg += '\n\n💰 +' + data.gold + ' gold!';
+          if (data.heal) treasureMsg += '\n💚 +' + data.heal + ' HP!';
+          setStoryText(treasureMsg);
+          if (data.foundChest || data.gold) addLog('success', '+' + (data.gold || 0) + ' Gold!');
+          setGameState('in_tower');
+          onCharacterUpdate();
+          break;
+        
+        case 'spirit_trade':
+          setStoryText(data.message + '\n\n💰 +' + (data.gold || 25) + ' gold!');
+          addLog('success', 'Spirit trade: +' + (data.gold || 25) + ' gold');
           setGameState('in_tower');
           onCharacterUpdate();
           break;
           
-        case 'treasure_miss':
-          setStoryText(data.message);
-          addLog('info', 'No treasure found.');
+        case 'ally':
+        case 'ally_reward':
+        case 'companion_buff':
+          setStoryText(data.message + '\n\n🐾 Temporary ally gained!');
+          addLog('success', 'Gained temporary ally!');
           setGameState('in_tower');
+          onCharacterUpdate();
           break;
           
         case 'exploration':
@@ -179,17 +250,26 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
           setStoryText(data.story);
           setChoices(data.choices);
           setScenarioId(data.scenarioId);
+          setEventProgress(data.eventProgress || null);
           setGameState('choosing_path');
           break;
           
         case 'safe':
+        case 'safe_progress':
+        case 'safe_retreat':
         default:
-          setStoryText(data.message || 'You continue onward.');
+          let safeMsg = data.message || 'You continue onward.';
+          if (data.heal) safeMsg += '\n\n💚 +' + data.heal + ' HP!';
+          setStoryText(safeMsg);
           addLog('info', data.message || 'Safe passage.');
           setGameState('in_tower');
+          onCharacterUpdate();
           break;
       }
-    } catch (err) { addLog('error', err.response?.data?.error || 'Error'); }
+    } catch (err) { 
+      console.error('Choose path error:', err);
+      addLog('error', err.response?.data?.error || 'Error processing choice'); 
+    }
     setIsLoading(false);
   };
 
@@ -197,13 +277,38 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     if (!currentEnemy) return;
     setIsLoading(true);
     try {
-      const { data } = await towerAPI.attack(currentEnemy, treasureAfter);
-      data.combatLog.forEach(log => setCombatLog(prev => [...prev, { type: log.actor, message: log.message }]));
+      // Ensure we're passing the enemy with all required fields
+      const enemyData = {
+        ...currentEnemy,
+        hp: currentEnemy.hp,
+        maxHp: currentEnemy.maxHp,
+        atk: currentEnemy.atk || currentEnemy.attack,
+        def: currentEnemy.def || currentEnemy.defense,
+        name: currentEnemy.name,
+        isBoss: currentEnemy.isBoss || false,
+        isElite: currentEnemy.isElite || false
+      };
+      
+      const { data } = await towerAPI.attack(enemyData, treasureAfter);
+      
+      if (data.combatLog) {
+        data.combatLog.forEach(log => setCombatLog(prev => [...prev, { type: log.actor, message: log.message }]));
+      }
+      
       if (data.status === 'victory') handleVictoryState(data);
       else if (data.status === 'defeat') handleDefeatState(data);
-      else setCurrentEnemy(data.enemy);
+      else {
+        setCurrentEnemy({
+          ...currentEnemy,
+          ...data.enemy,
+          hp: data.enemy.hp
+        });
+      }
       onCharacterUpdate();
-    } catch (err) { addLog('error', 'Attack failed'); }
+    } catch (err) { 
+      console.error('Attack error:', err);
+      addLog('error', err.response?.data?.error || 'Attack failed'); 
+    }
     setIsLoading(false);
   };
 
@@ -211,13 +316,37 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     if (!currentEnemy) return;
     setIsLoading(true);
     try {
-      const { data } = await towerAPI.useSkill(currentEnemy, skillId, treasureAfter);
-      data.combatLog.forEach(log => setCombatLog(prev => [...prev, { type: log.actor, message: log.message }]));
+      const enemyData = {
+        ...currentEnemy,
+        hp: currentEnemy.hp,
+        maxHp: currentEnemy.maxHp,
+        atk: currentEnemy.atk || currentEnemy.attack,
+        def: currentEnemy.def || currentEnemy.defense,
+        name: currentEnemy.name,
+        isBoss: currentEnemy.isBoss || false,
+        isElite: currentEnemy.isElite || false
+      };
+      
+      const { data } = await towerAPI.useSkill(enemyData, skillId, treasureAfter);
+      
+      if (data.combatLog) {
+        data.combatLog.forEach(log => setCombatLog(prev => [...prev, { type: log.actor, message: log.message }]));
+      }
+      
       if (data.status === 'victory') handleVictoryState(data);
       else if (data.status === 'defeat') handleDefeatState(data);
-      else setCurrentEnemy(data.enemy);
+      else {
+        setCurrentEnemy({
+          ...currentEnemy,
+          ...data.enemy,
+          hp: data.enemy.hp
+        });
+      }
       onCharacterUpdate();
-    } catch (err) { addLog('error', err.response?.data?.error || 'Skill failed'); }
+    } catch (err) { 
+      console.error('Skill error:', err);
+      addLog('error', err.response?.data?.error || 'Skill failed'); 
+    }
     setIsLoading(false);
   };
 
@@ -225,7 +354,12 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     if (!currentEnemy) return;
     setIsLoading(true);
     try {
-      const { data } = await towerAPI.flee(currentEnemy);
+      const enemyData = {
+        ...currentEnemy,
+        atk: currentEnemy.atk || currentEnemy.attack
+      };
+      
+      const { data } = await towerAPI.flee(enemyData);
       if (data.success) {
         setGameState('in_tower');
         setCurrentEnemy(null);
@@ -291,7 +425,6 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
       addLog('info', data.message);
       setGameState('tower_select');
       setSelectedTower(null);
-      // Notify parent that we left the tower
       if (onTowerStateChange) onTowerStateChange(false);
       onCharacterUpdate();
     } catch (err) { addLog('error', 'Failed to leave'); }
@@ -304,11 +437,11 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     setCurrentEnemy(null);
     setTreasureAfter(null);
     let msg = data.message + '\n\n' + data.restPrompt;
-    if (data.rewards.treasureGold) msg += '\n\n💰 Found treasure chest! +' + data.rewards.treasureGold + ' Gold!';
+    if (data.rewards?.treasureGold) msg += '\n\n💰 Found treasure chest! +' + data.rewards.treasureGold + ' Gold!';
     setStoryText(msg);
     addLog('success', 'Victory! +' + data.rewards.exp + ' EXP, +' + data.rewards.gold + ' Gold');
-    if (data.rewards.treasureGold) addLog('success', '💰 Treasure: +' + data.rewards.treasureGold + ' Gold');
-    if (data.rewards.scrollDropped) addLog('success', '📜 HIDDEN CLASS SCROLL!');
+    if (data.rewards?.treasureGold) addLog('success', '💰 Treasure: +' + data.rewards.treasureGold + ' Gold');
+    if (data.rewards?.scrollDropped) addLog('success', '📜 HIDDEN CLASS SCROLL!');
     if (data.leveledUp) addLog('success', '🎉 LEVEL UP! Lv.' + data.character.level);
   };
 
@@ -318,10 +451,10 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     setTreasureAfter(null);
     setStoryText(data.message);
     addLog('error', 'Defeated! Reset to Floor ' + data.resetFloor);
-    // Notify parent that we left the tower (due to defeat)
     if (onTowerStateChange) onTowerStateChange(false);
   };
 
+  // Skill MP costs lookup
   const getSkillMpCost = (skillId) => {
     const costs = {
       slash: 5, heavyStrike: 12, shieldBash: 8, warCry: 15,
@@ -334,6 +467,61 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
       frost_bolt: 12, blizzard: 28, ice_armor: 20, absolute_zero: 50
     };
     return costs[skillId] || 10;
+  };
+
+  // Get unlocked skills for combat
+  const getUnlockedSkills = () => {
+    if (!character?.skills) return [];
+    return character.skills.filter(s => s.unlocked);
+  };
+
+  // Tower story info helper
+  const getTowerStory = (towerId) => {
+    const stories = {
+      1: 'The Crimson Spire rises from cursed grounds, its halls haunted by the restless dead.',
+      2: 'Azure Depths hide ancient aquatic horrors beneath its flooded chambers.',
+      3: 'The Volcanic Core burns with eternal flame, home to fire elementals and molten beasts.',
+      4: 'Frozen Peak stands silent and deadly, where ice claims all who enter unprepared.',
+      5: 'The Shadow Realm exists between worlds, filled with nightmares made manifest.',
+      6: 'Celestial Sanctum gleams with divine light, but its guardians show no mercy.',
+      7: 'The Abyssal Void consumes all hope, where void creatures hunger endlessly.',
+      8: 'Dragon\'s Domain echoes with ancient power, ruled by the last of dragonkind.',
+      9: 'The Eternal Citadel defies time itself, its defenders immortal and unending.',
+      10: 'Throne of Gods awaits at the peak, where divinity and mortality collide.'
+    };
+    return stories[towerId] || 'A mysterious tower awaits...';
+  };
+
+  const getTowerEnemies = (towerId) => {
+    const enemies = {
+      1: ['Skeleton Warrior', 'Ghoul', 'Wraith'],
+      2: ['Sea Serpent', 'Drowned One', 'Coral Golem'],
+      3: ['Fire Imp', 'Magma Elemental', 'Flame Hound'],
+      4: ['Ice Wraith', 'Frost Giant', 'Snow Stalker'],
+      5: ['Shadow Fiend', 'Nightmare', 'Void Walker'],
+      6: ['Celestial Guardian', 'Light Bearer', 'Divine Sentinel'],
+      7: ['Void Spawn', 'Abyssal Horror', 'Null Entity'],
+      8: ['Drake', 'Wyrm', 'Dragon Kin'],
+      9: ['Eternal Knight', 'Time Keeper', 'Immortal Guard'],
+      10: ['Divine Champion', 'God\'s Hand', 'Celestial Arbiter']
+    };
+    return enemies[towerId] || ['Unknown Enemy'];
+  };
+
+  const getTowerDrops = (towerId) => {
+    const drops = {
+      1: ['Bone Fragment', 'Tattered Cloth', 'Cursed Essence'],
+      2: ['Pearl Shard', 'Sea Crystal', 'Aqua Core'],
+      3: ['Ember Stone', 'Magma Heart', 'Fire Essence'],
+      4: ['Frost Crystal', 'Ice Core', 'Frozen Tear'],
+      5: ['Shadow Fragment', 'Nightmare Essence', 'Void Shard'],
+      6: ['Divine Fragment', 'Light Crystal', 'Celestial Dust'],
+      7: ['Void Core', 'Abyssal Fragment', 'Null Essence'],
+      8: ['Dragon Scale', 'Dragon Claw', 'Dragon Heart'],
+      9: ['Eternal Shard', 'Time Crystal', 'Immortal Essence'],
+      10: ['Divine Core', 'God Fragment', 'Celestial Heart']
+    };
+    return drops[towerId] || ['Unknown Material'];
   };
 
   // Render tower selection with compact [1-10] buttons
@@ -404,7 +592,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
             
             {/* Drops */}
             <div className="bg-gray-800/50 rounded p-2">
-              <div className="text-yellow-400 font-semibold mb-1">💎 Drops</div>
+              <div className="text-yellow-400 font-semibold mb-1">📦 Drops</div>
               <div className="text-gray-300 text-xs space-y-1">
                 {getTowerDrops(selectedTower.id).map((drop, i) => (
                   <div key={i}>{drop}</div>
@@ -413,141 +601,43 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
             </div>
           </div>
           
-          {/* Drop Rates */}
-          <div className="bg-gray-800/50 rounded p-2 text-xs">
-            <div className="text-blue-400 font-semibold mb-1">📊 Drop Rates</div>
-            <div className="grid grid-cols-3 gap-2 text-gray-300">
-              <div>Normal: 15% equip</div>
-              <div>Elite: 40% equip</div>
-              <div>Boss: 80% equip</div>
+          {/* Floor Select Slider */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Start Floor:</span>
+              <span className="text-blue-400 font-bold">{selectedFloor}</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max={selectedTower.highestFloor || 1}
+              value={selectedFloor}
+              onChange={(e) => setSelectedFloor(parseInt(e.target.value))}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>1</span>
+              <span>{selectedTower.highestFloor || 1}</span>
             </div>
           </div>
           
           {/* Enter Button */}
           <button
-            onClick={() => fetchFloors(selectedTower.id).then(() => setGameState('floor_select'))}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold shadow-lg shadow-blue-500/30"
+            onClick={handleEnterTower}
+            disabled={isLoading}
+            className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg font-bold transition-all shadow-lg shadow-purple-500/30"
           >
-            ⚔️ Select Floor
+            {isLoading ? '⏳ Entering...' : `⚡ Enter Tower (-10 Energy)`}
           </button>
         </div>
       )}
       
-      {/* No tower selected hint */}
-      {!selectedTower && (
-        <p className="text-gray-500 text-center py-4">Select a tower above to see details</p>
+      {/* Lockout Warning */}
+      {lockoutTime && (
+        <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-center">
+          <span className="text-red-400">🔒 Tower Lockout: {lockoutTime} minutes remaining</span>
+        </div>
       )}
-    </div>
-  );
-  
-  // Tower story data
-  const getTowerStory = (towerId) => {
-    const stories = {
-      1: "The Crimson Spire rises from cursed ground, home to restless undead who guard ancient treasures. Many hunters have entered, few have returned.",
-      2: "Deep beneath the waves lies the Azure Depths, where aquatic horrors lurk in the crushing darkness. The pressure alone has driven many mad.",
-      3: "The Volcanic Core burns eternally, its magma chambers housing fire elementals and molten beasts. Only the brave dare face its searing heat.",
-      4: "Frozen Peak stands eternal, its icy halls home to frost creatures and the dreaded Ice Emperor. The cold seeps into your very soul.",
-      5: "The Shadow Realm exists between worlds, where darkness itself hunts the living. Reality bends and nightmares walk freely.",
-      6: "Celestial Sanctum floats among the clouds, guarded by beings of pure light. But even angels can fall to corruption.",
-      7: "The Abyssal Void consumes all light and hope. Here, void creatures feed on the essence of existence itself.",
-      8: "Dragon's Domain echoes with ancient roars. The last dragons make their stand here, and they do not suffer intruders.",
-      9: "The Eternal Citadel defies time itself. Its guardians have watched over forbidden knowledge for millennia.",
-      10: "The Throne of Gods awaits only the mightiest hunters. Here, divine beings test those who dare challenge their supremacy."
-    };
-    return stories[towerId] || "A mysterious tower awaits...";
-  };
-  
-  // Tower enemies data
-  const getTowerEnemies = (towerId) => {
-    const enemies = {
-      1: ["Skeleton Warrior", "Zombie", "Ghost", "💀 Boss: Hollow King"],
-      2: ["Sea Serpent", "Drowned One", "Coral Golem", "💀 Boss: Leviathan"],
-      3: ["Fire Imp", "Magma Golem", "Flame Wraith", "💀 Boss: Molten King"],
-      4: ["Frost Wolf", "Ice Elemental", "Yeti", "💀 Boss: Ice Emperor"],
-      5: ["Shadow Stalker", "Nightmare", "Void Walker", "💀 Boss: Void Emperor"],
-      6: ["Fallen Angel", "Light Golem", "Seraphim", "💀 Boss: Archangel"],
-      7: ["Void Spawn", "Abyssal Horror", "Null Beast", "💀 Boss: Void God"],
-      8: ["Drake", "Wyvern", "Elder Dragon", "💀 Boss: Ancient Dragon"],
-      9: ["Time Keeper", "Eternal Guard", "Chrono Beast", "💀 Boss: Eternal King"],
-      10: ["Divine Soldier", "God's Hand", "Celestial", "💀 Boss: God King"]
-    };
-    return enemies[towerId] || ["Unknown creatures"];
-  };
-  
-  // Tower drops data
-  const getTowerDrops = (towerId) => {
-    const drops = {
-      1: ["Bone Fragment", "Ectoplasm", "Gridz Set (1%/5%/15%)"],
-      2: ["Sea Crystal", "Pearl", "Tempest Set (1%/5%/15%)"],
-      3: ["Magma Core", "Ash", "Inferno Set (1%/5%/15%)"],
-      4: ["Frost Shard", "Ice Crystal", "Glacial Set (1%/5%/15%)"],
-      5: ["Shadow Essence", "Void Dust", "Nightmare Set (1%/5%/15%)"],
-      6: ["Holy Light", "Angel Feather", "Celestial Set (1%/5%/15%)"],
-      7: ["Void Core", "Null Fragment", "Abyssal Set (1%/5%/15%)"],
-      8: ["Dragon Scale", "Dragon Fang", "Dragonborn Set (1%/5%/15%)"],
-      9: ["Time Crystal", "Eternal Dust", "Eternal Set (1%/5%/15%)"],
-      10: ["Divine Essence", "God Fragment", "Divine Set (1%/5%/15%)"]
-    };
-    return drops[towerId] || ["Unknown drops"];
-  };
-
-  // Render floor selection
-  const renderFloorSelect = () => (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-blue-400">🏰 {selectedTower?.name}</h3>
-        <button onClick={() => setGameState('tower_select')} className="text-gray-400 hover:text-white">← Back</button>
-      </div>
-      <p className="text-gray-400">Select floor to explore:</p>
-      <div className="grid grid-cols-5 gap-2">
-        {floors.map(floor => (
-          <button
-            key={floor.floor}
-            onClick={() => handleSelectFloor(floor)}
-            className={'p-3 rounded text-center transition ' + 
-              (floor.floor === selectedFloor ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg shadow-blue-500/50' : 
-               floor.unlocked ? (floor.isBoss ? 'bg-red-700 hover:bg-red-600' : 
-                                 floor.isSafeZone ? 'bg-green-700 hover:bg-green-600' : 
-                                 floor.isEliteZone ? 'bg-purple-700 hover:bg-purple-600' :
-                                 'bg-gray-700 hover:bg-gray-600') : 
-               'bg-gray-800 opacity-50 cursor-not-allowed')}
-          >
-            <div className="font-bold">{floor.floor}</div>
-            {floor.isBoss && <div className="text-xs">👑</div>}
-            {floor.isSafeZone && <div className="text-xs">🏠</div>}
-            {floor.isEliteZone && <div className="text-xs">⚔️</div>}
-            {!floor.unlocked && <div className="text-xs">🔒</div>}
-          </button>
-        ))}
-      </div>
-      <div className="text-sm text-gray-400 mt-2">
-        <span className="inline-block w-4 h-4 bg-green-700 mr-1"></span> Safe Zone
-        <span className="inline-block w-4 h-4 bg-purple-700 ml-3 mr-1"></span> Elite Zone
-        <span className="inline-block w-4 h-4 bg-red-700 ml-3 mr-1"></span> Boss
-      </div>
-      <button
-        onClick={handleEnterTower}
-        disabled={isLoading || character?.energy < 10}
-        className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:opacity-50 rounded-lg font-bold text-lg shadow-lg shadow-blue-500/30"
-      >
-        ⚔️ Enter Floor {selectedFloor} (-10⚡)
-      </button>
-      {character?.energy < 10 && (
-        <p className="text-red-400 text-sm text-center mt-2">⚠️ Not enough energy to enter tower</p>
-      )}
-    </div>
-  );
-
-  // Render cursed state
-  const renderCursed = () => (
-    <div className="text-center space-y-4">
-      <div className="text-6xl">💀</div>
-      <h3 className="text-2xl font-bold text-red-400">CURSED!</h3>
-      <p className="text-gray-300">{storyText}</p>
-      <p className="text-yellow-400">Tower lockout: {lockoutTime} minutes remaining</p>
-      <button onClick={() => { setGameState('tower_select'); setLockoutTime(null); }} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
-        Return to Tower Select
-      </button>
     </div>
   );
 
@@ -555,17 +645,32 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
   const renderInTower = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-bold text-blue-400">🏰 {selectedTower?.name || 'Tower'} - Floor {character?.currentFloor}</h3>
-        <span className="text-sm text-gray-400">⚡ {character?.energy}/100</span>
+        <h3 className="text-lg font-bold text-blue-400">
+          🏰 {selectedTower?.name || 'Tower'} - Floor {character?.currentFloor || 1}
+        </h3>
+        <div className="text-sm text-gray-400">
+          HP: {character?.stats?.hp || 0}/{character?.stats?.maxHp || 0}
+        </div>
       </div>
-      {storyText && <p className="text-gray-300 italic whitespace-pre-line">{storyText}</p>}
+      
+      <div className="bg-gray-900/50 rounded-lg p-4 text-center">
+        <p className="text-gray-300">The tower awaits exploration...</p>
+      </div>
+      
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={handleExplore} disabled={isLoading} className="py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:opacity-50 rounded-lg font-bold">
-          🔍 Explore
+        <button 
+          onClick={handleExplore} 
+          disabled={isLoading}
+          className="py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-500 hover:to-teal-500 rounded-lg font-bold transition-all"
+        >
+          {isLoading ? '⏳...' : '🔍 Explore'}
         </button>
-        <button onClick={handleCheckDoorkeeper} disabled={isLoading} className="py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-bold">
+        <button onClick={handleCheckDoorkeeper} disabled={isLoading} className="py-3 bg-purple-700 hover:bg-purple-600 rounded-lg font-bold">
           ⛩️ Doorkeeper
         </button>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3">
         <button onClick={() => handleUsePotion('hp')} disabled={isLoading} className="py-2 bg-red-700 hover:bg-red-600 rounded">
           ❤️ HP Potion
         </button>
@@ -573,83 +678,165 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
           💙 MP Potion
         </button>
       </div>
+      
       <button onClick={handleLeaveTower} disabled={isLoading} className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded">
         🚪 Leave Tower
       </button>
     </div>
   );
 
-  // Render choosing path
+  // Render choosing path with event progress
   const renderChoosingPath = () => (
     <div className="space-y-4">
-      <p className="text-gray-300 whitespace-pre-line">{storyText}</p>
+      {/* Event Progress Indicator */}
+      {eventProgress && (
+        <div className="flex items-center justify-center gap-2 text-sm">
+          {Array.from({ length: eventProgress.total }, (_, i) => (
+            <div 
+              key={i}
+              className={`w-3 h-3 rounded-full ${
+                i < eventProgress.current 
+                  ? 'bg-green-500' 
+                  : i === eventProgress.current - 1 
+                    ? 'bg-blue-500 ring-2 ring-blue-300' 
+                    : 'bg-gray-600'
+              }`}
+            />
+          ))}
+          <span className="text-gray-400 ml-2">Event {eventProgress.current}/{eventProgress.total}</span>
+        </div>
+      )}
+      
+      <p className="text-gray-300 whitespace-pre-line bg-gray-900/50 p-4 rounded-lg">{storyText}</p>
+      
       <div className="grid gap-2">
         {choices.map((choice, idx) => (
           <button
             key={idx}
             onClick={() => handleChoosePath(choice)}
             disabled={isLoading}
-            className="py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left capitalize"
+            className="py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left capitalize transition-all hover:translate-x-1"
           >
             {choice === 'left' ? '← ' : choice === 'right' ? '→ ' : 
              choice === 'crown' ? '👑 ' : choice === 'skull' ? '💀 ' : choice === 'sword' ? '🗡️ ' : '• '}
-            {choice}
+            {choice.replace(/_/g, ' ')}
           </button>
         ))}
       </div>
     </div>
   );
 
-  // Render combat
-  const renderCombat = () => (
-    <div className="space-y-4">
-      {currentEnemy && (
-        <div className="bg-gray-800 p-4 rounded-lg text-center">
-          <div className="text-4xl mb-2">{currentEnemy.icon}</div>
-          <h4 className="font-bold text-lg">{currentEnemy.name}</h4>
-          {currentEnemy.isBoss && <span className="text-red-400 text-sm">👑 BOSS</span>}
-          {currentEnemy.isElite && <span className="text-purple-400 text-sm">⚔️ ELITE</span>}
-          <div className="mt-2">
-            <div className="bg-gray-700 rounded-full h-4 overflow-hidden">
-              <div className="bg-red-500 h-full transition-all" style={{ width: Math.max(0, (currentEnemy.hp / currentEnemy.maxHp) * 100) + '%' }}></div>
+  // Render combat with skills
+  const renderCombat = () => {
+    const unlockedSkills = getUnlockedSkills();
+    
+    return (
+      <div className="space-y-4">
+        {/* Enemy Display */}
+        {currentEnemy && (
+          <div className="bg-gray-800 p-4 rounded-lg text-center">
+            <div className="text-4xl mb-2">{currentEnemy.icon || '👹'}</div>
+            <h4 className="font-bold text-lg">{currentEnemy.name}</h4>
+            {currentEnemy.isBoss && <span className="text-red-400 text-sm">👑 BOSS</span>}
+            {currentEnemy.isElite && <span className="text-purple-400 text-sm">⚔️ ELITE</span>}
+            <div className="mt-2">
+              <div className="bg-gray-700 rounded-full h-4 overflow-hidden">
+                <div 
+                  className="bg-red-500 h-full transition-all" 
+                  style={{ width: Math.max(0, (currentEnemy.hp / currentEnemy.maxHp) * 100) + '%' }}
+                />
+              </div>
+              <span className="text-sm">{Math.max(0, currentEnemy.hp)} / {currentEnemy.maxHp}</span>
             </div>
-            <span className="text-sm">{Math.max(0, currentEnemy.hp)} / {currentEnemy.maxHp}</span>
+          </div>
+        )}
+        
+        {/* Combat Log */}
+        <div ref={logRef} className="bg-gray-900 p-3 rounded-lg h-32 overflow-y-auto text-sm">
+          {combatLog.map((log, i) => (
+            <p key={i} className={
+              log.type === 'player' ? 'text-green-400' : 
+              log.type === 'enemy' ? 'text-red-400' : 'text-yellow-400'
+            }>
+              {log.message}
+            </p>
+          ))}
+        </div>
+        
+        {/* Player Stats */}
+        <div className="grid grid-cols-2 gap-2 text-sm bg-gray-800/50 p-2 rounded">
+          <div>
+            <span className="text-gray-400">HP: </span>
+            <span className="text-green-400">{character?.stats?.hp || 0}/{character?.stats?.maxHp || 0}</span>
+          </div>
+          <div>
+            <span className="text-gray-400">MP: </span>
+            <span className="text-blue-400">{character?.stats?.mp || 0}/{character?.stats?.maxMp || 0}</span>
           </div>
         </div>
-      )}
-      <div ref={logRef} className="bg-gray-900 p-3 rounded-lg h-32 overflow-y-auto text-sm">
-        {combatLog.map((log, i) => (
-          <p key={i} className={log.type === 'player' ? 'text-green-400' : log.type === 'enemy' ? 'text-red-400' : 'text-yellow-400'}>
-            {log.message}
-          </p>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <button onClick={handleAttack} disabled={isLoading} className="py-2 bg-red-600 hover:bg-red-500 rounded font-bold">
-          ⚔️ Attack
-        </button>
-        <button onClick={handleFlee} disabled={isLoading || currentEnemy?.isBoss} className="py-2 bg-gray-600 hover:bg-gray-500 disabled:opacity-50 rounded">
-          🏃 Flee
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {character?.skills?.filter(s => s.unlocked).slice(0, 4).map(skill => (
-          <button
-            key={skill.skillId}
-            onClick={() => handleUseSkill(skill.skillId)}
-            disabled={isLoading || character.stats.mp < getSkillMpCost(skill.skillId)}
-            className="py-2 px-2 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 rounded text-sm"
+        
+        {/* Basic Actions */}
+        <div className="grid grid-cols-2 gap-2">
+          <button 
+            onClick={handleAttack} 
+            disabled={isLoading} 
+            className="py-2 bg-red-600 hover:bg-red-500 rounded font-bold disabled:opacity-50"
           >
-            {skill.name} ({getSkillMpCost(skill.skillId)} MP)
+            ⚔️ Attack
           </button>
-        ))}
+          <button 
+            onClick={handleFlee} 
+            disabled={isLoading || currentEnemy?.isBoss} 
+            className="py-2 bg-gray-600 hover:bg-gray-500 disabled:opacity-50 rounded"
+          >
+            🏃 Flee
+          </button>
+        </div>
+        
+        {/* Skills Section */}
+        {unlockedSkills.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-sm text-purple-400 font-semibold">⚡ Skills</div>
+            <div className="grid grid-cols-2 gap-2">
+              {unlockedSkills.slice(0, 8).map(skill => {
+                const mpCost = getSkillMpCost(skill.skillId);
+                const hasEnoughMp = (character?.stats?.mp || 0) >= mpCost;
+                
+                return (
+                  <button
+                    key={skill.skillId}
+                    onClick={() => handleUseSkill(skill.skillId)}
+                    disabled={isLoading || !hasEnoughMp}
+                    className={`py-2 px-2 rounded text-sm transition-all ${
+                      hasEnoughMp 
+                        ? 'bg-purple-700 hover:bg-purple-600' 
+                        : 'bg-gray-700 opacity-50 cursor-not-allowed'
+                    }`}
+                    title={hasEnoughMp ? `Use ${skill.name}` : `Not enough MP (need ${mpCost})`}
+                  >
+                    {skill.name} ({mpCost} MP)
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        
+        {/* No Skills Warning */}
+        {unlockedSkills.length === 0 && (
+          <div className="text-center text-gray-500 text-sm py-2">
+            No skills available - check Skills tab
+          </div>
+        )}
+        
+        {/* Potions */}
+        <div className="flex gap-2">
+          <button onClick={() => handleUsePotion('hp')} className="flex-1 py-1 bg-red-800 hover:bg-red-700 rounded text-sm">❤️ HP</button>
+          <button onClick={() => handleUsePotion('mp')} className="flex-1 py-1 bg-blue-800 hover:bg-blue-700 rounded text-sm">💙 MP</button>
+        </div>
       </div>
-      <div className="flex gap-2">
-        <button onClick={() => handleUsePotion('hp')} className="flex-1 py-1 bg-red-800 hover:bg-red-700 rounded text-sm">❤️ HP</button>
-        <button onClick={() => handleUsePotion('mp')} className="flex-1 py-1 bg-blue-800 hover:bg-blue-700 rounded text-sm">💙 MP</button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   // Render victory
   const renderVictory = () => (
@@ -661,7 +848,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
           <h4 className="font-bold text-yellow-400 mb-2">Rewards</h4>
           <p>+{rewards.exp} EXP | +{rewards.gold} Gold</p>
           {rewards.treasureGold && <p className="text-yellow-300">💰 +{rewards.treasureGold} Treasure Gold</p>}
-          {rewards.items.length > 0 && (
+          {rewards.items && rewards.items.length > 0 && (
             <div className="mt-2">
               {rewards.items.map((item, i) => (
                 <span key={i} className="inline-block bg-gray-700 px-2 py-1 rounded m-1 text-sm">
@@ -745,6 +932,47 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
       <p className="text-gray-300">{storyText}</p>
       <button onClick={() => { setGameState('tower_select'); fetchTowers(); }} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold shadow-lg shadow-blue-500/30">
         Continue
+      </button>
+    </div>
+  );
+
+  // Render cursed
+  const renderCursed = () => (
+    <div className="space-y-4 text-center">
+      <div className="text-4xl">🔮</div>
+      <h3 className="text-xl font-bold text-purple-400">Cursed!</h3>
+      <p className="text-gray-300">{storyText}</p>
+      <p className="text-red-400">Tower lockout: {lockoutTime} minutes</p>
+      <button onClick={() => { setGameState('tower_select'); setLockoutTime(null); }} className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">
+        Return
+      </button>
+    </div>
+  );
+
+  // Render floor select (if needed)
+  const renderFloorSelect = () => (
+    <div className="space-y-4">
+      <h3 className="text-lg font-bold text-blue-400">Select Floor</h3>
+      <div className="grid grid-cols-5 gap-2">
+        {floors.map(floor => (
+          <button
+            key={floor.floor}
+            onClick={() => handleSelectFloor(floor)}
+            disabled={!floor.unlocked}
+            className={`py-2 rounded text-sm ${
+              floor.floor === selectedFloor
+                ? 'bg-blue-600'
+                : floor.unlocked
+                  ? 'bg-gray-700 hover:bg-gray-600'
+                  : 'bg-gray-800 opacity-50'
+            }`}
+          >
+            {floor.floor}
+          </button>
+        ))}
+      </div>
+      <button onClick={handleEnterTower} className="w-full py-2 bg-green-600 hover:bg-green-500 rounded font-bold">
+        Enter Floor {selectedFloor}
       </button>
     </div>
   );
