@@ -1,8 +1,11 @@
 import express from 'express';
-import Character, { CLASS_BASE_STATS } from '../models/Character.js';
+import Character, { CLASS_BASE_STATS, CLASS_DEFAULT_SKILLS } from '../models/Character.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Use CLASS_DEFAULT_SKILLS from Character model for consistency
+const CLASS_SKILLS = CLASS_DEFAULT_SKILLS;
 
 // Class descriptions for frontend
 const CLASS_INFO = {
@@ -93,10 +96,14 @@ router.post('/create', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Character name is already taken.' });
     }
     
+    // Get skills for this class
+    const classSkills = CLASS_SKILLS[baseClass] || [];
+    
     const character = new Character({
       userId: req.userId,
       name: name.trim(),
-      baseClass
+      baseClass,
+      skills: classSkills  // Initialize with class skills!
     });
     
     await character.save();
@@ -123,6 +130,14 @@ router.get('/', authenticate, async (req, res) => {
     // Update energy based on time passed
     character.updateEnergy();
     character.lastPlayed = new Date();
+    
+    // FIX: If character has no skills, initialize them based on class
+    if (!character.skills || character.skills.length === 0) {
+      const classSkills = CLASS_SKILLS[character.baseClass] || [];
+      character.skills = classSkills;
+      console.log('Initialized missing skills for character:', character.name);
+    }
+    
     await character.save();
     
     res.json({
@@ -132,6 +147,44 @@ router.get('/', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Get character error:', error);
     res.status(500).json({ error: 'Server error fetching character.' });
+  }
+});
+
+// POST /api/character/repair-skills - Repair missing skills for existing characters
+router.post('/repair-skills', authenticate, async (req, res) => {
+  try {
+    const character = await Character.findOne({ userId: req.userId });
+    
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found.' });
+    }
+    
+    // Get class skills
+    const classSkills = CLASS_SKILLS[character.baseClass] || [];
+    
+    // Check which skills are missing
+    const existingSkillIds = (character.skills || []).map(s => s.skillId);
+    const missingSkills = classSkills.filter(s => !existingSkillIds.includes(s.skillId));
+    
+    if (missingSkills.length === 0) {
+      return res.json({ 
+        message: 'All skills already present!', 
+        skills: character.skills 
+      });
+    }
+    
+    // Add missing skills
+    character.skills = [...(character.skills || []), ...missingSkills];
+    await character.save();
+    
+    res.json({
+      message: `Repaired ${missingSkills.length} missing skills!`,
+      addedSkills: missingSkills,
+      allSkills: character.skills
+    });
+  } catch (error) {
+    console.error('Repair skills error:', error);
+    res.status(500).json({ error: 'Server error repairing skills.' });
   }
 });
 
