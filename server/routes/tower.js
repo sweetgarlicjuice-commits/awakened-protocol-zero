@@ -500,13 +500,26 @@ router.post('/enter', authenticate, async (req, res) => {
     if (tower.requirement && character.highestTowerCleared < tower.requirement.tower) {
       return res.status(400).json({ error: 'Tower locked! Clear Tower ' + tower.requirement.tower + ' first.' });
     }
+    
+    // Check energy - consume 10 energy ONLY when entering tower
+    if (character.energy < ENERGY_PER_FLOOR) {
+      return res.status(400).json({ error: 'Not enough energy! Need ' + ENERGY_PER_FLOOR + ' energy to enter tower.' });
+    }
+    
+    // Consume energy on entry
+    character.energy -= ENERGY_PER_FLOOR;
+    
     character.currentTower = towerId;
     // Keep progress for this tower if any
     if (!character.towerProgress) character.towerProgress = {};
     const savedFloor = character.towerProgress['tower' + towerId] || 1;
     character.currentFloor = savedFloor;
+    
+    // Set in-tower flag
+    character.isInTower = true;
+    
     await character.save();
-    res.json({ message: 'Entered ' + tower.name, tower, currentFloor: character.currentFloor });
+    res.json({ message: 'Entered ' + tower.name + ' (-' + ENERGY_PER_FLOOR + ' energy)', tower, currentFloor: character.currentFloor, energyUsed: ENERGY_PER_FLOOR });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -570,12 +583,12 @@ router.post('/explore', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'You are cursed! Cannot explore for ' + remaining + ' more minutes.' });
     }
     
-    if (character.energy < ENERGY_PER_FLOOR) return res.status(400).json({ error: 'Not enough energy! (Need ' + ENERGY_PER_FLOOR + ')' });
+    // NO ENERGY CHECK HERE - energy is consumed on tower entry only
     if (character.stats.hp <= 0) return res.status(400).json({ error: 'You are defeated! Rest to recover.' });
     const floor = character.currentFloor;
     if (floor === 10) return res.json({ type: 'safe_zone', message: 'You reached the Safe Zone!', story: 'A peaceful sanctuary amidst the chaos. Your progress is saved here.', floor: 10 });
     
-    character.energy -= ENERGY_PER_FLOOR;
+    // NO ENERGY DEDUCTION - already consumed on tower entry
     
     // MULTI-EVENT SYSTEM: Determine how many events this exploration will have (2-3)
     const totalEvents = Math.random() < 0.4 ? 3 : 2;
@@ -1215,6 +1228,10 @@ router.post('/leave', authenticate, async (req, res) => {
     character.towerProgress['tower' + character.currentTower] = Math.max(character.towerProgress['tower' + character.currentTower] || 1, checkpoint);
     character.currentFloor = checkpoint;
     character.markModified('towerProgress');
+    
+    // Clear in-tower flag
+    character.isInTower = false;
+    
     await character.save();
     res.json({ message: 'You left the tower. Progress saved at floor ' + checkpoint, resetFloor: checkpoint });
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
@@ -1407,6 +1424,10 @@ async function handleDefeat(character, res, combatLog) {
   if (!character.towerProgress) character.towerProgress = {};
   character.towerProgress['tower' + character.currentTower] = Math.max(character.towerProgress['tower' + character.currentTower] || 1, checkpoint);
   character.markModified('towerProgress');
+  
+  // Clear in-tower flag on defeat
+  character.isInTower = false;
+  
   await character.save();
   combatLog.push({ actor: 'system', message: 'You have been defeated!' });
   res.json({ status: 'defeat', message: 'Defeated! Progress reset to checkpoint.', combatLog, resetFloor: checkpoint, character: { hp: 0, maxHp: character.stats.maxHp } });
