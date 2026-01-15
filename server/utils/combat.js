@@ -204,14 +204,17 @@ export function rollForDrops(enemy, dropRates, equipmentTable, playerClass, towe
   const tid = towerId || 1;
   
   // Safety check for dropRates
-  if (!dropRates) dropRates = { equipment: 0.1, setItem: 0.05, potion: 0.15 };
+  if (!dropRates) dropRates = { equipment: 0.1, setItem: 0.05, potion: 0.20 };
   
   try {
     // Set item drop (rare)
-    if (enemy?.isBoss && Math.random() < (dropRates.setItem || 0.15)) {
+    if (enemy?.isBoss && Math.random() < (dropRates.setItem || 0.18)) {
       const setItem = getSetItemDrop(tid, playerClass);
       if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
-    } else if (enemy?.isElite && Math.random() < (dropRates.setItem || 0.05)) {
+    } else if (enemy?.isElite && Math.random() < (dropRates.setItem || 0.07)) {
+      const setItem = getSetItemDrop(tid, playerClass);
+      if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
+    } else if (Math.random() < (dropRates.setItem || 0.02)) {
       const setItem = getSetItemDrop(tid, playerClass);
       if (setItem) drops.push({ ...setItem, quantity: 1, isSetItem: true });
     }
@@ -225,8 +228,8 @@ export function rollForDrops(enemy, dropRates, equipmentTable, playerClass, towe
     console.error('Error rolling for drops:', e);
   }
   
-  // Potion drop
-  if (Math.random() < (dropRates.potion || 0.15)) {
+  // Potion drop - 20% chance
+  if (Math.random() < (dropRates.potion || 0.20)) {
     if (Math.random() < 0.5) {
       drops.push({ 
         itemId: 'health_potion_small', 
