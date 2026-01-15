@@ -220,9 +220,6 @@ const characterSchema = new mongoose.Schema({
   }
 });
 
-// Tracks whether the player is currently inside a tower or not
-isInTower: { type: Boolean, default: false };
-
 // Calculate EXP needed for next level
 characterSchema.methods.calculateExpToLevel = function(level) {
   return Math.floor(100 * Math.pow(1.5, level - 1));
