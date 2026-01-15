@@ -98,43 +98,71 @@ const SKILL_DATA = {
   overgrowth: { name: 'Overgrowth', mpCost: 35, element: 'nature', desc: '280% P.DMG + Poison' },
   // Void Hunter
   voidArrow: { name: 'Void Arrow', mpCost: 14, element: 'dark', desc: '190% P.DMG, -30% DEF pen' },
-  nullZone: { name: 'Null Zone', mpCost: 18, element: 'dark', desc: '-40% DEF (3t)' },
-  darkVolley: { name: 'Dark Volley', mpCost: 25, element: 'dark', desc: '3× 90% P.DMG' },
-  oblivion: { name: 'Oblivion', mpCost: 45, element: 'dark', desc: '380% P.DMG, -50% DEF pen' },
+  darkMark: { name: 'Dark Mark', mpCost: 16, element: 'dark', desc: '+25% damage taken' },
+  nullField: { name: 'Null Field', mpCost: 20, element: 'dark', desc: 'Dispel buffs, -40% M.DEF' },
+  oblivion: { name: 'Oblivion', mpCost: 42, element: 'dark', desc: '380% P.DMG, ignore DEF' },
   // Frost Weaver
-  frostBolt: { name: 'Frost Bolt', mpCost: 12, element: 'ice', desc: '150% M.DMG + -25% ATK' },
-  blizzard: { name: 'Blizzard', mpCost: 28, element: 'ice', desc: '200% M.DMG + -30% DEF' },
-  iceArmor: { name: 'Ice Armor', mpCost: 20, element: 'ice', desc: '+40% P.DEF, +20% M.DEF' },
-  absoluteZero: { name: 'Absolute Zero', mpCost: 50, element: 'ice', desc: '400% M.DMG + Freeze' },
+  frostBolt: { name: 'Frost Bolt', mpCost: 12, element: 'ice', desc: '170% M.DMG + -20% ATK' },
+  blizzard: { name: 'Blizzard', mpCost: 25, element: 'ice', desc: '200% M.DMG + -30% ATK' },
+  iceArmor: { name: 'Ice Armor', mpCost: 18, element: 'ice', desc: '+40% M.DEF (3t)' },
+  absoluteZero: { name: 'Absolute Zero', mpCost: 45, element: 'ice', desc: '350% M.DMG + Freeze' },
   // Pyromancer
-  flameBurst: { name: 'Flame Burst', mpCost: 12, element: 'fire', desc: '170% M.DMG + Burn' },
-  combustion: { name: 'Combustion', mpCost: 20, element: 'fire', desc: '240% M.DMG' },
-  inferno: { name: 'Inferno', mpCost: 30, element: 'fire', desc: '280% M.DMG + Burn' },
-  hellfire: { name: 'Hellfire', mpCost: 48, element: 'fire', desc: '450% M.DMG + Burn' },
+  flameBurst: { name: 'Flame Burst', mpCost: 14, element: 'fire', desc: '180% M.DMG + Burn' },
+  inferno: { name: 'Inferno', mpCost: 28, element: 'fire', desc: '250% M.DMG + strong Burn' },
+  fireShield: { name: 'Fire Shield', mpCost: 20, element: 'fire', desc: 'Reflect 30% damage' },
+  supernova: { name: 'Supernova', mpCost: 50, element: 'fire', desc: '400% M.DMG + mega Burn' },
   // Stormcaller
-  shock: { name: 'Shock', mpCost: 10, element: 'lightning', desc: '140% M.DMG + 20% Stun' },
-  lightningBolt: { name: 'Lightning Bolt', mpCost: 18, element: 'lightning', desc: '200% M.DMG' },
-  thunderChain: { name: 'Thunder Chain', mpCost: 25, element: 'lightning', desc: '3× 90% M.DMG' },
-  tempest: { name: 'Tempest', mpCost: 45, element: 'lightning', desc: '5× 100% M.DMG' },
+  sparkBolt: { name: 'Spark Bolt', mpCost: 12, element: 'lightning', desc: '160% M.DMG' },
+  thunderclap: { name: 'Thunderclap', mpCost: 22, element: 'lightning', desc: '2× 130% M.DMG' },
+  staticField: { name: 'Static Field', mpCost: 18, element: 'lightning', desc: '-25% enemy evasion' },
+  tempest: { name: 'Tempest', mpCost: 48, element: 'lightning', desc: '5× 100% M.DMG' },
   // Necromancer
-  lifeDrain: { name: 'Life Drain', mpCost: 12, element: 'dark', desc: '140% M.DMG + 30% LS' },
-  curse: { name: 'Curse', mpCost: 15, element: 'dark', desc: '-25% all stats (3t)' },
-  soulRend: { name: 'Soul Rend', mpCost: 25, element: 'dark', desc: '220% M.DMG + 40% LS' },
-  deathPact: { name: 'Death Pact', mpCost: 42, element: 'dark', desc: '350% M.DMG + 50% LS' },
+  drainLife: { name: 'Drain Life', mpCost: 15, element: 'dark', desc: '150% M.DMG + 30% LS' },
+  curse: { name: 'Curse', mpCost: 20, element: 'dark', desc: '-30% all stats (3t)' },
+  soulHarvest: { name: 'Soul Harvest', mpCost: 25, element: 'dark', desc: '200% M.DMG + 50% LS' },
+  deathPact: { name: 'Death Pact', mpCost: 45, element: 'dark', desc: '300% M.DMG + full LS' },
   // Arcanist
-  arcaneMissile: { name: 'Arcane Missile', mpCost: 10, element: 'holy', desc: '160% M.DMG' },
-  empower: { name: 'Empower', mpCost: 18, element: 'holy', desc: '+35% M.DMG (3t)' },
-  arcaneBurst: { name: 'Arcane Burst', mpCost: 28, element: 'holy', desc: '280% M.DMG' },
-  transcendence: { name: 'Transcendence', mpCost: 45, element: 'holy', desc: '+50% DMG, +30% Crit' },
+  arcaneBolt: { name: 'Arcane Bolt', mpCost: 10, element: 'none', desc: '3× 60% M.DMG' },
+  manaStorm: { name: 'Mana Storm', mpCost: 25, element: 'none', desc: '4× 70% M.DMG' },
+  arcaneShield: { name: 'Arcane Shield', mpCost: 15, element: 'none', desc: 'Shield = 100% INT' },
+  arcaneBarrage: { name: 'Arcane Barrage', mpCost: 45, element: 'none', desc: '6× 80% M.DMG' }
 };
 
-// Element icons
 const ELEMENT_ICONS = {
-  none: '', fire: '🔥', water: '💧', lightning: '⚡', earth: '🌍',
-  nature: '🌿', ice: '❄️', dark: '🌑', holy: '✨'
+  fire: '🔥',
+  ice: '❄️',
+  lightning: '⚡',
+  nature: '🌿',
+  dark: '🌑',
+  holy: '✨',
+  earth: '🌍',
+  none: ''
 };
 
-const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }) => {
+// ============================================================
+// HELPER: Safe string conversion
+// ============================================================
+const safeString = (value, fallback = '') => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return String(value);
+};
+
+const safeNumber = (value, fallback = 0) => {
+  if (typeof value === 'number' && !isNaN(value)) return value;
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? fallback : parsed;
+};
+
+const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
   const [towers, setTowers] = useState([]);
   const [selectedTower, setSelectedTower] = useState(null);
   const [floors, setFloors] = useState([]);
@@ -161,9 +189,9 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
   const fetchTowers = async () => {
     try {
       const { data } = await towerAPI.getInfo();
-      setTowers(data.towers);
+      setTowers(data.towers || []);
       if (data.currentTower) {
-        const current = data.towers.find(t => t.id === data.currentTower);
+        const current = (data.towers || []).find(t => t.id === data.currentTower);
         if (current) setSelectedTower(current);
       }
     } catch (err) { console.error(err); }
@@ -172,13 +200,17 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
   const fetchFloors = async (towerId) => {
     try {
       const { data } = await towerAPI.getFloors(towerId);
-      setFloors(data.floors);
+      setFloors(data.floors || []);
       setSelectedFloor(data.currentFloor || 1);
     } catch (err) { console.error(err); }
   };
 
+  const addLog = (type, message) => {
+    setCombatLog(prev => [...prev, { type, message: safeString(message) }]);
+  };
+
   const handleSelectTower = async (tower) => {
-    if (!tower.isUnlocked) {
+    if (!tower || !tower.isUnlocked) {
       addLog('error', 'Tower locked! Clear previous tower first.');
       return;
     }
@@ -190,7 +222,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     setIsLoading(true);
     try {
       const { data } = await towerAPI.enter(selectedTower.id);
-      addLog('system', data.message);
+      addLog('system', safeString(data.message));
       if (selectedFloor > 1) {
         await towerAPI.selectFloor(selectedTower.id, selectedFloor);
       }
@@ -199,163 +231,132 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
       setEnemyDebuffs([]);
       if (onTowerStateChange) onTowerStateChange(true);
       onCharacterUpdate();
-    } catch (err) { 
-      const error = err.response?.data?.error || 'Failed to enter';
-      addLog('error', error);
-      if (error.includes('cursed')) {
-        const match = error.match(/(\d+) more minutes/);
-        if (match) setLockoutTime(parseInt(match[1]));
-      }
-    }
+    } catch (err) { addLog('error', err.response?.data?.error || 'Failed to enter tower'); }
     setIsLoading(false);
   };
 
-  const handleSelectFloor = async (floor) => {
-    if (!floor.unlocked) {
-      addLog('error', 'Floor not unlocked yet!');
-      return;
-    }
-    setSelectedFloor(floor.floor);
+  const handleLeaveTower = async () => {
+    setIsLoading(true);
+    try {
+      await towerAPI.leave();
+      setGameState('tower_select');
+      setCombatLog([]);
+      setCurrentEnemy(null);
+      setStoryText('');
+      setChoices([]);
+      setRewards(null);
+      setPlayerBuffs([]);
+      setEnemyDebuffs([]);
+      if (onTowerStateChange) onTowerStateChange(false);
+      onCharacterUpdate();
+    } catch (err) { addLog('error', 'Failed to leave tower'); }
+    setIsLoading(false);
   };
 
   const handleExplore = async () => {
     setIsLoading(true);
-    setCombatLog([]);
-    setRewards(null);
-    setTreasureAfter(null);
-    setEventProgress(null);
-    setPlayerBuffs([]);
-    setEnemyDebuffs([]);
     try {
       const { data } = await towerAPI.explore();
-      if (data.type === 'safe_zone') {
-        setGameState('safe_zone');
-        setStoryText(data.story);
-        addLog('info', data.message);
-      } else {
-        setStoryText(data.story);
-        setChoices(data.choices);
-        setScenarioId(data.scenarioId);
-        setEventProgress(data.eventProgress || null);
-        setGameState('choosing_path');
+      
+      // Handle lockout
+      if (data.lockoutTime) {
+        setLockoutTime(data.lockoutTime);
+        addLog('info', safeString(data.message));
+        setIsLoading(false);
+        return;
       }
-    } catch (err) { 
-      addLog('error', err.response?.data?.error || 'Exploration failed');
-    }
-    setIsLoading(false);
-  };
-
-  // Handle continuing to next event in multi-event sequence
-  const handleNextEvent = (nextEvent, progress) => {
-    setStoryText(nextEvent.story || nextEvent.description || 'The path continues...');
-    setChoices(nextEvent.choices || []);
-    setScenarioId(nextEvent.scenarioId || scenarioId);
-    setEventProgress(progress);
-    setGameState('choosing_path');
-  };
-
-  const handleChoosePath = async (choice) => {
-    setIsLoading(true);
-    try {
-      const { data } = await towerAPI.choosePath(scenarioId, choice);
-      handlePathOutcome(data);
-    } catch (err) { addLog('error', err.response?.data?.error || 'Choice failed'); }
-    setIsLoading(false);
-  };
-
-  const handlePathOutcome = (data) => {
-    const type = data.type;
-    
-    // Check for multi-event continuation
-    if (type && type.endsWith('_continue') && data.nextEvent) {
-      // Process current outcome first
-      if (data.damage) {
-        addLog('combat', `You took ${data.damage} damage!`);
+      
+      // Handle event progress
+      if (data.eventProgress) {
+        setEventProgress(data.eventProgress);
       }
-      if (data.healing) {
-        addLog('success', `You healed ${data.healing} HP!`);
-      }
-      if (data.gold) {
-        addLog('success', `Found ${data.gold} gold!`);
-      }
-      if (data.item) {
-        addLog('success', `Found ${data.item.name}!`);
+      
+      // Handle different event types
+      switch (data.eventType) {
+        case 'item':
+        case 'treasure':
+          const itemName = data.item?.name || 'something';
+          addLog('success', `Found ${itemName}!`);
+          setStoryText(safeString(data.message) || `You found ${itemName}!`);
+          setRewards({
+            exp: safeNumber(data.exp, 0),
+            gold: safeNumber(data.gold, 0),
+            items: data.item ? [data.item] : []
+          });
+          setGameState('victory');
+          break;
+          
+        case 'enemy':
+        case 'enemy_group':
+        case 'boss':
+        case 'elite':
+          const enemy = data.enemy || data.enemies?.[0];
+          if (enemy) {
+            const normalizedEnemy = {
+              id: enemy.id || safeString(enemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
+              hp: safeNumber(enemy.hp, 50),
+              maxHp: safeNumber(enemy.maxHp || enemy.hp, 50),
+              atk: safeNumber(enemy.atk || enemy.attack, 10),
+              def: safeNumber(enemy.def || enemy.defense, 5),
+              name: safeString(enemy.name, 'Unknown Enemy'),
+              icon: safeString(enemy.icon, '👹'),
+              element: safeString(enemy.element, 'none'),
+              isBoss: !!enemy.isBoss,
+              isElite: !!enemy.isElite,
+              expReward: safeNumber(enemy.expReward || enemy.exp, 20),
+              goldReward: safeNumber(enemy.goldReward || enemy.gold, 10)
+            };
+            setCurrentEnemy(normalizedEnemy);
+            addLog('combat', `${normalizedEnemy.name} appears!`);
+            setGameState('combat');
+          }
+          break;
+          
+        case 'trap':
+          setStoryText(safeString(data.message) || 'You took damage!');
+          addLog('enemy', safeString(data.message));
+          break;
+          
+        case 'rest':
+          setStoryText(safeString(data.message) || 'You feel refreshed!');
+          addLog('success', safeString(data.message) || 'Healed!');
+          break;
+          
+        case 'mystery':
+        case 'event':
+          setStoryText(safeString(data.message) || 'You found something!');
+          addLog('success', safeString(data.message) || 'Reward obtained!');
+          if (data.exp || data.gold) {
+            setRewards({ exp: safeNumber(data.exp, 0), gold: safeNumber(data.gold, 0), items: data.items || [] });
+            setGameState('victory');
+          }
+          break;
+          
+        case 'continue':
+          setStoryText(safeString(data.message) || 'You continue onward...');
+          addLog('info', safeString(data.message) || 'Progress made.');
+          break;
+          
+        case 'branch':
+          setStoryText(safeString(data.message) || 'You found treasure!');
+          if (data.choices && Array.isArray(data.choices)) {
+            setChoices(data.choices);
+            setScenarioId(data.scenarioId);
+            setGameState('choosing_path');
+          }
+          break;
+          
+        case 'nothing':
+          setStoryText(safeString(data.message) || 'Nothing happens...');
+          break;
+          
+        default:
+          setStoryText(safeString(data.message) || 'Something happened...');
       }
       
       onCharacterUpdate();
-      handleNextEvent(data.nextEvent, data.eventProgress);
-      return;
-    }
-    
-    // Normal outcome handling
-    switch (type) {
-      case 'combat':
-      case 'combat_then_treasure':
-        const enemy = data.enemy;
-        const normalizedEnemy = {
-          ...enemy,
-          id: enemy.id || enemy.name?.toLowerCase().replace(/\s+/g, '_') || 'enemy',
-          hp: enemy.hp || enemy.baseHp || 100,
-          maxHp: enemy.maxHp || enemy.baseHp || enemy.hp || 100,
-          atk: enemy.atk || enemy.baseAtk || enemy.attack || 10,
-          def: enemy.def || enemy.baseDef || enemy.defense || 5,
-          name: enemy.name || 'Unknown Enemy',
-          icon: enemy.icon || '👹',
-          isBoss: enemy.isBoss || false,
-          isElite: enemy.isElite || false,
-          expReward: enemy.expReward || enemy.exp || 20,
-          goldReward: enemy.goldReward || enemy.gold || { min: 10, max: 20 },
-          element: enemy.element || 'none',
-          activeBuffs: enemy.activeBuffs || []
-        };
-        setCurrentEnemy(normalizedEnemy);
-        setEnemyDebuffs(normalizedEnemy.activeBuffs || []);
-        addLog('combat', `${normalizedEnemy.name} appears!`);
-        if (type === 'combat_then_treasure') setTreasureAfter(true);
-        setGameState('combat');
-        break;
-      case 'damage':
-        setStoryText(data.message || 'You took damage!');
-        addLog('combat', `You took ${data.damage || 0} damage!`);
-        setGameState('in_tower');
-        break;
-      case 'heal':
-        setStoryText(data.message || 'You feel refreshed!');
-        addLog('success', data.message || 'Healed!');
-        setGameState('in_tower');
-        break;
-      case 'gold_reward':
-      case 'item_reward':
-      case 'material_reward':
-        setStoryText(data.message || 'You found something!');
-        addLog('success', data.message || 'Reward obtained!');
-        setGameState('in_tower');
-        break;
-      case 'lore_reward':
-      case 'safe_progress':
-        setStoryText(data.message || 'You continue onward...');
-        addLog('info', data.message || 'Progress made.');
-        setGameState('in_tower');
-        break;
-      case 'treasure':
-        setStoryText(data.message || 'You found treasure!');
-        setRewards(data.rewards);
-        setGameState('victory');
-        break;
-      case 'nothing':
-        setStoryText(data.message || 'Nothing happens...');
-        setGameState('in_tower');
-        break;
-      default:
-        setStoryText(data.message || 'Something happened...');
-        if (data.rewards) {
-          setRewards(data.rewards);
-          setGameState('victory');
-        } else {
-          setGameState('in_tower');
-        }
-    }
-    onCharacterUpdate();
+    } catch (err) { addLog('error', err.response?.data?.error || 'Exploration failed'); }
+    setIsLoading(false);
   };
 
   const handleAttack = async () => {
@@ -364,35 +365,39 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     try {
       const enemyData = {
         ...currentEnemy,
-        id: currentEnemy.id || currentEnemy.name?.toLowerCase().replace(/\s+/g, '_') || 'enemy',
-        hp: currentEnemy.hp || 50,
-        maxHp: currentEnemy.maxHp || currentEnemy.hp || 50,
-        atk: currentEnemy.atk || currentEnemy.attack || 10,
-        def: currentEnemy.def || currentEnemy.defense || 5,
-        name: currentEnemy.name || 'Enemy',
-        isBoss: currentEnemy.isBoss || false,
-        isElite: currentEnemy.isElite || false,
-        expReward: currentEnemy.expReward || currentEnemy.exp || 20,
-        goldReward: currentEnemy.goldReward || currentEnemy.gold || 10,
+        id: currentEnemy.id || safeString(currentEnemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
+        hp: safeNumber(currentEnemy.hp, 50),
+        maxHp: safeNumber(currentEnemy.maxHp || currentEnemy.hp, 50),
+        atk: safeNumber(currentEnemy.atk || currentEnemy.attack, 10),
+        def: safeNumber(currentEnemy.def || currentEnemy.defense, 5),
+        name: safeString(currentEnemy.name, 'Enemy'),
+        isBoss: !!currentEnemy.isBoss,
+        isElite: !!currentEnemy.isElite,
+        expReward: safeNumber(currentEnemy.expReward || currentEnemy.exp, 20),
+        goldReward: safeNumber(currentEnemy.goldReward || currentEnemy.gold, 10),
         activeBuffs: enemyDebuffs || []
       };
       const { data } = await towerAPI.attack(enemyData, treasureAfter);
       
       // Process combat log
-      if (data.combatLog) {
-        data.combatLog.forEach(log => setCombatLog(prev => [...prev, { 
-          type: log.actor, 
-          message: log.message,
-          isCritical: log.isCritical,
-          element: log.element
-        }]));
+      if (data.combatLog && Array.isArray(data.combatLog)) {
+        data.combatLog.forEach(log => {
+          if (log && typeof log === 'object') {
+            setCombatLog(prev => [...prev, { 
+              type: safeString(log.actor, 'system'), 
+              message: safeString(log.message),
+              isCritical: !!log.isCritical,
+              element: safeString(log.element)
+            }]);
+          }
+        });
       }
       
       // Update buffs from response
-      if (data.character?.activeBuffs) {
+      if (data.character?.activeBuffs && Array.isArray(data.character.activeBuffs)) {
         setPlayerBuffs(data.character.activeBuffs);
       }
-      if (data.enemy?.activeBuffs) {
+      if (data.enemy?.activeBuffs && Array.isArray(data.enemy.activeBuffs)) {
         setEnemyDebuffs(data.enemy.activeBuffs);
       }
       
@@ -407,36 +412,40 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     try {
       const enemyData = {
         ...currentEnemy,
-        id: currentEnemy.id || currentEnemy.name?.toLowerCase().replace(/\s+/g, '_') || 'enemy',
-        hp: currentEnemy.hp || 50,
-        maxHp: currentEnemy.maxHp || currentEnemy.hp || 50,
-        atk: currentEnemy.atk || currentEnemy.attack || 10,
-        def: currentEnemy.def || currentEnemy.defense || 5,
-        name: currentEnemy.name || 'Enemy',
-        isBoss: currentEnemy.isBoss || false,
-        isElite: currentEnemy.isElite || false,
-        expReward: currentEnemy.expReward || currentEnemy.exp || 20,
-        goldReward: currentEnemy.goldReward || currentEnemy.gold || 10,
+        id: currentEnemy.id || safeString(currentEnemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
+        hp: safeNumber(currentEnemy.hp, 50),
+        maxHp: safeNumber(currentEnemy.maxHp || currentEnemy.hp, 50),
+        atk: safeNumber(currentEnemy.atk || currentEnemy.attack, 10),
+        def: safeNumber(currentEnemy.def || currentEnemy.defense, 5),
+        name: safeString(currentEnemy.name, 'Enemy'),
+        isBoss: !!currentEnemy.isBoss,
+        isElite: !!currentEnemy.isElite,
+        expReward: safeNumber(currentEnemy.expReward || currentEnemy.exp, 20),
+        goldReward: safeNumber(currentEnemy.goldReward || currentEnemy.gold, 10),
         activeBuffs: enemyDebuffs || []
       };
       const { data } = await towerAPI.useSkill(enemyData, skillId, treasureAfter);
       
       // Process combat log
-      if (data.combatLog) {
-        data.combatLog.forEach(log => setCombatLog(prev => [...prev, { 
-          type: log.actor, 
-          message: log.message,
-          isCritical: log.isCritical,
-          element: log.element,
-          skillName: log.skillName
-        }]));
+      if (data.combatLog && Array.isArray(data.combatLog)) {
+        data.combatLog.forEach(log => {
+          if (log && typeof log === 'object') {
+            setCombatLog(prev => [...prev, { 
+              type: safeString(log.actor, 'system'), 
+              message: safeString(log.message),
+              isCritical: !!log.isCritical,
+              element: safeString(log.element),
+              skillName: safeString(log.skillName)
+            }]);
+          }
+        });
       }
       
       // Update buffs from response
-      if (data.character?.activeBuffs) {
+      if (data.character?.activeBuffs && Array.isArray(data.character.activeBuffs)) {
         setPlayerBuffs(data.character.activeBuffs);
       }
-      if (data.enemy?.activeBuffs) {
+      if (data.enemy?.activeBuffs && Array.isArray(data.enemy.activeBuffs)) {
         setEnemyDebuffs(data.enemy.activeBuffs);
       }
       
@@ -449,50 +458,46 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     if (!currentEnemy) return;
     setIsLoading(true);
     try {
-      const enemyData = {
-        ...currentEnemy,
-        atk: currentEnemy.atk || currentEnemy.attack
-      };
-      const { data } = await towerAPI.flee(enemyData);
-      if (data.status === 'fled') {
-        addLog('info', 'You successfully fled!');
-        setPlayerBuffs([]);
-        setEnemyDebuffs([]);
+      const { data } = await towerAPI.flee(currentEnemy);
+      if (data.success) {
+        addLog('info', safeString(data.message));
+        setCurrentEnemy(null);
         setGameState('in_tower');
+        setEnemyDebuffs([]);
       } else {
-        setCombatLog(prev => [...prev, { type: 'enemy', message: data.message }]);
-        if (data.character?.activeBuffs) {
-          setPlayerBuffs(data.character.activeBuffs);
-        }
+        setCombatLog(prev => [...prev, { type: 'enemy', message: safeString(data.message) }]);
+        handleCombatResult(data);
       }
-      onCharacterUpdate();
-    } catch (err) { addLog('error', err.response?.data?.error || 'Flee failed'); }
+    } catch (err) { addLog('error', 'Failed to flee'); }
     setIsLoading(false);
   };
 
   const handleCombatResult = (data) => {
-    if (data.status === 'victory') {
-      setStoryText(data.message || 'Victory!');
-      setRewards(data.rewards);
-      setPlayerBuffs([]);
+    if (data.victory) {
+      setStoryText(safeString(data.message) || 'Victory!');
+      setRewards({
+        exp: safeNumber(data.exp, 0),
+        gold: safeNumber(data.gold, 0),
+        items: Array.isArray(data.items) ? data.items : [],
+        treasureGold: safeNumber(data.treasureGold, 0)
+      });
+      setCurrentEnemy(null);
+      setTreasureAfter(null);
       setEnemyDebuffs([]);
-      if (treasureAfter) {
-        addLog('success', 'Victory! A treasure chest appears...');
-      }
       setGameState('victory');
-    } else if (data.status === 'defeat') {
-      addLog('error', data.message || 'You were defeated...');
-      setStoryText(data.message || 'You were defeated...');
-      setPlayerBuffs([]);
-      setEnemyDebuffs([]);
+    } else if (data.defeat) {
+      addLog('error', safeString(data.message) || 'You were defeated...');
+      setStoryText(safeString(data.message) || 'You were defeated...');
       setGameState('defeat');
-    } else if (data.status === 'ongoing') {
-      setCurrentEnemy(prev => ({
-        ...prev,
-        ...data.enemy,
-        hp: data.enemy.hp,
-        activeBuffs: data.enemy?.activeBuffs || []
-      }));
+    } else {
+      // Combat continues
+      if (data.enemy) {
+        setCurrentEnemy(prev => ({
+          ...prev,
+          hp: safeNumber(data.enemy.hp, prev?.hp || 0),
+          maxHp: safeNumber(data.enemy.maxHp, prev?.maxHp || 50)
+        }));
+      }
     }
     onCharacterUpdate();
   };
@@ -501,23 +506,73 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     setIsLoading(true);
     try {
       const { data } = await towerAPI.usePotion(type);
-      addLog('success', data.message);
+      addLog('success', safeString(data.message));
       if (gameState === 'combat') {
-        setCombatLog(prev => [...prev, { type: 'player', message: data.message }]);
+        setCombatLog(prev => [...prev, { type: 'player', message: safeString(data.message) }]);
       }
       onCharacterUpdate();
-    } catch (err) { addLog('error', err.response?.data?.error || 'No potions!'); }
+    } catch (err) { addLog('error', err.response?.data?.error || 'No potions'); }
+    setIsLoading(false);
+  };
+
+  const handleChoosePath = async (choice) => {
+    setIsLoading(true);
+    try {
+      const { data } = await towerAPI.choosePath(choice, scenarioId);
+      
+      setStoryText(safeString(data.message));
+      addLog('info', safeString(data.message));
+      
+      if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
+        setChoices(data.choices);
+        setScenarioId(data.scenarioId);
+      } else if (data.enemy) {
+        const normalizedEnemy = {
+          id: data.enemy.id || safeString(data.enemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
+          hp: safeNumber(data.enemy.hp, 50),
+          maxHp: safeNumber(data.enemy.maxHp || data.enemy.hp, 50),
+          atk: safeNumber(data.enemy.atk || data.enemy.attack, 10),
+          def: safeNumber(data.enemy.def || data.enemy.defense, 5),
+          name: safeString(data.enemy.name, 'Unknown Enemy'),
+          icon: safeString(data.enemy.icon, '👹'),
+          element: safeString(data.enemy.element, 'none'),
+          isBoss: !!data.enemy.isBoss,
+          isElite: !!data.enemy.isElite,
+          expReward: safeNumber(data.enemy.expReward || data.enemy.exp, 20),
+          goldReward: safeNumber(data.enemy.goldReward || data.enemy.gold, 10)
+        };
+        setCurrentEnemy(normalizedEnemy);
+        setTreasureAfter(data.treasureAfter || null);
+        setChoices([]);
+        setGameState('combat');
+      } else if (data.exp || data.gold || (data.items && data.items.length > 0)) {
+        setRewards({
+          exp: safeNumber(data.exp, 0),
+          gold: safeNumber(data.gold, 0),
+          items: Array.isArray(data.items) ? data.items : []
+        });
+        setChoices([]);
+        setEventProgress(null);
+        setGameState('victory');
+      } else {
+        setChoices([]);
+        setEventProgress(null);
+        setGameState('in_tower');
+      }
+      
+      onCharacterUpdate();
+    } catch (err) { addLog('error', err.response?.data?.error || 'Failed'); }
     setIsLoading(false);
   };
 
   const handleCheckDoorkeeper = async () => {
     setIsLoading(true);
     try {
-      const { data } = await towerAPI.checkFloorRequirements();
+      const { data } = await towerAPI.getFloorRequirements();
       setFloorRequirements(data);
-      setStoryText(data.doorkeeper || 'The doorkeeper awaits...');
+      setStoryText(safeString(data.message));
       setGameState('doorkeeper');
-    } catch (err) { addLog('error', 'Could not reach doorkeeper'); }
+    } catch (err) { addLog('error', 'Failed to check requirements'); }
     setIsLoading(false);
   };
 
@@ -525,27 +580,14 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     setIsLoading(true);
     try {
       const { data } = await towerAPI.advance();
-      addLog('success', data.message);
+      addLog('success', safeString(data.message));
       setGameState('in_tower');
       onCharacterUpdate();
     } catch (err) { addLog('error', err.response?.data?.error || 'Cannot advance'); }
     setIsLoading(false);
   };
 
-  const handleLeaveTower = async () => {
-    setIsLoading(true);
-    try {
-      const { data } = await towerAPI.leave();
-      addLog('info', data.message);
-      setGameState('tower_select');
-      setPlayerBuffs([]);
-      setEnemyDebuffs([]);
-      if (onTowerStateChange) onTowerStateChange(false);
-      onCharacterUpdate();
-    } catch (err) { addLog('error', 'Failed to leave tower'); }
-    setIsLoading(false);
-  };
-
+  // Helpers
   const getUnlockedSkills = () => {
     return character?.skills?.filter(s => s.unlocked) || [];
   };
@@ -558,42 +600,28 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     return SKILL_DATA[skillId]?.element || 'none';
   };
 
-  const getTowerDrops = (towerId) => {
-    const drops = {
-      1: ['Bone Fragment', 'Hollow Essence', 'Gridz Set Pieces'],
-      2: ['Sea Crystal', 'Aqua Essence', 'Tempest Set Pieces'],
-      3: ['Molten Core', 'Fire Essence', 'Inferno Set Pieces'],
-      4: ['Frost Shard', 'Ice Essence', 'Glacial Set Pieces'],
-      5: ['Shadow Fragment', 'Void Essence', 'Nightmare Set Pieces'],
-      6: ['Celestial Dust', 'Holy Essence', 'Celestial Set Pieces'],
-      7: ['Abyssal Stone', 'Dark Essence', 'Abyssal Set Pieces'],
-      8: ['Dragon Scale', 'Dragon Essence', 'Dragonborn Set Pieces'],
-      9: ['Eternal Shard', 'Time Essence', 'Eternal Set Pieces'],
-      10: ['Divine Fragment', 'God Essence', 'Divine Set Pieces']
-    };
-    return drops[towerId] || ['Unknown Materials'];
-  };
-
   // ============================================================
   // BUFF/DEBUFF DISPLAY COMPONENT
   // ============================================================
   
   const BuffDisplay = ({ buffs, isEnemy = false }) => {
-    if (!buffs || buffs.length === 0) return null;
+    if (!buffs || !Array.isArray(buffs) || buffs.length === 0) return null;
     
     return (
-      <div className={`flex flex-wrap gap-1 justify-center mt-1`}>
+      <div className="flex flex-wrap gap-1 justify-center mt-1">
         {buffs.map((buff, idx) => {
-          // Safely get buff values - handle objects
-          const buffName = typeof buff.name === 'string' ? buff.name : (buff.name?.toString() || 'Buff');
-          const buffValue = typeof buff.value === 'number' ? buff.value : (typeof buff.value === 'string' ? buff.value : '');
-          const buffDuration = typeof buff.duration === 'number' ? buff.duration : 0;
-          const buffIcon = typeof buff.icon === 'string' ? buff.icon : '✨';
-          const buffType = buff.type || '';
+          if (!buff || typeof buff !== 'object') return null;
+          
+          // Safely extract values
+          const buffName = safeString(buff.name, 'Buff');
+          const buffValue = safeNumber(buff.value, 0);
+          const buffDuration = safeNumber(buff.duration, 0);
+          const buffIcon = safeString(buff.icon, '✨');
+          const buffType = safeString(buff.type, '');
           
           // Format value display
           let valueDisplay = '';
-          if (buffValue !== '' && buffValue !== 0) {
+          if (buffValue !== 0) {
             const prefix = buffValue > 0 && buffType !== 'dot' ? '+' : '';
             const suffix = buffType === 'dot' ? '/t' : '%';
             valueDisplay = `${prefix}${buffValue}${suffix}`;
@@ -625,7 +653,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     <div className="space-y-4">
       <h3 className="text-lg font-bold text-purple-400">🏰 Select Tower</h3>
       <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-        {towers.map(tower => (
+        {(towers || []).map(tower => (
           <button
             key={tower.id}
             onClick={() => handleSelectTower(tower)}
@@ -637,8 +665,8 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
                   : 'bg-gray-900 opacity-50 cursor-not-allowed border border-gray-700'
             }`}
           >
-            <div className="font-bold text-sm">{tower.name}</div>
-            <div className="text-xs text-gray-400">Lv.{tower.levelRange}</div>
+            <div className="font-bold text-sm">{safeString(tower.name, 'Tower')}</div>
+            <div className="text-xs text-gray-400">Lv.{safeString(tower.levelRange, '?')}</div>
             {!tower.isUnlocked && <div className="text-xs text-red-400">🔒 Locked</div>}
           </button>
         ))}
@@ -647,61 +675,30 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
       {/* Tower Details */}
       {selectedTower && (
         <div className="bg-gray-800/50 rounded-lg p-4 space-y-3">
-          <h4 className="font-bold text-lg text-purple-300">{selectedTower.name}</h4>
-          <p className="text-sm text-gray-400">{selectedTower.description}</p>
+          <h4 className="font-bold text-lg text-purple-300">{safeString(selectedTower.name, 'Tower')}</h4>
+          <p className="text-gray-400 text-sm">{safeString(selectedTower.description, 'A mysterious tower awaits...')}</p>
           
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="bg-gray-800/50 rounded p-2">
-              <div className="text-gray-400">Levels</div>
-              <div className="text-white font-bold">{selectedTower.levelRange}</div>
-            </div>
-            <div className="bg-gray-800/50 rounded p-2">
-              <div className="text-gray-400">Floors</div>
-              <div className="text-white font-bold">{selectedTower.floors || 15}</div>
-            </div>
-            <div className="bg-gray-800/50 rounded p-2">
-              <div className="text-yellow-400 font-semibold mb-1">👑 Boss</div>
-              <div className="text-gray-300 text-xs">{selectedTower.boss || 'Unknown'}</div>
-            </div>
-            <div className="bg-gray-800/50 rounded p-2">
-              <div className="text-yellow-400 font-semibold mb-1">📦 Drops</div>
-              <div className="text-gray-300 text-xs">{getTowerDrops(selectedTower.id)[0]}</div>
-            </div>
-          </div>
-          
-          {/* Floor Select Slider */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Start Floor:</span>
-              <span className="text-blue-400 font-bold">{selectedFloor}</span>
-            </div>
-            <input
-              type="range"
-              min="1"
-              max={selectedTower.highestFloor || 1}
+          {/* Floor Selection */}
+          <div>
+            <label className="text-sm text-gray-400">Start Floor:</label>
+            <select 
               value={selectedFloor}
-              onChange={(e) => setSelectedFloor(parseInt(e.target.value))}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>1</span>
-              <span>{selectedTower.highestFloor || 1}</span>
-            </div>
+              onChange={(e) => setSelectedFloor(Number(e.target.value))}
+              className="ml-2 bg-gray-700 rounded px-2 py-1 text-sm"
+            >
+              {Array.from({ length: character?.highestFloorReached?.floor || 1 }, (_, i) => (
+                <option key={i+1} value={i+1}>Floor {i+1}</option>
+              ))}
+            </select>
           </div>
           
-          <button
+          <button 
             onClick={handleEnterTower}
             disabled={isLoading}
-            className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-lg font-bold transition-all shadow-lg shadow-purple-500/30"
+            className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-bold transition-all"
           >
-            {isLoading ? '⏳ Entering...' : `⚡ Enter Tower (-10 Energy)`}
+            {isLoading ? '⏳...' : '⚔️ Enter Tower'}
           </button>
-        </div>
-      )}
-      
-      {lockoutTime && (
-        <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-3 text-center">
-          <span className="text-red-400">🔒 Tower Lockout: {lockoutTime} minutes remaining</span>
         </div>
       )}
     </div>
@@ -715,10 +712,10 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-bold text-blue-400">
-          🏰 {selectedTower?.name || 'Tower'} - Floor {character?.currentFloor || 1}
+          🏰 {safeString(selectedTower?.name, 'Tower')} - Floor {safeNumber(character?.currentFloor, 1)}
         </h3>
         <div className="text-sm text-gray-400">
-          HP: {character?.stats?.hp || 0}/{character?.stats?.maxHp || 0}
+          HP: {safeNumber(character?.stats?.hp, 0)}/{safeNumber(character?.stats?.maxHp, 0)}
         </div>
       </div>
       
@@ -770,35 +767,36 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     <div className="space-y-4">
       {eventProgress && (
         <div className="flex items-center justify-center gap-2 text-sm">
-          {Array.from({ length: eventProgress.total }, (_, i) => (
+          {Array.from({ length: eventProgress.total || 0 }, (_, i) => (
             <div 
               key={i}
               className={`w-3 h-3 rounded-full ${
-                i < eventProgress.current 
+                i < (eventProgress.current || 0)
                   ? 'bg-green-500' 
-                  : i === eventProgress.current - 1 
+                  : i === (eventProgress.current || 0) - 1 
                     ? 'bg-blue-500 ring-2 ring-blue-300' 
                     : 'bg-gray-600'
               }`}
             />
           ))}
-          <span className="text-gray-400 ml-2">Event {eventProgress.current}/{eventProgress.total}</span>
         </div>
       )}
       
-      <p className="text-gray-300 whitespace-pre-line bg-gray-900/50 p-4 rounded-lg">{storyText}</p>
+      <div className="bg-gray-900/50 rounded-lg p-4">
+        <p className="text-gray-300 whitespace-pre-line">{safeString(storyText, 'A choice awaits...')}</p>
+      </div>
       
-      <div className="grid gap-2">
-        {choices.map((choice, idx) => (
+      <div className="space-y-2">
+        {(choices || []).map((choice, idx) => (
           <button
             key={idx}
             onClick={() => handleChoosePath(choice)}
             disabled={isLoading}
-            className="py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left capitalize transition-all hover:translate-x-1"
+            className="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left capitalize transition-all hover:translate-x-1"
           >
             {choice === 'left' ? '← ' : choice === 'right' ? '→ ' : 
              choice === 'crown' ? '👑 ' : choice === 'skull' ? '💀 ' : choice === 'sword' ? '🗡️ ' : '• '}
-            {choice.replace(/_/g, ' ')}
+            {safeString(choice, 'Choice').replace(/_/g, ' ')}
           </button>
         ))}
       </div>
@@ -817,13 +815,13 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
         {/* Enemy Display */}
         {currentEnemy && (
           <div className="bg-gray-800 p-4 rounded-lg text-center">
-            <div className="text-4xl mb-1">{currentEnemy.icon || '👹'}</div>
-            <h4 className="font-bold text-lg">{currentEnemy.name}</h4>
+            <div className="text-4xl mb-1">{safeString(currentEnemy.icon, '👹')}</div>
+            <h4 className="font-bold text-lg">{safeString(currentEnemy.name, 'Enemy')}</h4>
             <div className="flex justify-center gap-2 text-sm">
               {currentEnemy.isBoss && <span className="text-red-400">👑 BOSS</span>}
               {currentEnemy.isElite && <span className="text-purple-400">⚔️ ELITE</span>}
               {currentEnemy.element && currentEnemy.element !== 'none' && (
-                <span className="text-gray-400">{ELEMENT_ICONS[currentEnemy.element]} {currentEnemy.element}</span>
+                <span className="text-gray-400">{ELEMENT_ICONS[currentEnemy.element] || ''} {currentEnemy.element}</span>
               )}
             </div>
             
@@ -832,10 +830,10 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
               <div className="bg-gray-700 rounded-full h-4 overflow-hidden">
                 <div 
                   className="bg-red-500 h-full transition-all" 
-                  style={{ width: Math.max(0, (currentEnemy.hp / currentEnemy.maxHp) * 100) + '%' }}
+                  style={{ width: Math.max(0, (safeNumber(currentEnemy.hp, 0) / safeNumber(currentEnemy.maxHp, 1)) * 100) + '%' }}
                 />
               </div>
-              <span className="text-sm">{Math.max(0, currentEnemy.hp)} / {currentEnemy.maxHp}</span>
+              <span className="text-sm">{Math.max(0, safeNumber(currentEnemy.hp, 0))} / {safeNumber(currentEnemy.maxHp, 0)}</span>
             </div>
             
             {/* Enemy Debuffs */}
@@ -850,18 +848,17 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
         
         {/* Combat Log */}
         <div ref={logRef} className="bg-gray-900 p-3 rounded-lg h-28 overflow-y-auto text-sm">
-          {combatLog.map((log, i) => {
-            // Ensure message is always a string
-            const message = typeof log.message === 'string' ? log.message : 
-                           (typeof log.message === 'object' ? JSON.stringify(log.message) : String(log.message || ''));
-            const element = typeof log.element === 'string' ? log.element : '';
+          {(combatLog || []).map((log, i) => {
+            const message = safeString(log?.message, '');
+            const element = safeString(log?.element, '');
+            const logType = safeString(log?.type, 'system');
             
             return (
               <p key={i} className={`${
-                log.type === 'player' ? 'text-green-400' : 
-                log.type === 'enemy' ? 'text-red-400' : 
-                log.type === 'system' ? 'text-yellow-400' : 'text-gray-400'
-              } ${log.isCritical ? 'font-bold' : ''}`}>
+                logType === 'player' ? 'text-green-400' : 
+                logType === 'enemy' ? 'text-red-400' : 
+                logType === 'system' ? 'text-yellow-400' : 'text-gray-400'
+              } ${log?.isCritical ? 'font-bold' : ''}`}>
                 {element && ELEMENT_ICONS[element]} {message}
               </p>
             );
@@ -873,37 +870,29 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
               <span className="text-gray-400">HP: </span>
-              <span className="text-green-400">{character?.stats?.hp || 0}/{character?.stats?.maxHp || 0}</span>
+              <span className="text-green-400">{safeNumber(character?.stats?.hp, 0)}/{safeNumber(character?.stats?.maxHp, 0)}</span>
             </div>
             <div>
               <span className="text-gray-400">MP: </span>
-              <span className="text-blue-400">{character?.stats?.mp || 0}/{character?.stats?.maxMp || 0}</span>
+              <span className="text-blue-400">{safeNumber(character?.stats?.mp, 0)}/{safeNumber(character?.stats?.maxMp, 0)}</span>
             </div>
           </div>
           
           {/* Player Buffs */}
           {playerBuffs.length > 0 && (
-            <div className="pt-1 border-t border-gray-700">
+            <div>
               <div className="text-xs text-blue-400 mb-1">Buffs:</div>
               <BuffDisplay buffs={playerBuffs} />
             </div>
           )}
         </div>
         
-        {/* Basic Actions */}
+        {/* Combat Actions */}
         <div className="grid grid-cols-2 gap-2">
-          <button 
-            onClick={handleAttack} 
-            disabled={isLoading} 
-            className="py-2 bg-red-600 hover:bg-red-500 rounded font-bold disabled:opacity-50"
-          >
+          <button onClick={handleAttack} disabled={isLoading} className="py-2 bg-red-600 hover:bg-red-500 rounded font-bold">
             ⚔️ Attack
           </button>
-          <button 
-            onClick={handleFlee} 
-            disabled={isLoading || currentEnemy?.isBoss} 
-            className="py-2 bg-gray-600 hover:bg-gray-500 disabled:opacity-50 rounded"
-          >
+          <button onClick={handleFlee} disabled={isLoading} className="py-2 bg-gray-600 hover:bg-gray-500 rounded">
             🏃 Flee
           </button>
         </div>
@@ -916,7 +905,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
               {unlockedSkills.slice(0, 8).map(skill => {
                 const mpCost = getSkillMpCost(skill.skillId);
                 const element = getSkillElement(skill.skillId);
-                const hasEnoughMp = (character?.stats?.mp || 0) >= mpCost;
+                const hasEnoughMp = safeNumber(character?.stats?.mp, 0) >= mpCost;
                 const elementIcon = ELEMENT_ICONS[element] || '';
                 
                 return (
@@ -929,9 +918,9 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
                         ? 'bg-purple-700 hover:bg-purple-600' 
                         : 'bg-gray-700 opacity-50 cursor-not-allowed'
                     }`}
-                    title={SKILL_DATA[skill.skillId]?.desc || skill.name}
+                    title={SKILL_DATA[skill.skillId]?.desc || safeString(skill.name)}
                   >
-                    {elementIcon} {skill.name} <span className="text-blue-300">({mpCost})</span>
+                    {elementIcon} {safeString(skill.name, 'Skill')} <span className="text-blue-300">({mpCost})</span>
                   </button>
                 );
               })}
@@ -961,17 +950,17 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
   const renderVictory = () => (
     <div className="space-y-4 text-center">
       <div className="text-4xl">🎉</div>
-      <p className="text-gray-300 whitespace-pre-line">{storyText}</p>
+      <p className="text-gray-300 whitespace-pre-line">{safeString(storyText, 'Victory!')}</p>
       {rewards && (
         <div className="bg-gray-800 p-4 rounded-lg">
           <h4 className="font-bold text-yellow-400 mb-2">Rewards</h4>
-          <p>+{rewards.exp} EXP | +{rewards.gold} Gold</p>
-          {rewards.treasureGold && <p className="text-yellow-300">💰 +{rewards.treasureGold} Treasure Gold</p>}
-          {rewards.items && rewards.items.length > 0 && (
+          <p>+{safeNumber(rewards.exp, 0)} EXP | +{safeNumber(rewards.gold, 0)} Gold</p>
+          {rewards.treasureGold > 0 && <p className="text-yellow-300">💰 +{safeNumber(rewards.treasureGold, 0)} Treasure Gold</p>}
+          {rewards.items && Array.isArray(rewards.items) && rewards.items.length > 0 && (
             <div className="mt-2">
               {rewards.items.map((item, i) => (
                 <span key={i} className="inline-block bg-gray-700 px-2 py-1 rounded m-1 text-sm">
-                  {item.icon || '📦'} {item.name} {item.quantity > 1 && 'x' + item.quantity}
+                  {safeString(item?.icon, '📦')} {safeString(item?.name, 'Item')} {safeNumber(item?.quantity, 1) > 1 && 'x' + safeNumber(item?.quantity, 1)}
                 </span>
               ))}
             </div>
@@ -992,7 +981,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     <div className="space-y-4 text-center">
       <div className="text-4xl">💀</div>
       <h3 className="text-xl font-bold text-red-400">Defeated</h3>
-      <p className="text-gray-400">{storyText || 'You have been defeated...'}</p>
+      <p className="text-gray-400">{safeString(storyText, 'You have been defeated...')}</p>
       <button 
         onClick={() => {
           setGameState('tower_select');
@@ -1012,21 +1001,21 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
   
   const renderDoorkeeper = () => (
     <div className="space-y-4">
-      <p className="text-gray-300 italic">{storyText}</p>
+      <p className="text-gray-300 italic">{safeString(storyText, 'The doorkeeper awaits...')}</p>
       {floorRequirements && (
         <div className="bg-gray-800 p-4 rounded-lg">
-          <h4 className="font-bold text-yellow-400 mb-2">Requirements for Floor {floorRequirements.nextFloor}</h4>
-          {floorRequirements.requirements?.items?.map((req, i) => {
-            const have = floorRequirements.playerItems[req.id] || 0;
+          <h4 className="font-bold text-yellow-400 mb-2">Requirements for Floor {safeNumber(floorRequirements.nextFloor, 1)}</h4>
+          {floorRequirements.requirements?.items && Array.isArray(floorRequirements.requirements.items) && floorRequirements.requirements.items.map((req, i) => {
+            const have = safeNumber(floorRequirements.playerItems?.[req.id], 0);
             return (
-              <p key={i} className={have >= req.quantity ? 'text-green-400' : 'text-red-400'}>
-                {req.name}: {have}/{req.quantity}
+              <p key={i} className={have >= safeNumber(req.quantity, 0) ? 'text-green-400' : 'text-red-400'}>
+                {safeString(req.name, 'Item')}: {have}/{safeNumber(req.quantity, 0)}
               </p>
             );
           })}
-          {floorRequirements.requirements?.gold > 0 && (
-            <p className={floorRequirements.playerGold >= floorRequirements.requirements.gold ? 'text-green-400' : 'text-red-400'}>
-              Gold: {floorRequirements.playerGold}/{floorRequirements.requirements.gold}
+          {safeNumber(floorRequirements.requirements?.gold, 0) > 0 && (
+            <p className={safeNumber(floorRequirements.playerGold, 0) >= safeNumber(floorRequirements.requirements.gold, 0) ? 'text-green-400' : 'text-red-400'}>
+              Gold: {safeNumber(floorRequirements.playerGold, 0)}/{safeNumber(floorRequirements.requirements.gold, 0)}
             </p>
           )}
         </div>
@@ -1050,7 +1039,7 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     <div className="space-y-4 text-center">
       <div className="text-4xl">🏕️</div>
       <h3 className="text-xl font-bold text-green-400">Safe Zone</h3>
-      <p className="text-gray-300">{storyText}</p>
+      <p className="text-gray-300">{safeString(storyText, 'A safe place to rest...')}</p>
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => handleUsePotion('hp')} className="py-2 bg-red-700 hover:bg-red-600 rounded">
           ❤️ HP Potion
