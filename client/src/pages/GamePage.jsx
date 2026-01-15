@@ -120,6 +120,7 @@ const GamePage = () => {
   const [showStatModal, setShowStatModal] = useState(false);
   const [pendingStats, setPendingStats] = useState({ str: 0, agi: 0, dex: 0, int: 0, vit: 0 });
   const [isAllocating, setIsAllocating] = useState(false);
+  const [isInTower, setIsInTower] = useState(false); // Track if player is in tower
   const [gameLog, setGameLog] = useState([
     { type: 'system', message: 'Welcome to Awakened Protocol: Zero', timestamp: new Date() },
     { type: 'info', message: 'Hunter ' + (character?.name || 'Unknown') + ' has entered the realm.', timestamp: new Date() }
@@ -131,11 +132,22 @@ const GamePage = () => {
     return () => clearInterval(interval);
   }, [refreshCharacter]);
 
+  // Sync isInTower state with character data
+  useEffect(() => {
+    if (character) {
+      setIsInTower(character.isInTower || false);
+    }
+  }, [character]);
+
   const addLog = (type, message) => {
     setGameLog(prev => [...prev, { type, message, timestamp: new Date() }].slice(-50));
   };
 
   const handleRest = async () => {
+    if (isInTower) {
+      addLog('error', 'Cannot rest while inside a tower! Leave the tower first.');
+      return;
+    }
     setIsResting(true);
     try {
       const { data } = await characterAPI.rest();
@@ -176,7 +188,15 @@ const GamePage = () => {
     navigate('/login');
   };
 
+  // Handler for TowerPanel to update isInTower state
+  const handleTowerStateChange = (inTower) => {
+    setIsInTower(inTower);
+  };
+
   if (!character) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+
+  // Calculate rest cost
+  const restCost = character.level * 250;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -220,9 +240,18 @@ const GamePage = () => {
           </div>
 
           <div className="space-y-2">
-            <button onClick={handleRest} disabled={isResting || character.stats.hp >= character.stats.maxHp} className="w-full btn-secondary text-sm py-2 disabled:opacity-50">
-              {isResting ? 'Resting...' : `🛏️ Rest (${character.level * 5}g)`}
+            {/* Rest button - disabled when in tower */}
+            <button 
+              onClick={handleRest} 
+              disabled={isResting || character.stats.hp >= character.stats.maxHp || isInTower} 
+              className={`w-full btn-secondary text-sm py-2 disabled:opacity-50 ${isInTower ? 'cursor-not-allowed' : ''}`}
+              title={isInTower ? 'Cannot rest while inside tower' : ''}
+            >
+              {isResting ? 'Resting...' : `🛏️ Rest (${restCost}g)`}
             </button>
+            {isInTower && (
+              <p className="text-xs text-red-400 text-center">⚠️ Leave tower to rest</p>
+            )}
           </div>
 
           <div className="mt-6 pt-6 border-t border-gray-700/50">
@@ -246,18 +275,35 @@ const GamePage = () => {
         <main className="flex-1 flex flex-col">
           <nav className="bg-void-800/30 border-b border-purple-500/10">
             <div className="flex">
+              {/* Tab order: Status, Inventory, Tavern (disabled in tower), Skills, Tower */}
               {[
-                { id: 'status', label: '📊 Status', icon: '📊' },
-                { id: 'tower', label: '🗼 Tower', icon: '🗼' },
-                { id: 'inventory', label: '🎒 Items', icon: '🎒' },
-                { id: 'tavern', label: '🍺 Tavern', icon: '🍺' },
-                { id: 'skills', label: '⚡ Skills', icon: '⚡' }
-              ].map(tab => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${activeTab === tab.id ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-500/5' : 'text-gray-500 hover:text-gray-300'}`}>
-                  <span className="hidden sm:inline">{tab.label}</span>
-                  <span className="sm:hidden">{tab.icon}</span>
-                </button>
-              ))}
+                { id: 'status', label: '📊 Status', icon: '📊', disabledInTower: false },
+                { id: 'inventory', label: '🎒 Items', icon: '🎒', disabledInTower: false },
+                { id: 'tavern', label: '🍺 Tavern', icon: '🍺', disabledInTower: true },
+                { id: 'skills', label: '⚡ Skills', icon: '⚡', disabledInTower: false },
+                { id: 'tower', label: '🗼 Tower', icon: '🗼', disabledInTower: false }
+              ].map(tab => {
+                const isDisabled = isInTower && tab.disabledInTower;
+                return (
+                  <button 
+                    key={tab.id} 
+                    onClick={() => !isDisabled && setActiveTab(tab.id)} 
+                    disabled={isDisabled}
+                    className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
+                      activeTab === tab.id 
+                        ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-500/5' 
+                        : isDisabled
+                          ? 'text-gray-600 cursor-not-allowed opacity-50'
+                          : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                    title={isDisabled ? 'Cannot access while in tower' : ''}
+                  >
+                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span className="sm:hidden">{tab.icon}</span>
+                    {isDisabled && <span className="ml-1 text-xs">🔒</span>}
+                  </button>
+                );
+              })}
             </div>
           </nav>
 
@@ -299,6 +345,7 @@ const GamePage = () => {
                   character={character} 
                   onCharacterUpdate={refreshCharacter}
                   addLog={addLog}
+                  onTowerStateChange={handleTowerStateChange}
                 />
               </div>
             )}
@@ -313,13 +360,24 @@ const GamePage = () => {
               </div>
             )}
 
-            {activeTab === 'tavern' && (
+            {activeTab === 'tavern' && !isInTower && (
               <div className="max-w-4xl mx-auto">
                 <TavernPanel 
                   character={character} 
                   onCharacterUpdate={refreshCharacter}
                   addLog={addLog}
                 />
+              </div>
+            )}
+
+            {activeTab === 'tavern' && isInTower && (
+              <div className="max-w-4xl mx-auto">
+                <div className="bg-void-800/50 rounded-xl p-6 neon-border text-center">
+                  <div className="text-6xl mb-4">🔒</div>
+                  <h3 className="font-display text-xl text-red-400 mb-2">Tavern Locked</h3>
+                  <p className="text-gray-400">You cannot access the tavern while inside a tower.</p>
+                  <p className="text-gray-500 text-sm mt-2">Leave the tower first to buy, sell, or trade items.</p>
+                </div>
               </div>
             )}
 
