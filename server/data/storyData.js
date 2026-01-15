@@ -433,3 +433,274 @@ export const FLOOR_REQUIREMENTS_EXPANDED = {
   tower9: { 3: { items: [], gold: 12000 }, 6: { items: [], gold: 25000 }, 9: { items: [], gold: 50000 }, 10: { items: [], gold: 0 }, 12: { items: [], gold: 100000 }, 14: { items: [], gold: 200000 }, 15: { items: [], gold: 320000 } },
   tower10: { 3: { items: [], gold: 25000 }, 6: { items: [], gold: 50000 }, 9: { items: [], gold: 100000 }, 10: { items: [], gold: 0 }, 12: { items: [], gold: 200000 }, 14: { items: [], gold: 400000 }, 15: { items: [], gold: 650000 } }
 };
+
+export const HIDDEN_CLASS_INFO = {
+  // ==================== SWORDSMAN HIDDEN CLASSES ====================
+  flameblade: {
+    name: 'Flameblade',
+    icon: '🔥',
+    baseClass: 'swordsman',
+    description: 'Masters the power of fire, dealing burn damage over time.',
+    element: 'fire',
+    skills: [
+      { skillId: 'flameSlash', name: 'Flame Slash' },
+      { skillId: 'infernoStrike', name: 'Inferno Strike' },
+      { skillId: 'fireAura', name: 'Fire Aura' },
+      { skillId: 'volcanicRage', name: 'Volcanic Rage' }
+    ]
+  },
+  berserker: {
+    name: 'Berserker',
+    icon: '💢',
+    baseClass: 'swordsman',
+    description: 'Sacrifices HP for devastating damage. The angrier, the stronger.',
+    element: 'none',
+    skills: [
+      { skillId: 'rageSlash', name: 'Rage Slash' },
+      { skillId: 'bloodFury', name: 'Blood Fury' },
+      { skillId: 'recklessCharge', name: 'Reckless Charge' },
+      { skillId: 'deathwish', name: 'Deathwish' }
+    ]
+  },
+  paladin: {
+    name: 'Paladin',
+    icon: '✨',
+    baseClass: 'swordsman',
+    description: 'Holy warrior with powerful healing and protective abilities.',
+    element: 'holy',
+    skills: [
+      { skillId: 'holyStrike', name: 'Holy Strike' },
+      { skillId: 'divineShield', name: 'Divine Shield' },
+      { skillId: 'healingLight', name: 'Healing Light' },
+      { skillId: 'judgment', name: 'Judgment' }
+    ]
+  },
+  earthshaker: {
+    name: 'Earthshaker',
+    icon: '🌍',
+    baseClass: 'swordsman',
+    description: 'Commands the earth itself, crushing enemies with seismic power.',
+    element: 'earth',
+    skills: [
+      { skillId: 'groundSlam', name: 'Ground Slam' },
+      { skillId: 'stoneSkin', name: 'Stone Skin' },
+      { skillId: 'earthquake', name: 'Earthquake' },
+      { skillId: 'titansWrath', name: "Titan's Wrath" }
+    ]
+  },
+  frostguard: {
+    name: 'Frostguard',
+    icon: '❄️',
+    baseClass: 'swordsman',
+    description: 'Ice-armored tank that freezes enemies and reflects damage.',
+    element: 'ice',
+    skills: [
+      { skillId: 'frostStrike', name: 'Frost Strike' },
+      { skillId: 'iceBarrier', name: 'Ice Barrier' },
+      { skillId: 'glacialSlash', name: 'Glacial Slash' },
+      { skillId: 'absoluteDefense', name: 'Absolute Defense' }
+    ]
+  },
+
+  // ==================== THIEF HIDDEN CLASSES ====================
+  shadowDancer: {
+    name: 'Shadow Dancer',
+    icon: '🌑',
+    baseClass: 'thief',
+    description: 'One with the darkness, capable of true invisibility.',
+    element: 'dark',
+    skills: [
+      { skillId: 'shadowStrike', name: 'Shadow Strike' },
+      { skillId: 'vanish', name: 'Vanish' },
+      { skillId: 'deathMark', name: 'Death Mark' },
+      { skillId: 'shadowDance', name: 'Shadow Dance' }
+    ]
+  },
+  venomancer: {
+    name: 'Venomancer',
+    icon: '🐍',
+    baseClass: 'thief',
+    description: 'Master of poisons, slowly killing enemies with deadly toxins.',
+    element: 'nature',
+    skills: [
+      { skillId: 'toxicStab', name: 'Toxic Stab' },
+      { skillId: 'acidSpray', name: 'Acid Spray' },
+      { skillId: 'plagueCloud', name: 'Plague Cloud' },
+      { skillId: 'venomousEnd', name: 'Venomous End' }
+    ]
+  },
+  assassin: {
+    name: 'Assassin',
+    icon: '⚫',
+    baseClass: 'thief',
+    description: 'Silent killer with devastating execute abilities.',
+    element: 'dark',
+    skills: [
+      { skillId: 'assassinate', name: 'Assassinate' },
+      { skillId: 'shadowStep', name: 'Shadow Step' },
+      { skillId: 'markedForDeath', name: 'Marked for Death' },
+      { skillId: 'deathLotus', name: 'Death Lotus' }
+    ]
+  },
+  phantom: {
+    name: 'Phantom',
+    icon: '👻',
+    baseClass: 'thief',
+    description: 'Ethereal being that phases through defenses.',
+    element: 'dark',
+    skills: [
+      { skillId: 'phantomStrike', name: 'Phantom Strike' },
+      { skillId: 'phaseShift', name: 'Phase Shift' },
+      { skillId: 'soulDrain', name: 'Soul Drain' },
+      { skillId: 'etherealBurst', name: 'Ethereal Burst' }
+    ]
+  },
+  bloodreaper: {
+    name: 'Bloodreaper',
+    icon: '🩸',
+    baseClass: 'thief',
+    description: 'Drains the life force of enemies to sustain themselves.',
+    element: 'dark',
+    skills: [
+      { skillId: 'bloodSlash', name: 'Blood Slash' },
+      { skillId: 'crimsonDance', name: 'Crimson Dance' },
+      { skillId: 'bloodPact', name: 'Blood Pact' },
+      { skillId: 'sanguineHarvest', name: 'Sanguine Harvest' }
+    ]
+  },
+
+  // ==================== ARCHER HIDDEN CLASSES ====================
+  stormRanger: {
+    name: 'Storm Ranger',
+    icon: '⚡',
+    baseClass: 'archer',
+    description: 'Commands lightning, arrows that chain between enemies.',
+    element: 'lightning',
+    skills: [
+      { skillId: 'lightningArrow', name: 'Lightning Arrow' },
+      { skillId: 'chainLightning', name: 'Chain Lightning' },
+      { skillId: 'stormEye', name: 'Storm Eye' },
+      { skillId: 'thunderstorm', name: 'Thunderstorm' }
+    ]
+  },
+  pyroArcher: {
+    name: 'Pyro Archer',
+    icon: '🔥',
+    baseClass: 'archer',
+    description: 'Fire arrows that explode on impact, burning everything.',
+    element: 'fire',
+    skills: [
+      { skillId: 'flameArrow', name: 'Flame Arrow' },
+      { skillId: 'explosiveShot', name: 'Explosive Shot' },
+      { skillId: 'infernoQuiver', name: 'Inferno Quiver' },
+      { skillId: 'phoenixArrow', name: 'Phoenix Arrow' }
+    ]
+  },
+  frostSniper: {
+    name: 'Frost Sniper',
+    icon: '❄️',
+    baseClass: 'archer',
+    description: 'Icy precision that freezes enemies in their tracks.',
+    element: 'ice',
+    skills: [
+      { skillId: 'iceArrow', name: 'Ice Arrow' },
+      { skillId: 'piercingCold', name: 'Piercing Cold' },
+      { skillId: 'frozenPrecision', name: 'Frozen Precision' },
+      { skillId: 'avalancheShot', name: 'Avalanche Shot' }
+    ]
+  },
+  natureWarden: {
+    name: 'Nature Warden',
+    icon: '🌿',
+    baseClass: 'archer',
+    description: 'Guardian of nature with healing and thorn attacks.',
+    element: 'nature',
+    skills: [
+      { skillId: 'vineArrow', name: 'Vine Arrow' },
+      { skillId: 'natureBounty', name: "Nature's Bounty" },
+      { skillId: 'thornBarrage', name: 'Thorn Barrage' },
+      { skillId: 'gaiaWrath', name: "Gaia's Wrath" }
+    ]
+  },
+  voidHunter: {
+    name: 'Void Hunter',
+    icon: '🌀',
+    baseClass: 'archer',
+    description: 'Harnesses the void, arrows that pierce all defenses.',
+    element: 'dark',
+    skills: [
+      { skillId: 'voidArrow', name: 'Void Arrow' },
+      { skillId: 'dimensionalRift', name: 'Dimensional Rift' },
+      { skillId: 'voidSight', name: 'Void Sight' },
+      { skillId: 'oblivionShot', name: 'Oblivion Shot' }
+    ]
+  },
+
+  // ==================== MAGE HIDDEN CLASSES ====================
+  frostWeaver: {
+    name: 'Frost Weaver',
+    icon: '❄️',
+    baseClass: 'mage',
+    description: 'Absolute zero incarnate, freezing enemies completely.',
+    element: 'ice',
+    skills: [
+      { skillId: 'frostBolt', name: 'Frost Bolt' },
+      { skillId: 'blizzard', name: 'Blizzard' },
+      { skillId: 'iceArmor', name: 'Ice Armor' },
+      { skillId: 'absoluteZero', name: 'Absolute Zero' }
+    ]
+  },
+  pyromancer: {
+    name: 'Pyromancer',
+    icon: '🔥',
+    baseClass: 'mage',
+    description: 'Master of fire magic, turning everything to ash.',
+    element: 'fire',
+    skills: [
+      { skillId: 'flameBurst', name: 'Flame Burst' },
+      { skillId: 'meteorShower', name: 'Meteor Shower' },
+      { skillId: 'combustion', name: 'Combustion' },
+      { skillId: 'inferno', name: 'Inferno' }
+    ]
+  },
+  stormcaller: {
+    name: 'Stormcaller',
+    icon: '⚡',
+    baseClass: 'mage',
+    description: 'Commands the storm, devastating AoE lightning attacks.',
+    element: 'lightning',
+    skills: [
+      { skillId: 'lightningBolt', name: 'Lightning Bolt' },
+      { skillId: 'staticField', name: 'Static Field' },
+      { skillId: 'stormShield', name: 'Storm Shield' },
+      { skillId: 'tempest', name: 'Tempest' }
+    ]
+  },
+  necromancer: {
+    name: 'Necromancer',
+    icon: '💀',
+    baseClass: 'mage',
+    description: 'Dark mage who drains life and curses enemies.',
+    element: 'dark',
+    skills: [
+      { skillId: 'darkBolt', name: 'Dark Bolt' },
+      { skillId: 'curseOfWeakness', name: 'Curse of Weakness' },
+      { skillId: 'lifeLeech', name: 'Life Leech' },
+      { skillId: 'deathCoil', name: 'Death Coil' }
+    ]
+  },
+  arcanist: {
+    name: 'Arcanist',
+    icon: '✨',
+    baseClass: 'mage',
+    description: 'Pure arcane magic with devastating multi-hit spells.',
+    element: 'none',
+    skills: [
+      { skillId: 'arcaneMissile', name: 'Arcane Missile' },
+      { skillId: 'spellAmplify', name: 'Spell Amplify' },
+      { skillId: 'manaSurge', name: 'Mana Surge' },
+      { skillId: 'arcaneBarrage', name: 'Arcane Barrage' }
+    ]
+  }
+};
+
