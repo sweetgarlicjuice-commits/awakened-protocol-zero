@@ -1792,7 +1792,7 @@ async function handleDefeat(character, res, combatLog) {
   // Clear in-tower flag on defeat
   character.isInTower = false;
   
-   // Clear combat buffs on victory
+   // Clear combat buffs on defeat
   character.activeBuffs = [];
   
   await character.save();
