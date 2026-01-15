@@ -189,12 +189,18 @@ router.post('/allocate-stats', authenticate, async (req, res) => {
 });
 
 // POST /api/character/rest - Rest to recover HP/MP (costs gold)
+// REST COST = level × 250 gold
 router.post('/rest', authenticate, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.userId });
     
     if (!character) {
       return res.status(404).json({ error: 'Character not found.' });
+    }
+    
+    // Check if player is inside tower - cannot rest while in tower
+    if (character.isInTower) {
+      return res.status(400).json({ error: 'Cannot rest while inside a tower! Leave the tower first.' });
     }
     
     const restCost = character.level * 250;
