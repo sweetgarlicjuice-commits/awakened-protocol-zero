@@ -6,12 +6,6 @@ import TowerPanel from '../components/TowerPanel';
 import TavernPanel from '../components/TavernPanel';
 import InventoryPanel from '../components/InventoryPanel';
 
-// Event Flow Tracking
-const [currentEvent, setCurrentEvent] = useState(1);  // Track current event number (e.g., 1/3)
-const [totalEvents, setTotalEvents] = useState(2);    // Track total number of events (2 or 3)
-const [eventDescription, setEventDescription] = useState(''); // Event description (story)
-const [choices, setChoices] = useState([]);           // Choices for the player
-
 const CLASS_ICONS = {
   swordsman: '⚔️',
   thief: '🗡️',
@@ -138,29 +132,12 @@ const GamePage = () => {
     return () => clearInterval(interval);
   }, [refreshCharacter]);
 
-// Sync isInTower state with character data
-useEffect(() => {
+  // Sync isInTower state with character data
+  useEffect(() => {
     if (character) {
       setIsInTower(character.isInTower || false);
     }
-}, [character]);
-
-// Fetch event data when the component loads
-useEffect(() => {
-  const fetchExplorationEvent = async () => {
-    try {
-      const { data } = await characterAPI.explore();  // Fetch event data from backend
-      setEventDescription(data.story);  // Set the event description text
-      setChoices(data.choices);         // Set the player's available choices
-      setCurrentEvent(data.eventProgress.current);  // Set current event number (e.g., 1)
-      setTotalEvents(data.eventProgress.total);    // Set total events (2 or 3)
-    } catch (err) {
-      console.error('Error fetching exploration event:', err);
-    }
-  };
-
-  fetchExplorationEvent();  // Fetch event data when component loads
-}, []);  // Empty dependency array means this runs once when the component mounts
+  }, [character]);
 
   const addLog = (type, message) => {
     setGameLog(prev => [...prev, { type, message, timestamp: new Date() }].slice(-50));
@@ -362,38 +339,16 @@ useEffect(() => {
               </div>
             )}
 
-{activeTab === 'tower' && (
-  <div className="max-w-4xl mx-auto">
-    <TowerPanel 
-      character={character} 
-      onCharacterUpdate={refreshCharacter}
-      addLog={addLog}
-      onTowerStateChange={handleTowerStateChange}
-    />
-    
-    {/* Add the event description and choices */}
-    <div className="mt-4">
-      <div className="bg-void-800/50 p-4 rounded-lg">
-        <h3 className="font-display text-lg text-purple-400 mb-4">{`Event ${currentEvent} of ${totalEvents}`}</h3>
-        <p className="text-white">{eventDescription}</p>  {/* Display event description */}
-        
-        {/* Render choices as buttons */}
-        <div className="mt-4">
-          {choices && choices.map((choice, index) => (
-            <button 
-              key={index} 
-              onClick={() => handleChoice(choice)} 
-              className="btn-primary w-full py-2 mb-2"
-            >
-              {choice}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
+            {activeTab === 'tower' && (
+              <div className="max-w-4xl mx-auto">
+                <TowerPanel 
+                  character={character} 
+                  onCharacterUpdate={refreshCharacter}
+                  addLog={addLog}
+                  onTowerStateChange={handleTowerStateChange}
+                />
+              </div>
+            )}
 
             {activeTab === 'inventory' && (
               <div className="max-w-4xl mx-auto">
