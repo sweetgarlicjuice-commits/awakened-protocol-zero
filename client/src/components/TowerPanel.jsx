@@ -583,19 +583,36 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     
     return (
       <div className={`flex flex-wrap gap-1 justify-center mt-1`}>
-        {buffs.map((buff, idx) => (
-          <div
-            key={idx}
-            className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
-              isEnemy ? 'bg-red-900/50' : 'bg-blue-900/50'
-            }`}
-            title={`${buff.name}: ${buff.value || ''} (${buff.duration}t)`}
-          >
-            <span>{buff.icon}</span>
-            <span className={buff.color || 'text-white'}>{buff.value ? `${buff.value > 0 && buff.type !== 'dot' ? '+' : ''}${buff.value}${buff.type === 'dot' ? '/t' : '%'}` : ''}</span>
-            <span className="text-gray-400">({buff.duration}t)</span>
-          </div>
-        ))}
+        {buffs.map((buff, idx) => {
+          // Safely get buff values - handle objects
+          const buffName = typeof buff.name === 'string' ? buff.name : (buff.name?.toString() || 'Buff');
+          const buffValue = typeof buff.value === 'number' ? buff.value : (typeof buff.value === 'string' ? buff.value : '');
+          const buffDuration = typeof buff.duration === 'number' ? buff.duration : 0;
+          const buffIcon = typeof buff.icon === 'string' ? buff.icon : '✨';
+          const buffType = buff.type || '';
+          
+          // Format value display
+          let valueDisplay = '';
+          if (buffValue !== '' && buffValue !== 0) {
+            const prefix = buffValue > 0 && buffType !== 'dot' ? '+' : '';
+            const suffix = buffType === 'dot' ? '/t' : '%';
+            valueDisplay = `${prefix}${buffValue}${suffix}`;
+          }
+          
+          return (
+            <div
+              key={idx}
+              className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
+                isEnemy ? 'bg-red-900/50' : 'bg-blue-900/50'
+              }`}
+              title={`${buffName}: ${buffValue} (${buffDuration}t)`}
+            >
+              <span>{buffIcon}</span>
+              {valueDisplay && <span className={buff.color || 'text-white'}>{valueDisplay}</span>}
+              <span className="text-gray-400">({buffDuration}t)</span>
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -833,15 +850,22 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
         
         {/* Combat Log */}
         <div ref={logRef} className="bg-gray-900 p-3 rounded-lg h-28 overflow-y-auto text-sm">
-          {combatLog.map((log, i) => (
-            <p key={i} className={`${
-              log.type === 'player' ? 'text-green-400' : 
-              log.type === 'enemy' ? 'text-red-400' : 
-              log.type === 'system' ? 'text-yellow-400' : 'text-gray-400'
-            } ${log.isCritical ? 'font-bold' : ''}`}>
-              {log.element && ELEMENT_ICONS[log.element]} {log.message}
-            </p>
-          ))}
+          {combatLog.map((log, i) => {
+            // Ensure message is always a string
+            const message = typeof log.message === 'string' ? log.message : 
+                           (typeof log.message === 'object' ? JSON.stringify(log.message) : String(log.message || ''));
+            const element = typeof log.element === 'string' ? log.element : '';
+            
+            return (
+              <p key={i} className={`${
+                log.type === 'player' ? 'text-green-400' : 
+                log.type === 'enemy' ? 'text-red-400' : 
+                log.type === 'system' ? 'text-yellow-400' : 'text-gray-400'
+              } ${log.isCritical ? 'font-bold' : ''}`}>
+                {element && ELEMENT_ICONS[element]} {message}
+              </p>
+            );
+          })}
         </div>
         
         {/* Player Stats with Buffs */}
