@@ -252,7 +252,7 @@ router.post('/rest', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Rest error:', error);
-    res.status(500).json({ error: 'Server error during rest.' });
+    res.status(500).json({ error: 'Server error during rests.' });
   }
 });
 
