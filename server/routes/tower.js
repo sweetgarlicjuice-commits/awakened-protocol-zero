@@ -4,7 +4,21 @@ import HiddenClassOwnership from '../models/HiddenClassOwnership.js';
 import { authenticate } from '../middleware/auth.js';
 import { TOWERS, ENEMIES, DROP_RATES, EQUIPMENT_DROPS } from '../data/gameData.js';
 import { FLOOR_REQUIREMENTS, MATERIAL_DROPS, STORY_EVENTS, DOORKEEPER_DIALOGUES, HIDDEN_CLASS_INFO, CRAFTING_RECIPES, STORY_EVENTS_EXPANDED, FLOOR_REQUIREMENTS_EXPANDED } from '../data/storyData.js';
-import { calculateDamage, scaleEnemyStats, getRandomEnemy, calculateGoldDrop, rollForDrops, rollForScroll } from '../utils/combat.js';
+import { 
+  calculateDamage, 
+  scaleEnemyStats, 
+  getRandomEnemy, 
+  calculateGoldDrop, 
+  rollForDrops, 
+  rollForScroll,
+  applySkillEffects,
+  processTurnStart,
+  getEffectiveStats,
+  checkExecuteCondition,
+  formatCombatMessage
+} from '../utils/combat.js';
+import { getSkill } from '../data/skillDatabase.js';
+import { addBuff, formatBuffsForDisplay } from '../data/buffSystem.js';
 
 const router = express.Router();
 const ENERGY_PER_FLOOR = 10;
@@ -1062,92 +1076,427 @@ router.post('/choose-path', authenticate, async (req, res) => {
   }
 });
 
+// combat/attack
 router.post('/combat/attack', authenticate, async (req, res) => {
   try {
     const { enemy, treasureAfter } = req.body;
     const character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
+    
+    // Initialize activeBuffs if not exists
+    if (!character.activeBuffs) character.activeBuffs = [];
+    if (!enemy.activeBuffs) enemy.activeBuffs = [];
+    
     const combatLog = [];
-    const playerDamage = calculateDamage({ stats: character.stats, baseClass: character.baseClass }, enemy);
-    enemy.hp -= playerDamage.damage;
-    combatLog.push({ actor: 'player', damage: playerDamage.damage, isCritical: playerDamage.isCritical, message: playerDamage.isCritical ? 'CRITICAL! You deal ' + playerDamage.damage + ' damage!' : 'You attack for ' + playerDamage.damage + ' damage!' });
-    if (enemy.hp <= 0) return await handleVictory(character, enemy, res, combatLog, treasureAfter);
-    const enemyDamage = calculateDamage({ baseAtk: enemy.atk }, { stats: character.stats });
-    character.stats.hp -= enemyDamage.damage;
-    combatLog.push({ actor: 'enemy', damage: enemyDamage.damage, message: enemy.name + ' attacks for ' + enemyDamage.damage + ' damage!' });
+    
+    // === PLAYER TURN START ===
+    const playerTurnStart = processTurnStart(character);
+    if (playerTurnStart.damage > 0) {
+      character.stats.hp -= playerTurnStart.damage;
+      playerTurnStart.messages.forEach(msg => combatLog.push({ actor: 'system', message: msg }));
+    }
+    if (playerTurnStart.healing > 0) {
+      character.stats.hp = Math.min(character.stats.hp + playerTurnStart.healing, character.stats.maxHp);
+    }
+    
+    // Check if player dies from DoT
+    if (character.stats.hp <= 0) {
+      return await handleDefeat(character, res, combatLog);
+    }
+    
+    // Check stun/freeze
+    if (playerTurnStart.skipTurn) {
+      // Enemy turn
+      const enemyDamage = calculateDamage(enemy, character);
+      if (!enemyDamage.missed) {
+        character.stats.hp -= enemyDamage.damage;
+        combatLog.push({ 
+          actor: 'enemy', 
+          damage: enemyDamage.damage, 
+          message: `${enemy.name} attacks for ${enemyDamage.damage} damage!` 
+        });
+      }
+      if (character.stats.hp <= 0) return await handleDefeat(character, res, combatLog);
+      await character.save();
+      return res.json({ 
+        status: 'ongoing', 
+        combatLog, 
+        enemy: { ...enemy, hp: Math.max(0, enemy.hp), activeBuffs: enemy.activeBuffs },
+        character: { 
+          hp: character.stats.hp, 
+          maxHp: character.stats.maxHp, 
+          mp: character.stats.mp, 
+          maxMp: character.stats.maxMp,
+          activeBuffs: formatBuffsForDisplay(character.activeBuffs)
+        }
+      });
+    }
+    
+    // === PLAYER ATTACK ===
+    const playerDamage = calculateDamage(character, enemy);
+    
+    if (playerDamage.missed) {
+      combatLog.push({ actor: 'player', message: 'Your attack missed!' });
+    } else {
+      enemy.hp -= playerDamage.damage;
+      
+      // Apply reflect damage
+      if (playerDamage.reflectDamage > 0) {
+        character.stats.hp -= playerDamage.reflectDamage;
+      }
+      
+      // Apply lifesteal healing
+      if (playerDamage.lifestealHeal > 0) {
+        character.stats.hp = Math.min(character.stats.hp + playerDamage.lifestealHeal, character.stats.maxHp);
+      }
+      
+      const messages = formatCombatMessage(playerDamage, 'You', enemy.name);
+      messages.forEach(msg => combatLog.push({ 
+        actor: 'player', 
+        damage: playerDamage.damage, 
+        isCritical: playerDamage.isCritical,
+        element: playerDamage.element,
+        message: msg 
+      }));
+    }
+    
+    // Check victory
+    if (enemy.hp <= 0) {
+      return await handleVictory(character, enemy, res, combatLog, treasureAfter);
+    }
+    
+    // === ENEMY TURN START ===
+    const enemyTurnStart = processTurnStart(enemy);
+    if (enemyTurnStart.damage > 0) {
+      enemy.hp -= enemyTurnStart.damage;
+      enemyTurnStart.messages.forEach(msg => combatLog.push({ actor: 'system', message: msg }));
+    }
+    
+    // Check if enemy dies from DoT
+    if (enemy.hp <= 0) {
+      return await handleVictory(character, enemy, res, combatLog, treasureAfter);
+    }
+    
+    // Enemy attack (if not stunned)
+    if (!enemyTurnStart.skipTurn) {
+      const enemyDamage = calculateDamage(enemy, character);
+      
+      if (!enemyDamage.missed) {
+        character.stats.hp -= enemyDamage.damage;
+        combatLog.push({ 
+          actor: 'enemy', 
+          damage: enemyDamage.damage, 
+          message: `${enemy.name} attacks for ${enemyDamage.damage} damage!` 
+        });
+        
+        // Enemy reflect damage
+        if (enemyDamage.reflectDamage > 0) {
+          enemy.hp -= enemyDamage.reflectDamage;
+          combatLog.push({ actor: 'system', message: `🪞 Reflected ${enemyDamage.reflectDamage} damage!` });
+        }
+      } else {
+        combatLog.push({ actor: 'enemy', message: `${enemy.name}'s attack missed!` });
+      }
+    } else {
+      enemyTurnStart.messages.forEach(msg => combatLog.push({ actor: 'system', message: msg }));
+    }
+    
     if (character.stats.hp <= 0) return await handleDefeat(character, res, combatLog);
+    
     await character.save();
-    res.json({ status: 'ongoing', combatLog, enemy: { ...enemy, hp: Math.max(0, enemy.hp) }, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } });
-  } catch (error) { res.status(500).json({ error: 'Server error' }); }
+    res.json({ 
+      status: 'ongoing', 
+      combatLog, 
+      enemy: { 
+        ...enemy, 
+        hp: Math.max(0, enemy.hp),
+        activeBuffs: formatBuffsForDisplay(enemy.activeBuffs, 'debuff')
+      },
+      character: { 
+        hp: character.stats.hp, 
+        maxHp: character.stats.maxHp, 
+        mp: character.stats.mp, 
+        maxMp: character.stats.maxMp,
+        activeBuffs: formatBuffsForDisplay(character.activeBuffs, 'buff')
+      }
+    });
+  } catch (error) {
+    console.error('Combat attack error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
+// combat/skill
 router.post('/combat/skill', authenticate, async (req, res) => {
   try {
     const { enemy, skillId, treasureAfter } = req.body;
     const character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
+    
+    // Initialize activeBuffs if not exists
+    if (!character.activeBuffs) character.activeBuffs = [];
+    if (!enemy.activeBuffs) enemy.activeBuffs = [];
+    
+    // Validate skill
     const characterSkill = character.skills.find(s => s.skillId === skillId);
-    if (!characterSkill || !characterSkill.unlocked) return res.status(400).json({ error: 'Skill not available' });
-    const SKILL_DATA = {
-      slash: { name: 'Slash', mpCost: 5, damage: 1.3 }, heavyStrike: { name: 'Heavy Strike', mpCost: 12, damage: 1.8 },
-      shieldBash: { name: 'Shield Bash', mpCost: 8, damage: 1.0 }, warCry: { name: 'War Cry', mpCost: 15, damage: 0 },
-      backstab: { name: 'Backstab', mpCost: 8, damage: 2.2, critBonus: 0.4 }, poisonBlade: { name: 'Poison Blade', mpCost: 10, damage: 1.3 },
-      smokeScreen: { name: 'Smoke Screen', mpCost: 12, damage: 0 }, steal: { name: 'Steal', mpCost: 5, damage: 0 },
-      preciseShot: { name: 'Precise Shot', mpCost: 6, damage: 1.6 }, multiShot: { name: 'Multi Shot', mpCost: 14, damage: 0.6, hits: 3 },
-      eagleEye: { name: 'Eagle Eye', mpCost: 10, damage: 0 }, arrowRain: { name: 'Arrow Rain', mpCost: 20, damage: 2.0 },
-      fireball: { name: 'Fireball', mpCost: 10, damage: 1.8 }, iceSpear: { name: 'Ice Spear', mpCost: 12, damage: 1.5 },
-      manaShield: { name: 'Mana Shield', mpCost: 15, damage: 0 }, thunderbolt: { name: 'Thunderbolt', mpCost: 18, damage: 2.2 },
-      flame_slash: { name: 'Flame Slash', mpCost: 15, damage: 2.0 }, inferno_strike: { name: 'Inferno Strike', mpCost: 25, damage: 2.8 },
-      fire_aura: { name: 'Fire Aura', mpCost: 20, damage: 0 }, volcanic_rage: { name: 'Volcanic Rage', mpCost: 40, damage: 3.5 },
-      shadow_strike: { name: 'Shadow Strike', mpCost: 12, damage: 2.5, critBonus: 0.5 }, vanish: { name: 'Vanish', mpCost: 20, damage: 0 },
-      death_mark: { name: 'Death Mark', mpCost: 18, damage: 1.5 }, shadow_dance: { name: 'Shadow Dance', mpCost: 35, damage: 2.0, hits: 5 },
-      lightning_arrow: { name: 'Lightning Arrow', mpCost: 14, damage: 2.2 }, chain_lightning: { name: 'Chain Lightning', mpCost: 22, damage: 1.8, hits: 3 },
-      storm_eye: { name: 'Storm Eye', mpCost: 18, damage: 0 }, thunderstorm: { name: 'Thunderstorm', mpCost: 45, damage: 3.0 },
-      frost_bolt: { name: 'Frost Bolt', mpCost: 12, damage: 2.0 }, blizzard: { name: 'Blizzard', mpCost: 28, damage: 2.2 },
-      ice_armor: { name: 'Ice Armor', mpCost: 20, damage: 0 }, absolute_zero: { name: 'Absolute Zero', mpCost: 50, damage: 4.0 }
-    };
-    const skill = SKILL_DATA[skillId];
-    if (!skill) return res.status(400).json({ error: 'Invalid skill' });
-    if (character.stats.mp < skill.mpCost) return res.status(400).json({ error: 'Not enough MP!' });
-    const combatLog = [];
-    character.stats.mp -= skill.mpCost;
-    if (skill.damage > 0) {
-      let totalDamage = 0;
-      const hits = skill.hits || 1;
-      for (let i = 0; i < hits; i++) {
-        const result = calculateDamage({ stats: character.stats, baseClass: character.baseClass }, enemy, skill);
-        totalDamage += result.damage;
-      }
-      enemy.hp -= totalDamage;
-      combatLog.push({ actor: 'player', skillName: skill.name, damage: totalDamage, mpCost: skill.mpCost, message: skill.name + '! ' + totalDamage + ' damage! (-' + skill.mpCost + ' MP)' });
-    } else {
-      combatLog.push({ actor: 'player', skillName: skill.name, mpCost: skill.mpCost, message: skill.name + ' activated! (-' + skill.mpCost + ' MP)' });
+    if (!characterSkill || !characterSkill.unlocked) {
+      return res.status(400).json({ error: 'Skill not available' });
     }
-    if (enemy.hp <= 0) return await handleVictory(character, enemy, res, combatLog, treasureAfter);
-    const enemyDamage = calculateDamage({ baseAtk: enemy.atk }, { stats: character.stats });
-    character.stats.hp -= enemyDamage.damage;
-    combatLog.push({ actor: 'enemy', damage: enemyDamage.damage, message: enemy.name + ' attacks for ' + enemyDamage.damage + ' damage!' });
+    
+    // Get skill data from database
+    const skill = getSkill(skillId);
+    if (!skill) {
+      return res.status(400).json({ error: 'Invalid skill' });
+    }
+    
+    // Check MP
+    if (character.stats.mp < skill.mpCost) {
+      return res.status(400).json({ error: 'Not enough MP!' });
+    }
+    
+    // Check execute conditions
+    const executeCheck = checkExecuteCondition(skill, enemy);
+    if (!executeCheck.canUse) {
+      return res.status(400).json({ error: executeCheck.reason });
+    }
+    
+    const combatLog = [];
+    
+    // === PLAYER TURN START (DoTs, etc) ===
+    const playerTurnStart = processTurnStart(character);
+    if (playerTurnStart.damage > 0) {
+      character.stats.hp -= playerTurnStart.damage;
+      playerTurnStart.messages.forEach(msg => combatLog.push({ actor: 'system', message: msg }));
+    }
+    if (playerTurnStart.healing > 0) {
+      character.stats.hp = Math.min(character.stats.hp + playerTurnStart.healing, character.stats.maxHp);
+    }
+    
+    if (character.stats.hp <= 0) {
+      return await handleDefeat(character, res, combatLog);
+    }
+    
+    // Check stun
+    if (playerTurnStart.skipTurn) {
+      // Skip to enemy turn
+      const enemyDamage = calculateDamage(enemy, character);
+      if (!enemyDamage.missed) {
+        character.stats.hp -= enemyDamage.damage;
+        combatLog.push({ actor: 'enemy', damage: enemyDamage.damage, message: `${enemy.name} attacks for ${enemyDamage.damage} damage!` });
+      }
+      if (character.stats.hp <= 0) return await handleDefeat(character, res, combatLog);
+      await character.save();
+      return res.json({ 
+        status: 'ongoing', 
+        combatLog, 
+        enemy: { ...enemy, hp: Math.max(0, enemy.hp), activeBuffs: enemy.activeBuffs },
+        character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, activeBuffs: formatBuffsForDisplay(character.activeBuffs) }
+      });
+    }
+    
+    // === USE SKILL ===
+    character.stats.mp -= skill.mpCost;
+    
+    // Calculate damage (if damaging skill)
+    if (skill.type === 'damage' || (skill.scaling && skill.scaling.stat)) {
+      const damageResult = calculateDamage(character, enemy, skill, {
+        neverMiss: skill.effects?.some(e => e.type === 'neverMiss')
+      });
+      
+      // Apply execute bonus
+      if (executeCheck.bonusMultiplier > 0) {
+        damageResult.damage = Math.floor(damageResult.damage * (1 + executeCheck.bonusMultiplier));
+        combatLog.push({ actor: 'system', message: '💀 Execute bonus!' });
+      }
+      
+      if (damageResult.isHeal) {
+        // Healing skill
+        character.stats.hp = Math.min(character.stats.hp + damageResult.damage, character.stats.maxHp);
+        combatLog.push({ 
+          actor: 'player', 
+          skillName: skill.name, 
+          healing: damageResult.damage,
+          mpCost: skill.mpCost,
+          message: `${skill.name}! Healed ${damageResult.damage} HP! (-${skill.mpCost} MP)`
+        });
+      } else if (!damageResult.missed) {
+        enemy.hp -= damageResult.damage;
+        
+        // Handle reflect
+        if (damageResult.reflectDamage > 0) {
+          character.stats.hp -= damageResult.reflectDamage;
+        }
+        
+        // Handle lifesteal
+        if (damageResult.lifestealHeal > 0) {
+          character.stats.hp = Math.min(character.stats.hp + damageResult.lifestealHeal, character.stats.maxHp);
+        }
+        
+        const elementIcon = { fire: '🔥', water: '💧', lightning: '⚡', earth: '🌍', nature: '🌿', ice: '❄️', dark: '🌑', holy: '✨' }[skill.element] || '';
+        
+        combatLog.push({ 
+          actor: 'player', 
+          skillName: skill.name, 
+          damage: damageResult.damage,
+          isCritical: damageResult.isCritical,
+          element: skill.element,
+          hits: damageResult.hits,
+          mpCost: skill.mpCost,
+          message: `${skill.name}${elementIcon}! ${damageResult.hits > 1 ? `${damageResult.hits} hits for ` : ''}${damageResult.damage} damage!${damageResult.isCritical ? ' 💥CRIT!' : ''} (-${skill.mpCost} MP)`
+        });
+        
+        // Add additional messages
+        if (damageResult.messages) {
+          damageResult.messages.forEach(msg => combatLog.push({ actor: 'system', message: msg }));
+        }
+      } else {
+        combatLog.push({ actor: 'player', skillName: skill.name, mpCost: skill.mpCost, message: `${skill.name} missed! (-${skill.mpCost} MP)` });
+      }
+    }
+    
+    // === APPLY SKILL EFFECTS (Buffs/Debuffs) ===
+    const effectResults = applySkillEffects(skill, character, enemy);
+    
+    // Apply buffs to attacker
+    effectResults.attackerBuffs.forEach(buff => {
+      character.activeBuffs = addBuff(character.activeBuffs, buff);
+    });
+    
+    // Apply debuffs to defender
+    effectResults.defenderDebuffs.forEach(debuff => {
+      enemy.activeBuffs = addBuff(enemy.activeBuffs, debuff);
+    });
+    
+    // Log effect messages
+    effectResults.messages.forEach(msg => combatLog.push({ actor: 'system', message: msg }));
+    
+    // Handle self-damage (Berserker skills)
+    if (effectResults.selfDamage) {
+      character.stats.hp -= effectResults.selfDamage;
+    }
+    
+    // Pure buff skills (no damage)
+    if (skill.type === 'buff' || skill.type === 'debuff' || skill.type === 'utility') {
+      combatLog.push({ 
+        actor: 'player', 
+        skillName: skill.name, 
+        mpCost: skill.mpCost,
+        message: `${skill.name} activated! (-${skill.mpCost} MP)`
+      });
+    }
+    
+    // Check victory
+    if (enemy.hp <= 0) {
+      return await handleVictory(character, enemy, res, combatLog, treasureAfter);
+    }
+    
+    // Check player death from self-damage
+    if (character.stats.hp <= 0) {
+      return await handleDefeat(character, res, combatLog);
+    }
+    
+    // === ENEMY TURN ===
+    const enemyTurnStart = processTurnStart(enemy);
+    if (enemyTurnStart.damage > 0) {
+      enemy.hp -= enemyTurnStart.damage;
+      enemyTurnStart.messages.forEach(msg => combatLog.push({ actor: 'system', message: msg }));
+    }
+    
+    if (enemy.hp <= 0) {
+      return await handleVictory(character, enemy, res, combatLog, treasureAfter);
+    }
+    
+    if (!enemyTurnStart.skipTurn) {
+      const enemyDamage = calculateDamage(enemy, character);
+      if (!enemyDamage.missed) {
+        character.stats.hp -= enemyDamage.damage;
+        combatLog.push({ actor: 'enemy', damage: enemyDamage.damage, message: `${enemy.name} attacks for ${enemyDamage.damage} damage!` });
+        
+        if (enemyDamage.reflectDamage > 0) {
+          enemy.hp -= enemyDamage.reflectDamage;
+          combatLog.push({ actor: 'system', message: `🪞 Reflected ${enemyDamage.reflectDamage} damage!` });
+        }
+      }
+    } else {
+      enemyTurnStart.messages.forEach(msg => combatLog.push({ actor: 'system', message: msg }));
+    }
+    
     if (character.stats.hp <= 0) return await handleDefeat(character, res, combatLog);
+    
     await character.save();
-    res.json({ status: 'ongoing', combatLog, enemy: { ...enemy, hp: Math.max(0, enemy.hp) }, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } });
-  } catch (error) { res.status(500).json({ error: 'Server error' }); }
+    res.json({ 
+      status: 'ongoing', 
+      combatLog, 
+      enemy: { 
+        ...enemy, 
+        hp: Math.max(0, enemy.hp),
+        activeBuffs: formatBuffsForDisplay(enemy.activeBuffs, 'debuff')
+      },
+      character: { 
+        hp: character.stats.hp, 
+        maxHp: character.stats.maxHp, 
+        mp: character.stats.mp, 
+        maxMp: character.stats.maxMp,
+        activeBuffs: formatBuffsForDisplay(character.activeBuffs, 'buff')
+      }
+    });
+  } catch (error) {
+    console.error('Combat skill error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
+// combat/flee
 router.post('/combat/flee', authenticate, async (req, res) => {
   try {
     const { enemy } = req.body;
     const character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-    if (enemy.isBoss) return res.status(400).json({ error: 'Cannot flee from boss battles!' });
-    const fleeChance = 0.4 + (character.stats.agi * 0.01);
-    if (Math.random() < fleeChance) return res.json({ status: 'fled', message: 'You successfully fled!', success: true });
-    const enemyDamage = calculateDamage({ baseAtk: enemy.atk }, { stats: character.stats });
+    
+    if (enemy.isBoss) {
+      return res.status(400).json({ error: 'Cannot flee from boss battles!' });
+    }
+    
+    // Calculate flee chance based on AGI (evasion)
+    const derived = getEffectiveStats(character);
+    const fleeChance = 0.3 + (derived.evasion / 100);
+    
+    if (Math.random() < fleeChance) {
+      // Clear combat buffs on flee
+      character.activeBuffs = [];
+      await character.save();
+      return res.json({ status: 'fled', message: 'You successfully fled!', success: true });
+    }
+    
+    // Failed to flee - enemy attacks
+    const enemyDamage = calculateDamage(enemy, character);
     character.stats.hp -= enemyDamage.damage;
-    if (character.stats.hp <= 0) return await handleDefeat(character, res, [{ actor: 'system', message: 'Failed to flee! ' + enemy.name + ' strikes you down!' }]);
+    
+    if (character.stats.hp <= 0) {
+      return await handleDefeat(character, res, [{ 
+        actor: 'system', 
+        message: `Failed to flee! ${enemy.name} strikes you down!` 
+      }]);
+    }
+    
     await character.save();
-    res.json({ status: 'ongoing', message: 'Failed to flee! ' + enemy.name + ' attacks for ' + enemyDamage.damage + ' damage!', success: false, enemy, character: { hp: character.stats.hp, maxHp: character.stats.maxHp } });
-  } catch (error) { res.status(500).json({ error: 'Server error' }); }
+    res.json({ 
+      status: 'ongoing', 
+      message: `Failed to flee! ${enemy.name} attacks for ${enemyDamage.damage} damage!`, 
+      success: false, 
+      enemy,
+      character: { 
+        hp: character.stats.hp, 
+        maxHp: character.stats.maxHp,
+        activeBuffs: formatBuffsForDisplay(character.activeBuffs || [])
+      }
+    });
+  } catch (error) {
+    console.error('Flee error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
+
 
 router.post('/use-potion', authenticate, async (req, res) => {
   try {
@@ -1421,6 +1770,9 @@ async function handleVictory(character, enemy, res, combatLog, treasureAfter) {
   }
   character.markModified('towerProgress');
   
+   // Clear combat buffs on victory
+  character.activeBuffs = [];
+  
   await character.save();
   const towerStory = getStoryEvents(character.currentTower);
   combatLog.push({ actor: 'system', message: 'Victory! Defeated ' + enemy.name + '!' });
@@ -1439,6 +1791,9 @@ async function handleDefeat(character, res, combatLog) {
   
   // Clear in-tower flag on defeat
   character.isInTower = false;
+  
+   // Clear combat buffs on victory
+  character.activeBuffs = [];
   
   await character.save();
   combatLog.push({ actor: 'system', message: 'You have been defeated!' });
