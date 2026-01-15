@@ -1338,14 +1338,14 @@ async function handleVictory(character, enemy, res, combatLog, treasureAfter) {
   if (enemy.isBoss) character.statistics.bossKills += 1;
   const leveledUp = character.checkLevelUp();
   
-  // NEW DROP RATES:
-  // Normal: 10% other drops, 5% equipment
-  // Elite: 20% other drops, 9% equipment
-  // Boss: 25% other drops, 14% equipment, 5% memory crystal fragment
+  // BALANCED DROP RATES (Phase 6.1):
+  // Normal: 18% materials, 7% equipment, 2% set item
+  // Elite: 30% materials, 15% equipment, 7% set item
+  // Boss: 50% materials, 25% equipment, 18% set item, 6% scroll, 10% memory fragment
   
-  const otherDropRate = enemy.isBoss ? 0.25 : (enemy.isElite ? 0.20 : 0.10);
-  const equipDropRate = enemy.isBoss ? 0.14 : (enemy.isElite ? 0.09 : 0.05);
-  const crystalFragmentRate = enemy.isBoss ? 0.05 : 0;
+  const otherDropRate = enemy.isBoss ? 0.50 : (enemy.isElite ? 0.30 : 0.18);
+  const equipDropRate = enemy.isBoss ? 0.25 : (enemy.isElite ? 0.15 : 0.07);
+  const crystalFragmentRate = enemy.isBoss ? 0.10 : 0;
   
   // Material/Other drops
   if (Math.random() < otherDropRate) {
@@ -1359,7 +1359,8 @@ async function handleVictory(character, enemy, res, combatLog, treasureAfter) {
   // Equipment drops
   if (Math.random() < equipDropRate) {
     const equipmentTable = EQUIPMENT_DROPS ? EQUIPMENT_DROPS['tower' + character.currentTower] : null;
-    const customDropRate = { equipment: 1.0, setItem: enemy.isBoss ? 0.15 : (enemy.isElite ? 0.05 : 0.01) };
+    // Set item rates: Boss 18%, Elite 7%, Normal 2%
+    const customDropRate = { equipment: 1.0, setItem: enemy.isBoss ? 0.18 : (enemy.isElite ? 0.07 : 0.02) };
     const equipDrops = rollForDrops(enemy, customDropRate, equipmentTable, character.baseClass, character.currentTower);
     equipDrops.forEach(item => {
       if (character.inventory.length < character.inventorySize) {
@@ -1370,25 +1371,36 @@ async function handleVictory(character, enemy, res, combatLog, treasureAfter) {
     });
   }
   
-  // Scroll drops (unchanged - keep rare)
-  const scroll = rollForScroll(enemy, character.baseClass);
-  if (scroll) {
-    const classIdMap = { 'scroll_flameblade': 'flameblade', 'scroll_shadow_dancer': 'shadowDancer', 'scroll_storm_ranger': 'stormRanger', 'scroll_frost_weaver': 'frostWeaver' };
-    const mappedClassId = classIdMap[scroll.id];
-    try {
-      if (mappedClassId) {
-        const isAvailable = await HiddenClassOwnership.isClassAvailable(mappedClassId);
-        if (isAvailable) {
-          addItemToInventory(character, scroll.id, scroll.name, '📜', 'scroll', 'legendary', 1, {}, 0);
-          rewards.items.push(scroll);
-          rewards.scrollDropped = true;
-          character.statistics.scrollsFound += 1;
-        }
+  // Scroll drops - BOSS ONLY at 6%
+  if (enemy.isBoss) {
+    const scrollChance = 0.06;
+    if (Math.random() < scrollChance) {
+      const scrollMap = {
+        swordsman: { id: 'scroll_flameblade', name: 'Flameblade Scroll' },
+        thief: { id: 'scroll_shadow_dancer', name: 'Shadow Dancer Scroll' },
+        archer: { id: 'scroll_storm_ranger', name: 'Storm Ranger Scroll' },
+        mage: { id: 'scroll_frost_weaver', name: 'Frost Weaver Scroll' }
+      };
+      const scroll = scrollMap[character.baseClass];
+      if (scroll) {
+        const classIdMap = { 'scroll_flameblade': 'flameblade', 'scroll_shadow_dancer': 'shadowDancer', 'scroll_storm_ranger': 'stormRanger', 'scroll_frost_weaver': 'frostWeaver' };
+        const mappedClassId = classIdMap[scroll.id];
+        try {
+          if (mappedClassId) {
+            const isAvailable = await HiddenClassOwnership.isClassAvailable(mappedClassId);
+            if (isAvailable) {
+              addItemToInventory(character, scroll.id, scroll.name, '📜', 'scroll', 'legendary', 1, {}, 0);
+              rewards.items.push(scroll);
+              rewards.scrollDropped = true;
+              character.statistics.scrollsFound += 1;
+            }
+          }
+        } catch (e) {}
       }
-    } catch (e) {}
+    }
   }
   
-  // Memory crystal fragment - NEW: 5% for boss only
+  // Memory crystal fragment - 10% for boss only
   if (Math.random() < crystalFragmentRate) {
     addItemToInventory(character, 'memory_crystal_fragment', 'Memory Crystal Fragment', '💠', 'material', 'epic', 1, {}, 100);
     rewards.items.push({ name: 'Memory Crystal Fragment', icon: '💠' });
