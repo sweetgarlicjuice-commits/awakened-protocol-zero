@@ -572,27 +572,28 @@ router.post('/select-floor', authenticate, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
-
 router.post('/explore', authenticate, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
-
+    
     // Check tower lockout
     if (character.towerLockoutUntil && new Date() < character.towerLockoutUntil) {
       const remaining = Math.ceil((character.towerLockoutUntil - new Date()) / 60000);
       return res.status(400).json({ error: 'You are cursed! Cannot explore for ' + remaining + ' more minutes.' });
     }
-
+    
+    // NO ENERGY CHECK HERE - energy is consumed on tower entry only
     if (character.stats.hp <= 0) return res.status(400).json({ error: 'You are defeated! Rest to recover.' });
-
     const floor = character.currentFloor;
     if (floor === 10) return res.json({ type: 'safe_zone', message: 'You reached the Safe Zone!', story: 'A peaceful sanctuary amidst the chaos. Your progress is saved here.', floor: 10 });
-
+    
+    // NO ENERGY DEDUCTION - already consumed on tower entry
+    
     // MULTI-EVENT SYSTEM: Determine how many events this exploration will have (2-3)
     const totalEvents = Math.random() < 0.4 ? 3 : 2;
-    const currentEvent = character.explorationProgress ? character.explorationProgress.currentEvent : 1;
-
+    const currentEvent = 1;
+    
     // Store exploration progress in character (temporary)
     character.explorationProgress = {
       totalEvents: totalEvents,
@@ -604,7 +605,7 @@ router.post('/explore', authenticate, async (req, res) => {
     
     await character.save();
     
-    // Pick a random scenario for the current event
+    // Pick a random scenario for the first event
     const scenario = EXPLORATION_SCENARIOS[Math.floor(Math.random() * EXPLORATION_SCENARIOS.length)];
     
     res.json({ 
@@ -619,9 +620,7 @@ router.post('/explore', authenticate, async (req, res) => {
         total: totalEvents
       }
     });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error' });
-  }
+  } catch (error) { res.status(500).json({ error: 'Server error' }); }
 });
 
 router.post('/choose-path', authenticate, async (req, res) => {
