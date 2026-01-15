@@ -249,61 +249,6 @@ export const DOORKEEPER_DIALOGUES = {
 };
 
 // Hidden class ownership tracking (stored in separate collection)
-export const HIDDEN_CLASS_INFO = {
-  flameblade: {
-    id: 'flameblade',
-    name: 'Flameblade',
-    baseClass: 'swordsman',
-    icon: '🔥',
-    description: 'Master of fire who burns enemies to ash',
-    skills: [
-      { skillId: 'flame_slash', name: 'Flame Slash', mpCost: 15, damage: 2.0, effect: 'burn', type: 'physical', desc: 'Slash with burning blade. DMG + burn effect.' },
-      { skillId: 'inferno_strike', name: 'Inferno Strike', mpCost: 25, damage: 2.8, type: 'physical', desc: 'Powerful fire-infused strike. High single-target DMG.' },
-      { skillId: 'fire_aura', name: 'Fire Aura', mpCost: 20, effect: 'buff_fire', type: 'buff', desc: 'Surround yourself in flames. +30% ATK for 3 turns.' },
-      { skillId: 'volcanic_rage', name: 'Volcanic Rage', mpCost: 40, damage: 3.5, effect: 'burn_all', type: 'physical', desc: 'Erupt with volcanic power. Massive DMG + burn.' }
-    ]
-  },
-  shadowDancer: {
-    id: 'shadowDancer',
-    name: 'Shadow Dancer',
-    baseClass: 'thief',
-    icon: '🌑',
-    description: 'One with the shadows, striking unseen',
-    skills: [
-      { skillId: 'shadow_strike', name: 'Shadow Strike', mpCost: 12, damage: 2.5, critBonus: 0.5, type: 'physical', desc: 'Strike from the shadows. High crit chance.' },
-      { skillId: 'vanish', name: 'Vanish', mpCost: 20, effect: 'invisibility', type: 'buff', desc: 'Become invisible. Next attack auto-crits +100% DMG.' },
-      { skillId: 'death_mark', name: 'Death Mark', mpCost: 18, damage: 1.5, effect: 'mark', type: 'physical', desc: 'Mark target. +30% damage taken for 3 turns.' },
-      { skillId: 'shadow_dance', name: 'Shadow Dance', mpCost: 35, damage: 2.0, hits: 5, type: 'physical', desc: 'Rapid 5-hit combo from the shadows.' }
-    ]
-  },
-  stormRanger: {
-    id: 'stormRanger',
-    name: 'Storm Ranger',
-    baseClass: 'archer',
-    icon: '⚡',
-    description: 'Commands lightning with every arrow',
-    skills: [
-      { skillId: 'lightning_arrow', name: 'Lightning Arrow', mpCost: 14, damage: 2.2, effect: 'shock', type: 'physical', desc: 'Arrow charged with lightning. High DMG + shock.' },
-      { skillId: 'chain_lightning', name: 'Chain Lightning', mpCost: 22, damage: 1.8, hits: 3, type: 'magic', desc: 'Lightning chains to hit 3 times.' },
-      { skillId: 'storm_eye', name: 'Storm Eye', mpCost: 18, effect: 'accuracy_major', type: 'buff', desc: 'Enter focus state. +50% Precision, +30% Crit.' },
-      { skillId: 'thunderstorm', name: 'Thunderstorm', mpCost: 45, damage: 3.0, effect: 'shock_all', type: 'magic', desc: 'Call down a devastating thunderstorm. 4 hits.' }
-    ]
-  },
-  frostWeaver: {
-    id: 'frostWeaver',
-    name: 'Frost Weaver',
-    baseClass: 'mage',
-    icon: '❄️',
-    description: 'Absolute zero incarnate, freezing all',
-    skills: [
-      { skillId: 'frost_bolt', name: 'Frost Bolt', mpCost: 12, damage: 2.0, effect: 'freeze', type: 'magic', desc: 'Ice bolt that slows enemy. -20% ATK.' },
-      { skillId: 'blizzard', name: 'Blizzard', mpCost: 28, damage: 2.2, effect: 'slow_all', type: 'magic', desc: 'Ice storm hits 3 times. 30% freeze chance.' },
-      { skillId: 'ice_armor', name: 'Ice Armor', mpCost: 20, effect: 'defense_up', type: 'buff', desc: 'Armor of ice. +50 DEF, reflect 20% DMG.' },
-      { skillId: 'absolute_zero', name: 'Absolute Zero', mpCost: 50, damage: 4.0, effect: 'freeze_shatter', type: 'magic', desc: 'Ultimate cold. Massive DMG + 2-turn freeze.' }
-    ]
-  }
-};
-
 // Crafting recipes
 export const CRAFTING_RECIPES = {
   memory_crystal: {
@@ -433,7 +378,6 @@ export const FLOOR_REQUIREMENTS_EXPANDED = {
   tower9: { 3: { items: [], gold: 12000 }, 6: { items: [], gold: 25000 }, 9: { items: [], gold: 50000 }, 10: { items: [], gold: 0 }, 12: { items: [], gold: 100000 }, 14: { items: [], gold: 200000 }, 15: { items: [], gold: 320000 } },
   tower10: { 3: { items: [], gold: 25000 }, 6: { items: [], gold: 50000 }, 9: { items: [], gold: 100000 }, 10: { items: [], gold: 0 }, 12: { items: [], gold: 200000 }, 14: { items: [], gold: 400000 }, 15: { items: [], gold: 650000 } }
 };
-
 export const HIDDEN_CLASS_INFO = {
   // ==================== SWORDSMAN HIDDEN CLASSES ====================
   flameblade: {
@@ -703,7 +647,6 @@ export const HIDDEN_CLASS_INFO = {
     ]
   }
 };
-
 
 // ============================================================
 // PHASE 7: Scroll Mappings for Hidden Class System
