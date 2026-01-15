@@ -278,15 +278,19 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     setIsLoading(true);
     try {
       // Ensure we're passing the enemy with all required fields
+      // Server expects: hp, maxHp, atk, def, name, id, expReward, goldReward
       const enemyData = {
         ...currentEnemy,
-        hp: currentEnemy.hp,
-        maxHp: currentEnemy.maxHp,
-        atk: currentEnemy.atk || currentEnemy.attack,
-        def: currentEnemy.def || currentEnemy.defense,
-        name: currentEnemy.name,
+        id: currentEnemy.id || currentEnemy.name?.toLowerCase().replace(/\s+/g, '_') || 'enemy',
+        hp: currentEnemy.hp || 50,
+        maxHp: currentEnemy.maxHp || currentEnemy.hp || 50,
+        atk: currentEnemy.atk || currentEnemy.attack || 10,
+        def: currentEnemy.def || currentEnemy.defense || 5,
+        name: currentEnemy.name || 'Enemy',
         isBoss: currentEnemy.isBoss || false,
-        isElite: currentEnemy.isElite || false
+        isElite: currentEnemy.isElite || false,
+        expReward: currentEnemy.expReward || currentEnemy.exp || 20,
+        goldReward: currentEnemy.goldReward || currentEnemy.gold || 10
       };
       
       const { data } = await towerAPI.attack(enemyData, treasureAfter);
@@ -318,13 +322,16 @@ const TowerPanel = ({ character, onCharacterUpdate, addLog, onTowerStateChange }
     try {
       const enemyData = {
         ...currentEnemy,
-        hp: currentEnemy.hp,
-        maxHp: currentEnemy.maxHp,
-        atk: currentEnemy.atk || currentEnemy.attack,
-        def: currentEnemy.def || currentEnemy.defense,
-        name: currentEnemy.name,
+        id: currentEnemy.id || currentEnemy.name?.toLowerCase().replace(/\s+/g, '_') || 'enemy',
+        hp: currentEnemy.hp || 50,
+        maxHp: currentEnemy.maxHp || currentEnemy.hp || 50,
+        atk: currentEnemy.atk || currentEnemy.attack || 10,
+        def: currentEnemy.def || currentEnemy.defense || 5,
+        name: currentEnemy.name || 'Enemy',
         isBoss: currentEnemy.isBoss || false,
-        isElite: currentEnemy.isElite || false
+        isElite: currentEnemy.isElite || false,
+        expReward: currentEnemy.expReward || currentEnemy.exp || 20,
+        goldReward: currentEnemy.goldReward || currentEnemy.gold || 10
       };
       
       const { data } = await towerAPI.useSkill(enemyData, skillId, treasureAfter);
