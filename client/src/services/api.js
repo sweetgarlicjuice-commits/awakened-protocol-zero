@@ -10,20 +10,24 @@ const api = axios.create({
 
 // Add token to requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('apz_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Handle token expiration
+// Handle token expiration (but not on login/register routes)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+    const isAuthRoute = error.config?.url?.includes('/auth/login') || 
+                        error.config?.url?.includes('/auth/register');
+    
+    // Only redirect on 401 if it's not a login/register attempt
+    if (error.response?.status === 401 && !isAuthRoute) {
+      localStorage.removeItem('apz_token');
+      localStorage.removeItem('apz_user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
