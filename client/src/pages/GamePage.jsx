@@ -273,6 +273,7 @@ const HIDDEN_CLASS_ICONS = {
 const GamePage = () => {
   const { character, logout, refreshCharacter } = useAuth();
   const [activeTab, setActiveTab] = useState('status');
+  const [statusSubTab, setStatusSubTab] = useState('info'); // 'info' or 'combat'
   const [isResting, setIsResting] = useState(false);
   const [showStatModal, setShowStatModal] = useState(false);
   const [showCombatStats, setShowCombatStats] = useState(false);
@@ -418,7 +419,7 @@ const GamePage = () => {
             )}
           </div>
 
-          {/* Collapsible Activity Log */}
+          {/* Collapsible Activity Log - Latest at top */}
           <div className="mt-4">
             <button 
               onClick={() => setShowActivityLog(!showActivityLog)} 
@@ -430,7 +431,7 @@ const GamePage = () => {
             {showActivityLog && (
               <div className="mt-2 h-32 bg-void-900/50 rounded-lg p-2 overflow-y-auto">
                 <div className="font-mono text-xs space-y-1">
-                  {gameLog.slice(-20).map((log, i) => (
+                  {[...gameLog].reverse().slice(0, 20).map((log, i) => (
                     <div key={i} className={log.type === 'system' ? 'text-purple-400' : log.type === 'success' ? 'text-green-400' : log.type === 'error' ? 'text-red-400' : log.type === 'combat' ? 'text-amber-400' : 'text-gray-400'}>
                       <span className="text-gray-600 mr-1">[{log.timestamp.toLocaleTimeString()}]</span>
                       {log.message}
@@ -477,151 +478,185 @@ const GamePage = () => {
           </nav>
 
           <div className="flex-1 p-4 md:p-6 overflow-auto">
-            {/* STATUS TAB */}
+            {/* STATUS TAB with Sub-tabs */}
             {activeTab === 'status' && (
-              <div className="max-w-4xl mx-auto space-y-6">
-                {/* Hunter Status Card */}
-                <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                  <h3 className="font-display text-lg text-purple-400 mb-4">HUNTER STATUS</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div className="flex justify-between py-2 border-b border-gray-700/30">
-                        <span className="text-gray-400">Name</span>
-                        <span className="text-white">{character.name}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30">
-                        <span className="text-gray-400">Class</span>
-                        <span className={CLASS_COLORS[character.baseClass]}>
-                          {CLASS_ICONS[character.baseClass]} {character.baseClass.charAt(0).toUpperCase() + character.baseClass.slice(1)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30">
-                        <span className="text-gray-400">Hidden Class</span>
-                        <span className={character.hiddenClass !== 'none' ? 'text-purple-400' : 'text-gray-600'}>
-                          {character.hiddenClass !== 'none' 
-                            ? `${HIDDEN_CLASS_ICONS[character.hiddenClass] || ''} ${character.hiddenClass}` 
-                            : 'Not Unlocked'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30">
-                        <span className="text-gray-400">Level</span>
-                        <span className="text-amber-400">{character.level}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-4">
-                      <div className="flex justify-between py-2 border-b border-gray-700/30">
-                        <span className="text-gray-400">Current Tower</span>
-                        <span className="text-white">{character.currentTower}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30">
-                        <span className="text-gray-400">Current Floor</span>
-                        <span className="text-white">{character.currentFloor}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30">
-                        <span className="text-gray-400">Gold</span>
-                        <span className="text-amber-400">💰 {character.gold}</span>
-                      </div>
-                      <div className="flex justify-between py-2 border-b border-gray-700/30">
-                        <span className="text-gray-400">Memory Crystals</span>
-                        <span className="text-cyan-400">💎 {character.memoryCrystals}</span>
-                      </div>
-                    </div>
-                  </div>
+              <div className="max-w-4xl mx-auto space-y-4">
+                {/* Sub-tab Navigation */}
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setStatusSubTab('info')}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                      statusSubTab === 'info' 
+                        ? 'bg-purple-600 text-white' 
+                        : 'bg-void-800/50 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    👤 Hunter Info
+                  </button>
+                  <button 
+                    onClick={() => setStatusSubTab('combat')}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                      statusSubTab === 'combat' 
+                        ? 'bg-purple-600 text-white' 
+                        : 'bg-void-800/50 text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    ⚔️ Combat Info
+                  </button>
                 </div>
 
-                {/* Statistics Card */}
-                <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                  <h3 className="font-display text-lg text-purple-400 mb-4">📈 STATISTICS</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center p-3 bg-void-900/50 rounded-lg">
-                      <div className="text-2xl font-bold text-red-400">{character.statistics?.totalKills || 0}</div>
-                      <div className="text-xs text-gray-500">Total Kills</div>
-                    </div>
-                    <div className="text-center p-3 bg-void-900/50 rounded-lg">
-                      <div className="text-2xl font-bold text-purple-400">{character.statistics?.bossKills || 0}</div>
-                      <div className="text-xs text-gray-500">Boss Kills</div>
-                    </div>
-                    <div className="text-center p-3 bg-void-900/50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-400">{character.statistics?.floorsCleared || 0}</div>
-                      <div className="text-xs text-gray-500">Floors Cleared</div>
-                    </div>
-                    <div className="text-center p-3 bg-void-900/50 rounded-lg">
-                      <div className="text-2xl font-bold text-amber-400">{character.statistics?.scrollsFound || 0}</div>
-                      <div className="text-xs text-gray-500">Scrolls Found</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stats + Combat Stats Row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Base Stats */}
-                  <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-display text-lg text-purple-400">📊 STATS</h3>
-                      {character.statPoints > 0 && (
-                        <button onClick={() => setShowStatModal(true)} className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs">
-                          +{character.statPoints} Points
-                        </button>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">STR</span><span className="text-red-400 font-bold">{character.stats.str}</span></div>
-                      <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">AGI</span><span className="text-indigo-400 font-bold">{character.stats.agi}</span></div>
-                      <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">DEX</span><span className="text-green-400 font-bold">{character.stats.dex}</span></div>
-                      <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">INT</span><span className="text-purple-400 font-bold">{character.stats.int}</span></div>
-                      <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">VIT</span><span className="text-amber-400 font-bold">{character.stats.vit}</span></div>
-                    </div>
-                  </div>
-
-                  {/* Combat Stats */}
-                  <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                    <h3 className="font-display text-lg text-purple-400 mb-4">⚔️ COMBAT STATS</h3>
-                    {derivedStats && (
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">P.ATK</span><span className="text-orange-400">{derivedStats.pDmg}</span></div>
-                        <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">M.ATK</span><span className="text-cyan-400">{derivedStats.mDmg}</span></div>
-                        <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">P.DEF</span><span className="text-amber-400">{derivedStats.pDef}</span></div>
-                        <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">Crit Rate</span><span className="text-yellow-400">{derivedStats.critRate.toFixed(1)}%</span></div>
-                        <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">Crit DMG</span><span className="text-red-400">{derivedStats.critDmg}%</span></div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Skills Section */}
-                <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                  <h3 className="font-display text-lg text-purple-400 mb-4">⚡ SKILLS ({character.skills?.length || 0})</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {character.skills?.map((skill, index) => {
-                      const skillData = SKILL_DATABASE[skill.skillId] || {};
-                      const elementIcon = ELEMENT_ICONS[skillData.element] || '';
-                      let dmgText = '';
-                      if (skillData.damage > 0) {
-                        const dmgPercent = Math.round(skillData.damage * 100);
-                        const dmgType = ['fire', 'ice', 'lightning', 'dark', 'holy', 'nature'].includes(skillData.element) ? 'MDmg' : 'PDmg';
-                        dmgText = skillData.hits > 1 ? `${skillData.hits}x${dmgPercent}% ${dmgType}` : `${dmgPercent}% ${dmgType}`;
-                      }
-                      return (
-                        <div key={index} className="p-4 rounded-lg border bg-void-900/50 border-purple-500/30">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold text-white">{elementIcon} {skillData.name || skill.name}</h4>
-                            <span className="text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-400">{skillData.mpCost}MP</span>
+                {/* Hunter Info Sub-tab (Hunter Status + Statistics) */}
+                {statusSubTab === 'info' && (
+                  <div className="space-y-6">
+                    {/* Hunter Status Card */}
+                    <div className="bg-void-800/50 rounded-xl p-6 neon-border">
+                      <h3 className="font-display text-lg text-purple-400 mb-4">HUNTER STATUS</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div className="flex justify-between py-2 border-b border-gray-700/30">
+                            <span className="text-gray-400">Name</span>
+                            <span className="text-white">{character.name}</span>
                           </div>
-                          <p className="text-sm text-gray-400 mb-2">{skillData.desc}</p>
-                          <div className="flex flex-wrap gap-2">
-                            {dmgText && <span className={`text-xs px-2 py-0.5 rounded ${['fire','ice','lightning','dark','holy','nature'].includes(skillData.element) ? 'bg-cyan-500/20 text-cyan-400' : 'bg-orange-500/20 text-orange-400'}`}>{dmgText}</span>}
-                            {skillData.effect && <span className="text-xs px-2 py-0.5 bg-purple-500/20 rounded text-purple-400">{skillData.effect}</span>}
+                          <div className="flex justify-between py-2 border-b border-gray-700/30">
+                            <span className="text-gray-400">Class</span>
+                            <span className={CLASS_COLORS[character.baseClass]}>
+                              {CLASS_ICONS[character.baseClass]} {character.baseClass.charAt(0).toUpperCase() + character.baseClass.slice(1)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between py-2 border-b border-gray-700/30">
+                            <span className="text-gray-400">Hidden Class</span>
+                            <span className={character.hiddenClass !== 'none' ? 'text-purple-400' : 'text-gray-600'}>
+                              {character.hiddenClass !== 'none' 
+                                ? `${HIDDEN_CLASS_ICONS[character.hiddenClass] || ''} ${character.hiddenClass}` 
+                                : 'Not Unlocked'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between py-2 border-b border-gray-700/30">
+                            <span className="text-gray-400">Level</span>
+                            <span className="text-amber-400">{character.level}</span>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                  {character.hiddenClass === 'none' && (
-                    <div className="mt-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                      <p className="text-purple-400 text-sm text-center">🔮 Unlock a Hidden Class to gain 4 additional powerful skills!</p>
+                        <div className="space-y-4">
+                          <div className="flex justify-between py-2 border-b border-gray-700/30">
+                            <span className="text-gray-400">Current Tower</span>
+                            <span className="text-white">{character.currentTower}</span>
+                          </div>
+                          <div className="flex justify-between py-2 border-b border-gray-700/30">
+                            <span className="text-gray-400">Current Floor</span>
+                            <span className="text-white">{character.currentFloor}</span>
+                          </div>
+                          <div className="flex justify-between py-2 border-b border-gray-700/30">
+                            <span className="text-gray-400">Gold</span>
+                            <span className="text-amber-400">💰 {character.gold}</span>
+                          </div>
+                          <div className="flex justify-between py-2 border-b border-gray-700/30">
+                            <span className="text-gray-400">Memory Crystals</span>
+                            <span className="text-cyan-400">💎 {character.memoryCrystals}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
+
+                    {/* Statistics Card */}
+                    <div className="bg-void-800/50 rounded-xl p-6 neon-border">
+                      <h3 className="font-display text-lg text-purple-400 mb-4">📈 STATISTICS</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="text-center p-3 bg-void-900/50 rounded-lg">
+                          <div className="text-2xl font-bold text-red-400">{character.statistics?.totalKills || 0}</div>
+                          <div className="text-xs text-gray-500">Total Kills</div>
+                        </div>
+                        <div className="text-center p-3 bg-void-900/50 rounded-lg">
+                          <div className="text-2xl font-bold text-purple-400">{character.statistics?.bossKills || 0}</div>
+                          <div className="text-xs text-gray-500">Boss Kills</div>
+                        </div>
+                        <div className="text-center p-3 bg-void-900/50 rounded-lg">
+                          <div className="text-2xl font-bold text-blue-400">{character.statistics?.floorsCleared || 0}</div>
+                          <div className="text-xs text-gray-500">Floors Cleared</div>
+                        </div>
+                        <div className="text-center p-3 bg-void-900/50 rounded-lg">
+                          <div className="text-2xl font-bold text-amber-400">{character.statistics?.scrollsFound || 0}</div>
+                          <div className="text-xs text-gray-500">Scrolls Found</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Combat Info Sub-tab (Stats + Combat Stats + Skills) */}
+                {statusSubTab === 'combat' && (
+                  <div className="space-y-6">
+                    {/* Stats + Combat Stats Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Base Stats */}
+                      <div className="bg-void-800/50 rounded-xl p-6 neon-border">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-display text-lg text-purple-400">📊 STATS</h3>
+                          {character.statPoints > 0 && (
+                            <button onClick={() => setShowStatModal(true)} className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs">
+                              +{character.statPoints} Points
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">STR</span><span className="text-red-400 font-bold">{character.stats.str}</span></div>
+                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">AGI</span><span className="text-indigo-400 font-bold">{character.stats.agi}</span></div>
+                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">DEX</span><span className="text-green-400 font-bold">{character.stats.dex}</span></div>
+                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">INT</span><span className="text-purple-400 font-bold">{character.stats.int}</span></div>
+                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">VIT</span><span className="text-amber-400 font-bold">{character.stats.vit}</span></div>
+                        </div>
+                      </div>
+
+                      {/* Combat Stats */}
+                      <div className="bg-void-800/50 rounded-xl p-6 neon-border">
+                        <h3 className="font-display text-lg text-purple-400 mb-4">⚔️ COMBAT STATS</h3>
+                        {derivedStats && (
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">P.ATK</span><span className="text-orange-400">{derivedStats.pDmg}</span></div>
+                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">M.ATK</span><span className="text-cyan-400">{derivedStats.mDmg}</span></div>
+                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">P.DEF</span><span className="text-amber-400">{derivedStats.pDef}</span></div>
+                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">Crit Rate</span><span className="text-yellow-400">{derivedStats.critRate.toFixed(1)}%</span></div>
+                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">Crit DMG</span><span className="text-red-400">{derivedStats.critDmg}%</span></div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Skills Section */}
+                    <div className="bg-void-800/50 rounded-xl p-6 neon-border">
+                      <h3 className="font-display text-lg text-purple-400 mb-4">⚡ SKILLS ({character.skills?.length || 0})</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {character.skills?.map((skill, index) => {
+                          const skillData = SKILL_DATABASE[skill.skillId] || {};
+                          const elementIcon = ELEMENT_ICONS[skillData.element] || '';
+                          let dmgText = '';
+                          if (skillData.damage > 0) {
+                            const dmgPercent = Math.round(skillData.damage * 100);
+                            const dmgType = ['fire', 'ice', 'lightning', 'dark', 'holy', 'nature'].includes(skillData.element) ? 'MDmg' : 'PDmg';
+                            dmgText = skillData.hits > 1 ? `${skillData.hits}x${dmgPercent}% ${dmgType}` : `${dmgPercent}% ${dmgType}`;
+                          }
+                          return (
+                            <div key={index} className="p-4 rounded-lg border bg-void-900/50 border-purple-500/30">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-semibold text-white">{elementIcon} {skillData.name || skill.name}</h4>
+                                <span className="text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-400">{skillData.mpCost}MP</span>
+                              </div>
+                              <p className="text-sm text-gray-400 mb-2">{skillData.desc}</p>
+                              <div className="flex flex-wrap gap-2">
+                                {dmgText && <span className={`text-xs px-2 py-0.5 rounded ${['fire','ice','lightning','dark','holy','nature'].includes(skillData.element) ? 'bg-cyan-500/20 text-cyan-400' : 'bg-orange-500/20 text-orange-400'}`}>{dmgText}</span>}
+                                {skillData.effect && <span className="text-xs px-2 py-0.5 bg-purple-500/20 rounded text-purple-400">{skillData.effect}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {character.hiddenClass === 'none' && (
+                        <div className="mt-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                          <p className="text-purple-400 text-sm text-center">🔮 Unlock a Hidden Class to gain 4 additional powerful skills!</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
