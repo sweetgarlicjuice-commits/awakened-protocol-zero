@@ -79,6 +79,28 @@ async function buildItemDatabase() {
       });
       console.log(`[GM] Loaded ${allMaterials.length} materials from database`);
     }
+    
+    // Also load SETS if available
+    const SETS = equipmentModule.SETS || {};
+    const allSets = Object.values(SETS);
+    if (allSets.length > 0) {
+      allSets.forEach(set => {
+        items.push({
+          id: set.id,
+          name: set.name,
+          type: 'set',
+          subtype: 'equipment_set',
+          rarity: set.rarity || 'rare',
+          icon: set.icon || '🎽',
+          tower: set.tower,
+          class: set.class,
+          pieces: set.pieces,
+          bonuses: set.bonuses,
+          description: `${set.pieces?.length || 0}-piece set for ${set.class || 'any'} class`
+        });
+      });
+      console.log(`[GM] Loaded ${allSets.length} equipment sets from database`);
+    }
   } catch (err) {
     console.log('[GM] Equipment index import error:', err.message);
   }
