@@ -116,7 +116,17 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       addLog?.('success', data.message);
       setFloorMap(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n) }));
       updateLocalCharacter?.({ stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp }, gold: data.character.gold });
-      setTimeout(() => { setView('map'); setEventData(null); setMessage(null); }, 1500);
+      
+      // Check if floor was completed (exit node cleared)
+      if (data.floorComplete) {
+        const newFloor = (character.currentFloor || 1) + 1;
+        setHighestFloor(prev => Math.max(prev, newFloor));
+        setSelectedFloor(newFloor);
+        addLog?.('success', `Floor ${newFloor} unlocked!`);
+        setTimeout(() => { setView('select'); setEventData(null); setMessage(null); onCharacterUpdate?.(); }, 2000);
+      } else {
+        setTimeout(() => { setView('map'); setEventData(null); setMessage(null); }, 1500);
+      }
     } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
     setIsLoading(false);
   };
