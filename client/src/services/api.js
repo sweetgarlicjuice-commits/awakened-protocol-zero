@@ -41,20 +41,17 @@ export const authAPI = {
   // Login
   login: (username, password) => api.post('/auth/login', { username, password }),
   
-  // Register
-  register: (username, password) => api.post('/auth/register', { username, password }),
-  
   // Get current user
   getMe: () => api.get('/auth/me'),
   
-  // Get all players (GM/Admin)
-  getPlayers: () => api.get('/auth/players'),
+  // Get all players (GM/Admin) - correct path
+  getPlayers: () => api.get('/auth/gm/players'),
   
-  // Create account (GM/Admin)
-  createAccount: (username, password, role) => api.post('/auth/create', { username, password, role }),
+  // Create account (GM/Admin) - correct path
+  createAccount: (username, password, role) => api.post('/auth/gm/create-account', { username, password, role }),
   
-  // Toggle account active status (GM/Admin)
-  toggleAccount: (userId) => api.patch(`/auth/toggle/${userId}`),
+  // Toggle account active status (GM/Admin) - correct path
+  toggleAccount: (userId) => api.patch(`/auth/gm/toggle-account/${userId}`),
 };
 
 // ============================================
