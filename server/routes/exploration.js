@@ -322,16 +322,24 @@ router.post('/combat/start', authenticate, async (req, res) => {
     if (!floorMap) return res.status(404).json({ error: 'No active map' });
     
     const currentNode = floorMap.nodes.find(n => n.id === floorMap.currentNodeId);
+    if (!currentNode) return res.status(400).json({ error: 'No current node' });
     if (!['combat', 'elite', 'boss'].includes(currentNode.type)) return res.status(400).json({ error: 'Not combat node' });
     if (currentNode.cleared) return res.status(400).json({ error: 'Already cleared' });
     
+    // Ensure enemies array exists and has enemies
+    let enemyList = currentNode.enemies || [];
+    if (enemyList.length === 0) {
+      // Generate enemies if missing
+      enemyList = generateEnemies(currentNode.type, floorMap.towerId, floorMap.floor);
+    }
+    
     // Ensure enemies have all required fields
-    const enemies = currentNode.enemies.map((e, i) => ({
+    const enemies = enemyList.map((e, i) => ({
       id: e.id || `enemy_${i}`,
       instanceId: e.instanceId || `${e.id || 'enemy'}_${i}`,
       name: e.name || 'Enemy',
       icon: e.icon || '👹',
-      hp: e.hp || 50,
+      hp: e.hp || e.maxHp || 50,
       maxHp: e.maxHp || e.hp || 50,
       atk: e.atk || 10,
       def: e.def || 5,
