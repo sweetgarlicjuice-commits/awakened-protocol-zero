@@ -4,64 +4,122 @@ import User from '../models/User.js';
 import HiddenClassOwnership from '../models/HiddenClassOwnership.js';
 import { authenticate, requireGM } from '../middleware/auth.js';
 
-// Import equipment database
-import { allEquipment, getEquipmentById } from '../data/equipment/index.js';
-import { CONSUMABLES } from '../data/equipment/consumables.js';
-import { SPECIAL_ITEMS } from '../data/equipment/special_items.js';
-
 const router = express.Router();
+
+// Safely import equipment database with fallbacks
+let allEquipment = [];
+let CONSUMABLES = [];
+let SPECIAL_ITEMS = [];
+
+// Try to import equipment database
+try {
+  const equipmentModule = await import('../data/equipment/index.js');
+  allEquipment = equipmentModule.allEquipment || [];
+} catch (err) {
+  console.log('Equipment index not found, using empty array');
+}
+
+// Try to import consumables
+try {
+  const consumablesModule = await import('../data/equipment/consumables.js');
+  CONSUMABLES = consumablesModule.CONSUMABLES || consumablesModule.default || [];
+} catch (err) {
+  console.log('Consumables not found, using empty array');
+}
+
+// Try to import special items
+try {
+  const specialModule = await import('../data/equipment/special_items.js');
+  SPECIAL_ITEMS = specialModule.SPECIAL_ITEMS || specialModule.hiddenClassScrolls || specialModule.default || [];
+} catch (err) {
+  console.log('Special items not found, using empty array');
+}
+
+// Get icon for equipment based on slot/type
+function getEquipmentIcon(item) {
+  if (item.icon) return item.icon;
+  
+  const slotIcons = {
+    weapon: '⚔️',
+    head: '🧢',
+    helmet: '🧢',
+    body: '👕',
+    chest: '👕',
+    armor: '👕',
+    leg: '👖',
+    legs: '👖',
+    pants: '👖',
+    shoes: '👢',
+    boots: '👢',
+    feet: '👢',
+    ring: '💍',
+    necklace: '📿',
+    amulet: '📿',
+    accessory: '💍',
+    offhand: '🛡️',
+    shield: '🛡️'
+  };
+  
+  return slotIcons[item.slot] || slotIcons[item.type] || '📦';
+}
 
 // Build complete item database for search
 function buildItemDatabase() {
   const items = [];
   
   // Add all equipment
-  allEquipment.forEach(item => {
-    items.push({
-      id: item.id,
-      name: item.name,
-      type: 'equipment',
-      subtype: item.type, // weapon, armor, accessory
-      slot: item.slot,
-      rarity: item.rarity || 'common',
-      icon: getEquipmentIcon(item),
-      stats: item.stats || {},
-      levelReq: item.levelReq,
-      classReq: item.class,
-      description: item.description
+  if (Array.isArray(allEquipment)) {
+    allEquipment.forEach(item => {
+      items.push({
+        id: item.id,
+        name: item.name,
+        type: 'equipment',
+        subtype: item.type,
+        slot: item.slot,
+        rarity: item.rarity || 'common',
+        icon: getEquipmentIcon(item),
+        stats: item.stats || {},
+        levelReq: item.levelReq,
+        classReq: item.class,
+        description: item.description
+      });
     });
-  });
+  }
   
   // Add consumables
-  CONSUMABLES.forEach(item => {
-    items.push({
-      id: item.id,
-      name: item.name,
-      type: 'consumable',
-      subtype: item.subtype || 'potion',
-      rarity: item.rarity || 'common',
-      icon: item.icon || '🧪',
-      effect: item.effect,
-      stackable: true,
-      description: item.description
+  if (Array.isArray(CONSUMABLES)) {
+    CONSUMABLES.forEach(item => {
+      items.push({
+        id: item.id,
+        name: item.name,
+        type: 'consumable',
+        subtype: item.subtype || 'potion',
+        rarity: item.rarity || 'common',
+        icon: item.icon || '🧪',
+        effect: item.effect,
+        stackable: true,
+        description: item.description
+      });
     });
-  });
+  }
   
   // Add special items (scrolls, memory crystals, etc.)
-  SPECIAL_ITEMS.forEach(item => {
-    items.push({
-      id: item.id,
-      name: item.name,
-      type: item.type || 'special',
-      subtype: item.subtype,
-      rarity: item.rarity || 'legendary',
-      icon: item.icon || '📜',
-      stackable: item.stackable !== false,
-      description: item.description
+  if (Array.isArray(SPECIAL_ITEMS)) {
+    SPECIAL_ITEMS.forEach(item => {
+      items.push({
+        id: item.id,
+        name: item.name,
+        type: item.type || 'special',
+        subtype: item.subtype,
+        rarity: item.rarity || 'legendary',
+        icon: item.icon || '📜',
+        stackable: item.stackable !== false,
+        description: item.description
+      });
     });
-  });
+  }
   
-  // Add crafting materials
+  // Add crafting materials (always available as fallback)
   const materials = [
     // Tower 1 - Crimson Spire
     { id: 'bone_fragment', name: 'Bone Fragment', icon: '🦴', rarity: 'common' },
@@ -95,6 +153,7 @@ function buildItemDatabase() {
     
     // Special materials
     { id: 'memory_crystal_fragment', name: 'Memory Crystal Fragment', icon: '💠', rarity: 'epic' },
+    { id: 'memory_crystal', name: 'Memory Crystal', icon: '🔷', rarity: 'legendary' },
   ];
   
   materials.forEach(mat => {
@@ -109,35 +168,35 @@ function buildItemDatabase() {
     });
   });
   
+  // Add basic consumables as fallback
+  const basicConsumables = [
+    { id: 'health_potion_small', name: 'Small Health Potion', icon: '🧪', rarity: 'common', effect: { type: 'heal', value: 100 } },
+    { id: 'health_potion_medium', name: 'Medium Health Potion', icon: '🧪', rarity: 'uncommon', effect: { type: 'heal', value: 300 } },
+    { id: 'health_potion_large', name: 'Large Health Potion', icon: '🧪', rarity: 'rare', effect: { type: 'heal', value: 600 } },
+    { id: 'mana_potion_small', name: 'Small Mana Potion', icon: '💙', rarity: 'common', effect: { type: 'mana', value: 50 } },
+    { id: 'mana_potion_medium', name: 'Medium Mana Potion', icon: '💙', rarity: 'uncommon', effect: { type: 'mana', value: 150 } },
+    { id: 'mana_potion_large', name: 'Large Mana Potion', icon: '💙', rarity: 'rare', effect: { type: 'mana', value: 300 } },
+    { id: 'antidote', name: 'Antidote', icon: '💊', rarity: 'common', effect: { type: 'cure', value: 'poison' } },
+    { id: 'energy_drink', name: 'Energy Drink', icon: '⚡', rarity: 'uncommon', effect: { type: 'energy', value: 20 } },
+  ];
+  
+  basicConsumables.forEach(con => {
+    // Only add if not already present
+    if (!items.find(i => i.id === con.id)) {
+      items.push({
+        id: con.id,
+        name: con.name,
+        type: 'consumable',
+        subtype: 'potion',
+        rarity: con.rarity,
+        icon: con.icon,
+        effect: con.effect,
+        stackable: true
+      });
+    }
+  });
+  
   return items;
-}
-
-// Get icon for equipment based on slot/type
-function getEquipmentIcon(item) {
-  if (item.icon) return item.icon;
-  
-  const slotIcons = {
-    weapon: '⚔️',
-    head: '🧢',
-    helmet: '🧢',
-    body: '👕',
-    chest: '👕',
-    armor: '👕',
-    leg: '👖',
-    legs: '👖',
-    pants: '👖',
-    shoes: '👢',
-    boots: '👢',
-    feet: '👢',
-    ring: '💍',
-    necklace: '📿',
-    amulet: '📿',
-    accessory: '💍',
-    offhand: '🛡️',
-    shield: '🛡️'
-  };
-  
-  return slotIcons[item.slot] || slotIcons[item.type] || '📦';
 }
 
 // Cache the item database
@@ -145,6 +204,7 @@ let itemDatabase = null;
 function getItemDatabase() {
   if (!itemDatabase) {
     itemDatabase = buildItemDatabase();
+    console.log(`Item database built with ${itemDatabase.length} items`);
   }
   return itemDatabase;
 }
@@ -156,7 +216,7 @@ router.get('/items/search', authenticate, requireGM, async (req, res) => {
     const items = getItemDatabase();
     
     if (!q || q.length < 1) {
-      return res.json({ items: items.slice(0, 20) }); // Return first 20 if no query
+      return res.json({ items: items.slice(0, 20) });
     }
     
     const query = q.toLowerCase();
@@ -179,7 +239,6 @@ router.get('/items/all', authenticate, requireGM, async (req, res) => {
     const { page = 0, limit = 50, type } = req.query;
     let items = getItemDatabase();
     
-    // Filter by type if specified
     if (type) {
       items = items.filter(item => item.type === type);
     }
@@ -259,18 +318,14 @@ router.post('/player/:id/edit-stats', authenticate, requireGM, async (req, res) 
       return res.status(404).json({ error: 'Character not found' });
     }
     
-    // Update individual stats
     if (stats.str !== undefined) character.stats.str = Math.max(1, stats.str);
     if (stats.agi !== undefined) character.stats.agi = Math.max(1, stats.agi);
     if (stats.dex !== undefined) character.stats.dex = Math.max(1, stats.dex);
     if (stats.int !== undefined) character.stats.int = Math.max(1, stats.int);
     if (stats.vit !== undefined) character.stats.vit = Math.max(1, stats.vit);
     
-    // Recalculate HP and MP based on new stats
     character.stats.maxHp = character.stats.vit * 10 + 50;
     character.stats.maxMp = character.stats.int * 8 + 20;
-    
-    // Set current HP/MP to max
     character.stats.hp = character.stats.maxHp;
     character.stats.mp = character.stats.maxMp;
     
@@ -309,7 +364,6 @@ router.post('/player/:id/reset-stats', authenticate, requireGM, async (req, res)
       maxMp: baseStats.mp
     };
     
-    // Refund stat points based on level
     character.statPoints = (character.level - 1) * 5;
     
     await character.save();
@@ -525,7 +579,6 @@ router.post('/player/:id/remove-hidden-class', authenticate, requireGM, async (r
     // Release the class ownership
     await HiddenClassOwnership.releaseClass(character.hiddenClass, character._id);
     
-    // Remove class from character
     const oldClass = character.hiddenClass;
     character.hiddenClass = 'none';
     character.hiddenClassUnlocked = false;
@@ -559,7 +612,6 @@ router.delete('/player/:id', authenticate, requireGM, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Don't allow deleting admins or self
     if (user.role === 'admin') {
       return res.status(403).json({ error: 'Cannot delete admin accounts' });
     }
@@ -568,16 +620,12 @@ router.delete('/player/:id', authenticate, requireGM, async (req, res) => {
       return res.status(403).json({ error: 'Cannot delete your own account' });
     }
     
-    // Get character to release hidden class if any
     const character = await Character.findOne({ userId: user._id });
     if (character && character.hiddenClass !== 'none') {
       await HiddenClassOwnership.releaseClass(character.hiddenClass, character._id);
     }
     
-    // Delete character
     await Character.deleteOne({ userId: user._id });
-    
-    // Delete user
     await User.deleteOne({ _id: user._id });
     
     res.json({
@@ -617,10 +665,8 @@ router.post('/player/:id/set-level', authenticate, requireGM, async (req, res) =
     const oldLevel = character.level;
     character.level = level;
     character.experience = 0;
-    // Calculate exp to next level manually
     character.experienceToNextLevel = Math.floor(100 * Math.pow(1.15, level - 1));
     
-    // Adjust stat points
     const levelDiff = level - oldLevel;
     character.statPoints = Math.max(0, character.statPoints + (levelDiff * 5));
     
@@ -665,7 +711,6 @@ router.get('/trading', authenticate, requireGM, async (req, res) => {
     const { TradingListing } = await import('../models/Tavern.js');
     const listings = await TradingListing.find({}).sort({ createdAt: -1 });
     
-    // Get seller info for each listing
     const listingsWithSellers = await Promise.all(listings.map(async (listing) => {
       const user = await User.findById(listing.sellerId).select('username');
       const character = await Character.findOne({ userId: listing.sellerId }).select('name');
@@ -693,11 +738,9 @@ router.delete('/trading/:id', authenticate, requireGM, async (req, res) => {
       return res.status(404).json({ error: 'Listing not found' });
     }
     
-    // Check if seller still exists
     const seller = await Character.findOne({ userId: listing.sellerId });
     
     if (seller) {
-      // Return item to seller's inventory
       const existingIndex = seller.inventory.findIndex(i => i.itemId === listing.itemId);
       if (existingIndex >= 0) {
         seller.inventory[existingIndex].quantity += listing.quantity;
@@ -715,7 +758,6 @@ router.delete('/trading/:id', authenticate, requireGM, async (req, res) => {
       }
       await seller.save();
       
-      // Delete listing
       await TradingListing.findByIdAndDelete(req.params.id);
       
       res.json({
@@ -723,7 +765,6 @@ router.delete('/trading/:id', authenticate, requireGM, async (req, res) => {
         returnedTo: seller.name
       });
     } else {
-      // Seller doesn't exist, just delete the listing
       await TradingListing.findByIdAndDelete(req.params.id);
       
       res.json({
