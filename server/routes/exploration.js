@@ -241,7 +241,17 @@ router.get('/map', authenticate, async (req, res) => {
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
     const towerId = parseInt(req.query.towerId) || character.currentTower || 1;
-    const floor = parseInt(req.query.floor) || character.currentFloor || 1;
+    let floor = parseInt(req.query.floor) || character.currentFloor || 1;
+    
+    // Get highest floor reached for this tower
+    const towerKey = `tower_${towerId}`;
+    const highestFloor = character.towerProgress?.[towerKey] || 1;
+    
+    // Validate floor selection - can only select floors up to highest reached
+    if (floor > highestFloor) {
+      floor = highestFloor;
+    }
+    if (floor < 1) floor = 1;
     
     let floorMap = await FloorMap.findOne({ characterId: character._id, towerId, floor, completed: false });
     
@@ -250,8 +260,19 @@ router.get('/map', authenticate, async (req, res) => {
       await floorMap.save();
     }
     
+    // Update character's current floor to selected floor
+    character.currentFloor = floor;
+    character.isInTower = true;
+    await character.save();
+    
     const tower = TOWERS[towerId] || { id: towerId, name: `Tower ${towerId}` };
-    res.json({ map: floorMap, tower, floor, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, energy: character.energy } });
+    res.json({ 
+      map: floorMap, 
+      tower, 
+      floor,
+      highestFloor,
+      character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, energy: character.energy } 
+    });
   } catch (error) {
     console.error('Get map error:', error);
     res.status(500).json({ error: error.message });
@@ -483,8 +504,28 @@ router.post('/combat/action', authenticate, async (req, res) => {
       
       let floorComplete = false;
       if (currentNode.isExit) {
+        // Advance to next floor
         character.currentFloor++;
         character.statistics.floorsCleared = (character.statistics.floorsCleared || 0) + 1;
+        
+        // Track highest floor reached for this tower
+        if (!character.highestFloorReached) {
+          character.highestFloorReached = { towerId: floorMap.towerId, floor: 1 };
+        }
+        if (floorMap.towerId === character.highestFloorReached.towerId) {
+          if (character.currentFloor > character.highestFloorReached.floor) {
+            character.highestFloorReached.floor = character.currentFloor;
+          }
+        }
+        
+        // Also track per-tower progress
+        if (!character.towerProgress) character.towerProgress = {};
+        const towerKey = `tower_${floorMap.towerId}`;
+        if (!character.towerProgress[towerKey] || character.currentFloor > character.towerProgress[towerKey]) {
+          character.towerProgress[towerKey] = character.currentFloor;
+          character.markModified('towerProgress');
+        }
+        
         floorMap.completed = true;
         character.isInTower = false;
         floorComplete = true;
