@@ -644,10 +644,42 @@ router.post('/interact', authenticate, async (req, res) => {
     const idx = floorMap.nodes.findIndex(n => n.id === currentNode.id);
     if (idx >= 0) { floorMap.nodes[idx].cleared = true; floorMap.markModified('nodes'); }
     
+    // Check if this is an exit node - advance floor!
+    let floorComplete = false;
+    if (currentNode.isExit) {
+      // Advance to next floor
+      character.currentFloor++;
+      character.statistics = character.statistics || {};
+      character.statistics.floorsCleared = (character.statistics.floorsCleared || 0) + 1;
+      
+      // Track highest floor reached for this tower
+      if (!character.highestFloorReached) {
+        character.highestFloorReached = { towerId: floorMap.towerId, floor: 1 };
+      }
+      if (floorMap.towerId === character.highestFloorReached.towerId) {
+        if (character.currentFloor > character.highestFloorReached.floor) {
+          character.highestFloorReached.floor = character.currentFloor;
+        }
+      }
+      
+      // Track per-tower progress
+      if (!character.towerProgress) character.towerProgress = {};
+      const towerKey = `tower_${floorMap.towerId}`;
+      if (!character.towerProgress[towerKey] || character.currentFloor > character.towerProgress[towerKey]) {
+        character.towerProgress[towerKey] = character.currentFloor;
+        character.markModified('towerProgress');
+      }
+      
+      floorMap.completed = true;
+      character.isInTower = false;
+      floorComplete = true;
+      result.message += ` Floor cleared! Floor ${character.currentFloor} unlocked!`;
+    }
+    
     await character.save();
     await floorMap.save();
     
-    res.json({ success: true, ...result, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, gold: character.gold } });
+    res.json({ success: true, ...result, floorComplete, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, gold: character.gold } });
   } catch (error) {
     console.error('Interact error:', error);
     res.status(500).json({ error: error.message });
