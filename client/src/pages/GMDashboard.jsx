@@ -498,24 +498,6 @@ const GMDashboard = () => {
 
           {activeTab === 'classes' && (
             <div className="space-y-4">
-              {/* Summary Stats */}
-              <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-                <div className="flex flex-wrap gap-6 justify-center">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-400">{hiddenClasses.filter(c => !c.ownerId && c.isAvailable !== false).length}</div>
-                    <div className="text-xs text-gray-500">Available</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-400">{hiddenClasses.filter(c => c.ownerId || c.isAvailable === false).length}</div>
-                    <div className="text-xs text-gray-500">Claimed</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-400">{hiddenClasses.length}</div>
-                    <div className="text-xs text-gray-500">Total</div>
-                  </div>
-                </div>
-              </div>
-              
               {/* Grouped by Base Class */}
               {['Swordsman', 'Thief', 'Archer', 'Mage'].map(baseClass => {
                 const ICONS = {
