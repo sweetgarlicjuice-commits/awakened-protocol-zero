@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { characterAPI } from '../services/api';
 
 // ============================================================
 // NODE MAP EXPLORATION SYSTEM
@@ -29,7 +28,9 @@ const NODE_COLORS = {
   shrine: 'bg-cyan-600'
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://apz-server.onrender.com';
+// Fix: Remove /api if it exists in the env variable
+const rawApiUrl = import.meta.env.VITE_API_URL || 'https://apz-server.onrender.com';
+const API_BASE = rawApiUrl.replace(/\/api\/?$/, '');
 
 const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog, onTowerStateChange, savedState, onSaveState }) => {
   // ============ STATE ============
@@ -157,12 +158,14 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           setTimeout(() => {
             setView('select');
             setCombat(null);
+            setMessage(null);
             onCharacterUpdate?.();
           }, 2000);
         } else {
           setTimeout(() => {
             setView('map');
             setCombat(null);
+            setMessage(null);
             onCharacterUpdate?.();
           }, 1500);
         }
@@ -178,6 +181,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         setTimeout(() => {
           setView('select');
           setCombat(null);
+          setMessage(null);
           onTowerStateChange?.(false);
           onCharacterUpdate?.();
         }, 2000);
@@ -187,6 +191,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         setCombatLog(data.combat.combatLog);
         updateLocalCharacter?.({
           stats: {
+            ...character.stats,
             hp: data.character.hp,
             mp: data.character.mp
           }
@@ -215,6 +220,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       
       updateLocalCharacter?.({
         stats: {
+          ...character.stats,
           hp: data.character.hp,
           mp: data.character.mp
         },
@@ -238,6 +244,8 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       await apiCall('/api/exploration/leave', 'POST');
       setView('select');
       setFloorMap(null);
+      setCombat(null);
+      setMessage(null);
       onTowerStateChange?.(false);
       addLog?.('info', 'Left the tower');
       onCharacterUpdate?.();
