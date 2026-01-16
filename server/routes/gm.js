@@ -398,7 +398,8 @@ router.post('/player/:id/set-level', authenticate, requireGM, async (req, res) =
     const oldLevel = character.level;
     character.level = level;
     character.experience = 0;
-    character.experienceToNextLevel = character.calculateExpToLevel(level);
+    // Calculate exp to next level manually
+    character.experienceToNextLevel = Math.floor(100 * Math.pow(1.15, level - 1));
     
     // Adjust stat points
     const levelDiff = level - oldLevel;
@@ -514,111 +515,6 @@ router.delete('/trading/:id', authenticate, requireGM, async (req, res) => {
   } catch (error) {
     console.error('Remove trading listing error:', error);
     res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// ============================================================
-// NEW ENDPOINT: REPAIR ALL CHARACTER STATS
-// GET /api/gm/repair-all-stats - Fix all characters with default stats
-// ============================================================
-router.get('/repair-all-stats', authenticate, requireGM, async (req, res) => {
-  try {
-    const CLASS_BASE_STATS = {
-      swordsman: { hp: 150, mp: 50, str: 15, agi: 8, dex: 8, int: 5, vit: 14 },
-      thief: { hp: 100, mp: 70, str: 8, agi: 15, dex: 12, int: 7, vit: 8 },
-      archer: { hp: 110, mp: 60, str: 10, agi: 12, dex: 15, int: 6, vit: 7 },
-      mage: { hp: 80, mp: 120, str: 5, agi: 7, dex: 8, int: 15, vit: 5 }
-    };
-    
-    const characters = await Character.find({});
-    let repaired = 0;
-    const results = [];
-    
-    for (const char of characters) {
-      const baseStats = CLASS_BASE_STATS[char.baseClass];
-      if (!baseStats) {
-        results.push({ 
-          name: char.name, 
-          class: char.baseClass, 
-          status: 'skipped', 
-          reason: 'Unknown class' 
-        });
-        continue;
-      }
-      
-      // Check if stats are default (10 for all) - indicates broken character
-      const isDefault = char.stats.str === 10 && 
-                        char.stats.agi === 10 && 
-                        char.stats.dex === 10 && 
-                        char.stats.int === 10 && 
-                        char.stats.vit === 10;
-      
-      if (isDefault) {
-        // Store old stats for logging
-        const oldStats = { ...char.stats };
-        
-        // Apply class base stats
-        char.stats = {
-          hp: baseStats.hp,
-          maxHp: baseStats.hp,
-          mp: baseStats.mp,
-          maxMp: baseStats.mp,
-          str: baseStats.str,
-          agi: baseStats.agi,
-          dex: baseStats.dex,
-          int: baseStats.int,
-          vit: baseStats.vit
-        };
-        
-        await char.save();
-        
-        results.push({ 
-          name: char.name, 
-          class: char.baseClass, 
-          status: 'repaired',
-          oldStats: {
-            str: oldStats.str,
-            agi: oldStats.agi,
-            dex: oldStats.dex,
-            int: oldStats.int,
-            vit: oldStats.vit
-          },
-          newStats: {
-            str: baseStats.str,
-            agi: baseStats.agi,
-            dex: baseStats.dex,
-            int: baseStats.int,
-            vit: baseStats.vit,
-            hp: baseStats.hp,
-            mp: baseStats.mp
-          }
-        });
-        repaired++;
-      } else {
-        results.push({ 
-          name: char.name, 
-          class: char.baseClass, 
-          status: 'ok',
-          currentStats: {
-            str: char.stats.str,
-            agi: char.stats.agi,
-            dex: char.stats.dex,
-            int: char.stats.int,
-            vit: char.stats.vit
-          }
-        });
-      }
-    }
-    
-    res.json({ 
-      message: `Repair complete! Fixed ${repaired}/${characters.length} characters`,
-      repaired,
-      total: characters.length,
-      results 
-    });
-  } catch (error) {
-    console.error('Repair all stats error:', error);
-    res.status(500).json({ error: 'Repair failed: ' + error.message });
   }
 });
 
