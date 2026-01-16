@@ -24,6 +24,8 @@ const GMDashboard = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [newShopPrice, setNewShopPrice] = useState(10);
   const [tradingListings, setTradingListings] = useState([]);
+  const [addItemSearch, setAddItemSearch] = useState('');
+  const [addItemResults, setAddItemResults] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => { fetchPlayers(); fetchHiddenClasses(); fetchShop(); fetchTrading(); }, []);
@@ -47,21 +49,17 @@ const GMDashboard = () => {
   const fetchHiddenClasses = async () => {
     try {
       const { data } = await gmAPI.getHiddenClasses();
-      
-      // Handle different response formats
       let classesArray = [];
       
       if (Array.isArray(data.classes)) {
         classesArray = data.classes;
       } else if (data.classes && typeof data.classes === 'object') {
-        // Convert object to array
         classesArray = Object.entries(data.classes).map(([classId, info]) => ({
           classId,
           ...info
         }));
       }
       
-      // If backend returns less than 20, fill with all 20 classes
       if (classesArray.length < 20) {
         const existingIds = classesArray.map(c => c.classId || c.id);
         ALL_HIDDEN_CLASSES.forEach(classId => {
@@ -79,7 +77,6 @@ const GMDashboard = () => {
       setHiddenClasses(classesArray);
     } catch (err) { 
       console.error(err);
-      // Fallback: show all 20 classes as available
       setHiddenClasses(ALL_HIDDEN_CLASSES.map(classId => ({
         classId,
         ownerId: null,
@@ -92,7 +89,7 @@ const GMDashboard = () => {
   const fetchShop = async () => {
     try {
       const { data } = await tavernAPI.getGMShop();
-      setShopItems(data.shop.items);
+      setShopItems(data.shop?.items || []);
     } catch (err) { console.error(err); }
   };
 
@@ -112,6 +109,7 @@ const GMDashboard = () => {
     } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
   };
 
+  // Use GM-specific item search endpoint for shop
   const handleItemSearch = async (query) => {
     setItemSearch(query);
     if (query.length < 1) {
@@ -119,9 +117,40 @@ const GMDashboard = () => {
       return;
     }
     try {
-      const { data } = await tavernAPI.searchItems(query);
-      setSearchResults(data.items.slice(0, 10));
-    } catch (err) { console.error(err); }
+      const { data } = await gmAPI.searchItems(query);
+      setSearchResults(data.items?.slice(0, 15) || []);
+    } catch (err) {
+      console.error('GM search failed:', err);
+      try {
+        const { data } = await tavernAPI.searchItems(query);
+        setSearchResults(data.items?.slice(0, 15) || []);
+      } catch (err2) {
+        console.error('Item search failed:', err2);
+        setSearchResults([]);
+      }
+    }
+  };
+
+  // Search for adding items to player inventory
+  const handleAddItemSearch = async (query) => {
+    setAddItemSearch(query);
+    setAddItemForm(prev => ({ ...prev, name: query }));
+    if (query.length < 1) {
+      setAddItemResults([]);
+      return;
+    }
+    try {
+      const { data } = await gmAPI.searchItems(query);
+      setAddItemResults(data.items?.slice(0, 10) || []);
+    } catch (err) {
+      console.error('Add item search failed:', err);
+      try {
+        const { data } = await tavernAPI.searchItems(query);
+        setAddItemResults(data.items?.slice(0, 10) || []);
+      } catch (err2) {
+        setAddItemResults([]);
+      }
+    }
   };
 
   const handleAddToShop = async () => {
@@ -278,6 +307,8 @@ const GMDashboard = () => {
       showMessage('success', 'Item added!');
       setShowAddItemModal(false);
       setAddItemForm({ itemId: '', name: '', type: 'material', rarity: 'common', quantity: 1 });
+      setAddItemSearch('');
+      setAddItemResults([]);
       fetchPlayerDetails(selectedPlayer);
     } catch (err) { showMessage('error', err.response?.data?.error || 'Failed'); }
   };
@@ -318,6 +349,18 @@ const GMDashboard = () => {
       await authAPI.toggleAccount(userId);
       fetchPlayers();
     } catch (err) { showMessage('error', 'Failed'); }
+  };
+
+  // Get rarity color
+  const getRarityColor = (rarity) => {
+    const colors = {
+      common: 'text-gray-300',
+      uncommon: 'text-green-400',
+      rare: 'text-blue-400',
+      epic: 'text-purple-400',
+      legendary: 'text-amber-400'
+    };
+    return colors[rarity] || 'text-gray-300';
   };
 
   return (
@@ -486,10 +529,14 @@ const GMDashboard = () => {
                           </div>
                           <div className="grid grid-cols-4 md:grid-cols-6 gap-2 max-h-40 overflow-auto">
                             {playerDetails.character.inventory?.map((item, i) => (
-                              <div key={i} onClick={() => handleRemoveItem(i)} title={item.name + ' x' + item.quantity}
-                                className="bg-void-800 p-2 rounded text-center cursor-pointer hover:bg-red-900/30">
+                              <div key={i} onClick={() => handleRemoveItem(i)} title={item.name + ' x' + item.quantity + '\n' + (item.type || '') + ' • ' + (item.rarity || 'common')}
+                                className={'bg-void-800 p-2 rounded text-center cursor-pointer hover:bg-red-900/30 border ' + 
+                                  (item.rarity === 'legendary' ? 'border-amber-500/50' : 
+                                   item.rarity === 'epic' ? 'border-purple-500/50' : 
+                                   item.rarity === 'rare' ? 'border-blue-500/50' : 
+                                   item.rarity === 'uncommon' ? 'border-green-500/50' : 'border-gray-700/50')}>
                                 <div className="text-lg">{item.icon || '📦'}</div>
-                                <div className="text-xs text-gray-400 truncate">{item.name}</div>
+                                <div className={'text-xs truncate ' + getRarityColor(item.rarity)}>{item.name}</div>
                                 <div className="text-xs text-gray-500">x{item.quantity}</div>
                               </div>
                             ))}
@@ -509,7 +556,6 @@ const GMDashboard = () => {
 
           {activeTab === 'classes' && (
             <div className="space-y-4">
-              {/* Grouped by Base Class */}
               {['Swordsman', 'Thief', 'Archer', 'Mage'].map(baseClass => {
                 const ICONS = {
                   flameblade: '🔥', berserker: '💢', paladin: '✨', earthshaker: '🌍', frostguard: '❄️',
@@ -541,7 +587,6 @@ const GMDashboard = () => {
                 
                 return (
                   <div key={baseClass} className={`bg-void-800/50 rounded-xl border ${BASE_COLORS[baseClass]} overflow-hidden`}>
-                    {/* Header */}
                     <div className="bg-void-900/50 px-4 py-3 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-2xl">{BASE_ICONS[baseClass]}</span>
@@ -555,7 +600,6 @@ const GMDashboard = () => {
                       </div>
                     </div>
                     
-                    {/* Classes Grid */}
                     <div className="p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                       {classesInGroup.map(cls => {
                         const classId = cls.classId || cls.id;
@@ -590,7 +634,6 @@ const GMDashboard = () => {
 
           {activeTab === 'tavern' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Add Item to Shop */}
               <div className="bg-void-800/50 rounded-xl p-6 neon-border">
                 <h3 className="font-display text-lg text-amber-400 mb-4">➕ Add Item to Shop</h3>
                 <div className="space-y-4">
@@ -610,8 +653,8 @@ const GMDashboard = () => {
                             onClick={() => { setSelectedItem(item); setItemSearch(item.name); setSearchResults([]); }}
                             className="p-3 hover:bg-void-700 cursor-pointer flex items-center gap-2"
                           >
-                            <span>{item.icon}</span>
-                            <span className="text-white">{item.name}</span>
+                            <span>{item.icon || '📦'}</span>
+                            <span className={getRarityColor(item.rarity)}>{item.name}</span>
                             <span className="text-gray-500 text-xs">({item.type})</span>
                           </div>
                         ))}
@@ -621,9 +664,9 @@ const GMDashboard = () => {
                   {selectedItem && (
                     <div className="bg-void-900/50 p-4 rounded-lg">
                       <div className="flex items-center gap-3 mb-3">
-                        <span className="text-2xl">{selectedItem.icon}</span>
+                        <span className="text-2xl">{selectedItem.icon || '📦'}</span>
                         <div>
-                          <p className="text-white">{selectedItem.name}</p>
+                          <p className={getRarityColor(selectedItem.rarity)}>{selectedItem.name}</p>
                           <p className="text-gray-500 text-xs">{selectedItem.type} • {selectedItem.rarity}</p>
                         </div>
                       </div>
@@ -650,15 +693,14 @@ const GMDashboard = () => {
                 </div>
               </div>
 
-              {/* Current Shop Items */}
               <div className="bg-void-800/50 rounded-xl p-6 neon-border">
                 <h3 className="font-display text-lg text-amber-400 mb-4">🏪 Current Shop Items</h3>
                 <div className="space-y-2 max-h-96 overflow-auto">
                   {shopItems.map(item => (
                     <div key={item.itemId} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
                       <div className="flex items-center gap-3">
-                        <span className="text-xl">{item.icon}</span>
-                        <span className="text-white">{item.name}</span>
+                        <span className="text-xl">{item.icon || '📦'}</span>
+                        <span className={getRarityColor(item.rarity)}>{item.name}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <input
@@ -696,7 +738,6 @@ const GMDashboard = () => {
             </div>
           )}
 
-          {/* Trading Tab */}
           {activeTab === 'trading' && (
             <div className="bg-void-800/50 rounded-xl p-6 neon-border">
               <h3 className="font-display text-lg text-purple-400 mb-4">🔄 Player Trading Listings</h3>
@@ -770,21 +811,13 @@ const GMDashboard = () => {
                 <input
                   type="text"
                   placeholder="Search items..."
-                  value={addItemForm.name}
-                  onChange={async (e) => {
-                    setAddItemForm({ ...addItemForm, name: e.target.value });
-                    if (e.target.value.length >= 1) {
-                      const { data } = await tavernAPI.searchItems(e.target.value);
-                      setSearchResults(data.items.slice(0, 8));
-                    } else {
-                      setSearchResults([]);
-                    }
-                  }}
+                  value={addItemSearch}
+                  onChange={(e) => handleAddItemSearch(e.target.value)}
                   className="input-field"
                 />
-                {searchResults.length > 0 && (
+                {addItemResults.length > 0 && (
                   <div className="absolute top-full left-0 right-0 bg-void-900 border border-purple-500/30 rounded-lg mt-1 max-h-48 overflow-auto z-10">
-                    {searchResults.map(item => (
+                    {addItemResults.map(item => (
                       <div
                         key={item.id}
                         onClick={() => {
@@ -792,15 +825,25 @@ const GMDashboard = () => {
                             itemId: item.id,
                             name: item.name,
                             type: item.type,
+                            subtype: item.subtype,
                             rarity: item.rarity,
-                            quantity: 1
+                            quantity: 1,
+                            stats: item.stats,
+                            slot: item.slot,
+                            icon: item.icon,
+                            classReq: item.classReq,
+                            levelReq: item.levelReq,
+                            effect: item.effect,
+                            stackable: item.stackable
                           });
-                          setSearchResults([]);
+                          setAddItemSearch(item.name);
+                          setAddItemResults([]);
                         }}
                         className="p-2 hover:bg-void-700 cursor-pointer flex items-center gap-2"
                       >
-                        <span>{item.icon}</span>
-                        <span className="text-white text-sm">{item.name}</span>
+                        <span>{item.icon || '📦'}</span>
+                        <span className={getRarityColor(item.rarity) + ' text-sm'}>{item.name}</span>
+                        <span className="text-gray-500 text-xs">({item.type})</span>
                       </div>
                     ))}
                   </div>
@@ -808,7 +851,22 @@ const GMDashboard = () => {
               </div>
               {addItemForm.itemId && (
                 <div className="bg-void-900/50 p-3 rounded-lg">
-                  <p className="text-gray-400 text-sm">Selected: <span className="text-white">{addItemForm.name}</span></p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{addItemForm.icon || '📦'}</span>
+                    <div>
+                      <p className={getRarityColor(addItemForm.rarity)}>{addItemForm.name}</p>
+                      <p className="text-gray-500 text-xs">{addItemForm.type} • {addItemForm.rarity}</p>
+                    </div>
+                  </div>
+                  {addItemForm.stats && Object.keys(addItemForm.stats).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {Object.entries(addItemForm.stats).map(([stat, val]) => (
+                        <span key={stat} className="text-xs bg-void-800 px-2 py-0.5 rounded text-green-400">
+                          {stat.toUpperCase()} +{val}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               <input
@@ -820,7 +878,7 @@ const GMDashboard = () => {
                 min={1}
               />
               <div className="flex gap-3">
-                <button type="button" onClick={() => { setShowAddItemModal(false); setSearchResults([]); }} className="flex-1 btn-secondary">Cancel</button>
+                <button type="button" onClick={() => { setShowAddItemModal(false); setAddItemResults([]); setAddItemSearch(''); }} className="flex-1 btn-secondary">Cancel</button>
                 <button
                   type="button"
                   onClick={async () => {
@@ -838,7 +896,6 @@ const GMDashboard = () => {
         </div>
       )}
 
-      {/* Edit Stats Modal */}
       {showEditStatsModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-void-800 rounded-xl p-6 w-full max-w-md neon-border">
