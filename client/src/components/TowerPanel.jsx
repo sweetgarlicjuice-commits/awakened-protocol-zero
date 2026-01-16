@@ -21,14 +21,25 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const [message, setMessage] = useState(null);
   const [playerBuffs, setPlayerBuffs] = useState([]);
   const [playerSkills, setPlayerSkills] = useState([]);
+  const [selectedFloor, setSelectedFloor] = useState(character.currentFloor || 1);
+  const [highestFloor, setHighestFloor] = useState(1);
   const combatLogRef = useRef(null);
 
-  const loadFloorMap = async () => {
+  // Get highest floor on mount
+  useEffect(() => {
+    const towerKey = `tower_${character.currentTower || 1}`;
+    const highest = character.towerProgress?.[towerKey] || character.currentFloor || 1;
+    setHighestFloor(highest);
+    setSelectedFloor(character.currentFloor || 1);
+  }, [character]);
+
+  const loadFloorMap = async (floor = selectedFloor) => {
     setIsLoading(true);
     try {
-      const { data } = await api.get(`/exploration/map?towerId=${character.currentTower}&floor=${character.currentFloor}`);
+      const { data } = await api.get(`/exploration/map?towerId=${character.currentTower}&floor=${floor}`);
       setFloorMap(data.map);
       setTower(data.tower);
+      if (data.highestFloor) setHighestFloor(data.highestFloor);
       setView('map');
       onTowerStateChange?.(true);
       addLog?.('info', `Entered ${data.tower.name} Floor ${data.floor}`);
@@ -74,7 +85,10 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         addLog?.('success', `Victory! +${data.rewards.exp} EXP, +${data.rewards.gold} Gold`);
         setFloorMap(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n) }));
         if (data.floorComplete) {
-          addLog?.('success', `Floor cleared! Advancing to Floor ${character.currentFloor + 1}!`);
+          const newFloor = (character.currentFloor || 1) + 1;
+          setHighestFloor(prev => Math.max(prev, newFloor));
+          setSelectedFloor(newFloor);
+          addLog?.('success', `Floor cleared! Floor ${newFloor} unlocked!`);
           setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); onCharacterUpdate?.(); }, 2500);
         } else {
           setTimeout(() => { setView('map'); setCombat(null); setMessage(null); setPlayerBuffs([]); onCharacterUpdate?.(); }, 1500);
@@ -121,24 +135,48 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
 
   // ============ TOWER SELECT ============
   if (view === 'select') {
+    // Generate floor options (1 to highestFloor)
+    const floorOptions = [];
+    for (let i = 1; i <= Math.max(highestFloor, 1); i++) {
+      floorOptions.push(i);
+    }
+    
     return (
       <div className="space-y-4">
         <div className="text-center mb-6">
           <h2 className="font-display text-xl text-purple-400 mb-2">Tower Selection</h2>
-          <p className="text-gray-400 text-sm">Tower {character.currentTower} - Floor {character.currentFloor}</p>
+          <p className="text-gray-400 text-sm">Tower {character.currentTower} - Highest Floor: {highestFloor}</p>
         </div>
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
           <div className="flex items-center justify-between mb-4">
-            <div><h3 className="text-white font-semibold">Tower {character.currentTower}</h3><p className="text-gray-400 text-sm">Floor {character.currentFloor}/15</p></div>
+            <div><h3 className="text-white font-semibold">Tower {character.currentTower}</h3><p className="text-gray-400 text-sm">Progress: Floor {highestFloor}/15</p></div>
             <div className="text-right"><p className="text-amber-400">⚡ {character.energy}/100</p><p className="text-gray-500 text-xs">5 energy per node</p></div>
           </div>
-          <div className="h-2 bg-void-900 rounded-full mb-4"><div className="h-full bg-purple-500 rounded-full" style={{ width: `${(character.currentFloor / 15) * 100}%` }}></div></div>
-          <button onClick={loadFloorMap} disabled={isLoading || character.energy < 5 || character.stats.hp <= 0} className="w-full btn-primary py-3 disabled:opacity-50">
-            {isLoading ? 'Loading...' : character.stats.hp <= 0 ? 'Need to heal first' : '⚔️ Enter Tower'}
+          <div className="h-2 bg-void-900 rounded-full mb-4"><div className="h-full bg-purple-500 rounded-full" style={{ width: `${(highestFloor / 15) * 100}%` }}></div></div>
+          
+          {/* Floor Selection */}
+          <div className="mb-4">
+            <label className="text-gray-400 text-sm mb-2 block">Select Floor:</label>
+            <div className="flex gap-2">
+              <select 
+                value={selectedFloor} 
+                onChange={(e) => setSelectedFloor(parseInt(e.target.value))}
+                className="flex-1 bg-void-900 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:border-purple-500 outline-none"
+              >
+                {floorOptions.map(f => (
+                  <option key={f} value={f}>Floor {f} {f === highestFloor ? '(Highest)' : ''}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-gray-500 text-xs mt-1">You can replay any floor you've reached</p>
+          </div>
+          
+          <button onClick={() => loadFloorMap(selectedFloor)} disabled={isLoading || character.energy < 5 || character.stats.hp <= 0} className="w-full btn-primary py-3 disabled:opacity-50">
+            {isLoading ? 'Loading...' : character.stats.hp <= 0 ? 'Need to heal first' : `⚔️ Enter Floor ${selectedFloor}`}
           </button>
         </div>
         <div className="bg-void-800/30 p-3 rounded-lg text-sm text-gray-400">
-          <p>💡 Clear the <span className="text-yellow-400">top node</span> to advance floor</p>
+          <p>💡 Clear the <span className="text-yellow-400">🚩 exit node</span> to unlock next floor</p>
           <p className="mt-1">👹 Boss every 5 floors (5, 10, 15)</p>
         </div>
       </div>
