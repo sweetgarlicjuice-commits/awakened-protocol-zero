@@ -49,8 +49,10 @@ async function buildItemDatabase() {
           icon: getEquipmentIcon(item),
           stats: item.stats || {},
           levelReq: item.levelReq,
+          dropFloor: item.dropFloor,
           classReq: item.class,
           tower: item.tower,
+          setId: item.setId,
           description: item.description
         });
       });
@@ -94,6 +96,8 @@ async function buildItemDatabase() {
           icon: set.icon || '🎽',
           tower: set.tower,
           class: set.class,
+          levelReq: set.levelReq,
+          dropFloor: set.dropFloor,
           pieces: set.pieces,
           bonuses: set.bonuses,
           description: `${set.pieces?.length || 0}-piece set for ${set.class || 'any'} class`
