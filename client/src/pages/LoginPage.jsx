@@ -12,14 +12,15 @@ const LoginPage = () => {
   const { login, isAuthenticated, character, isGM } = useAuth();
   const navigate = useNavigate();
 
+  // FIX: Redirect based on auth state - only after login is processed
   useEffect(() => {
     if (isAuthenticated) {
       if (isGM) {
-        navigate('/gm');
+        navigate('/gm', { replace: true });
       } else if (character) {
-        navigate('/game');
+        navigate('/game', { replace: true });
       } else {
-        navigate('/create-character');
+        navigate('/create-character', { replace: true });
       }
     }
   }, [isAuthenticated, character, isGM, navigate]);
@@ -37,7 +38,13 @@ const LoginPage = () => {
     const result = await login(username, password);
     
     if (result.success) {
-      // Navigation handled by useEffect
+      // FIX: Immediate redirect after login based on hasCharacter
+      // Don't wait for useEffect - navigate immediately
+      if (result.hasCharacter) {
+        navigate('/game', { replace: true });
+      } else {
+        navigate('/create-character', { replace: true });
+      }
     } else {
       setError(result.error);
     }
@@ -161,7 +168,7 @@ const LoginPage = () => {
 
         {/* Version info */}
         <div className="mt-6 text-center text-gray-600 text-xs">
-          <p>Phase 1 • Version 1.0.0-alpha</p>
+          <p>Phase 7.1 • Version 1.0.0</p>
         </div>
       </div>
     </div>
