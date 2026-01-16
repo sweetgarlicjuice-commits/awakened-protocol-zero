@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
 
 // ============================================================
 // NODE MAP EXPLORATION SYSTEM
@@ -28,13 +29,26 @@ const NODE_COLORS = {
   shrine: 'bg-cyan-600'
 };
 
-// Fix: Remove /api if it exists in the env variable
-const rawApiUrl = import.meta.env.VITE_API_URL || 'https://apz-server.onrender.com';
-const API_BASE = rawApiUrl.replace(/\/api\/?$/, '');
+// Use same API config as the rest of the app
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
+
+// Create axios instance
+const api = axios.create({
+  baseURL: API_BASE,
+  headers: { 'Content-Type': 'application/json' }
+});
+
+// Add auth token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('apz_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog, onTowerStateChange, savedState, onSaveState }) => {
-  // ============ STATE ============
-  const [view, setView] = useState('select'); // select, map, combat, event
+  const [view, setView] = useState('select');
   const [floorMap, setFloorMap] = useState(null);
   const [tower, setTower] = useState(null);
   const [combat, setCombat] = useState(null);
@@ -45,37 +59,18 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const [message, setMessage] = useState(null);
   const combatLogRef = useRef(null);
 
-  // ============ API HELPERS ============
-  const apiCall = async (endpoint, method = 'GET', body = null) => {
-    const token = localStorage.getItem('token');
-    const options = {
-      method,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    };
-    if (body) options.body = JSON.stringify(body);
-    const response = await fetch(`${API_BASE}${endpoint}`, options);
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'API Error');
-    }
-    return response.json();
-  };
-
   // ============ LOAD MAP ============
   const loadFloorMap = async () => {
     setIsLoading(true);
     try {
-      const data = await apiCall(`/api/exploration/map?towerId=${character.currentTower}&floor=${character.currentFloor}`);
+      const { data } = await api.get(`/exploration/map?towerId=${character.currentTower}&floor=${character.currentFloor}`);
       setFloorMap(data.map);
       setTower(data.tower);
       setView('map');
       onTowerStateChange?.(true);
       addLog?.('info', `Entered ${data.tower.name} Floor ${data.floor}`);
     } catch (err) {
-      addLog?.('error', err.message);
+      addLog?.('error', err.response?.data?.error || err.message);
     }
     setIsLoading(false);
   };
@@ -89,9 +84,8 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     
     setIsLoading(true);
     try {
-      const data = await apiCall('/api/exploration/move', 'POST', { nodeId });
+      const { data } = await api.post('/exploration/move', { nodeId });
       
-      // Update map
       setFloorMap(prev => ({
         ...prev,
         currentNodeId: nodeId,
@@ -101,7 +95,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       updateLocalCharacter?.({ energy: data.energy });
       addLog?.('info', `Moved to ${NODE_ICONS[data.nodeType]} ${data.nodeType} node`);
       
-      // Handle node type
       if (['combat', 'elite', 'boss'].includes(data.nodeType)) {
         await startCombat();
       } else if (['treasure', 'rest', 'shrine'].includes(data.nodeType)) {
@@ -114,7 +107,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         setView('event');
       }
     } catch (err) {
-      addLog?.('error', err.message);
+      addLog?.('error', err.response?.data?.error || err.message);
     }
     setIsLoading(false);
   };
@@ -122,13 +115,13 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   // ============ START COMBAT ============
   const startCombat = async () => {
     try {
-      const data = await apiCall('/api/exploration/combat/start', 'POST');
+      const { data } = await api.post('/exploration/combat/start');
       setCombat(data.combat);
       setCombatLog(data.combat.combatLog || []);
       setSelectedTarget(0);
       setView('combat');
     } catch (err) {
-      addLog?.('error', err.message);
+      addLog?.('error', err.response?.data?.error || err.message);
     }
   };
 
@@ -136,7 +129,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const doCombatAction = async (action, skillId = null) => {
     setIsLoading(true);
     try {
-      const data = await apiCall('/api/exploration/combat/action', 'POST', {
+      const { data } = await api.post('/exploration/combat/action', {
         action,
         skillId,
         targetIndex: selectedTarget
@@ -147,7 +140,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         setMessage({ type: 'success', text: `Victory! +${data.rewards.exp} EXP, +${data.rewards.gold} Gold` });
         addLog?.('success', `Victory! +${data.rewards.exp} EXP, +${data.rewards.gold} Gold`);
         
-        // Mark node as cleared in map
         setFloorMap(prev => ({
           ...prev,
           nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n)
@@ -186,19 +178,14 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           onCharacterUpdate?.();
         }, 2000);
       } else {
-        // Ongoing combat
         setCombat(data.combat);
         setCombatLog(data.combat.combatLog);
         updateLocalCharacter?.({
-          stats: {
-            ...character.stats,
-            hp: data.character.hp,
-            mp: data.character.mp
-          }
+          stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp }
         });
       }
     } catch (err) {
-      addLog?.('error', err.message);
+      addLog?.('error', err.response?.data?.error || err.message);
     }
     setIsLoading(false);
   };
@@ -207,23 +194,18 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const handleInteraction = async (choice = null) => {
     setIsLoading(true);
     try {
-      const data = await apiCall('/api/exploration/interact', 'POST', { choice });
+      const { data } = await api.post('/exploration/interact', { choice });
       
       setMessage({ type: 'success', text: data.message });
       addLog?.('success', data.message);
       
-      // Mark node as cleared
       setFloorMap(prev => ({
         ...prev,
         nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n)
       }));
       
       updateLocalCharacter?.({
-        stats: {
-          ...character.stats,
-          hp: data.character.hp,
-          mp: data.character.mp
-        },
+        stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp },
         gold: data.character.gold
       });
       
@@ -233,7 +215,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         setMessage(null);
       }, 1500);
     } catch (err) {
-      addLog?.('error', err.message);
+      addLog?.('error', err.response?.data?.error || err.message);
     }
     setIsLoading(false);
   };
@@ -241,7 +223,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   // ============ LEAVE TOWER ============
   const leaveTower = async () => {
     try {
-      await apiCall('/api/exploration/leave', 'POST');
+      await api.post('/exploration/leave');
       setView('select');
       setFloorMap(null);
       setCombat(null);
@@ -250,11 +232,10 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       addLog?.('info', 'Left the tower');
       onCharacterUpdate?.();
     } catch (err) {
-      addLog?.('error', err.message);
+      addLog?.('error', err.response?.data?.error || err.message);
     }
   };
 
-  // Scroll combat log
   useEffect(() => {
     if (combatLogRef.current) {
       combatLogRef.current.scrollTop = combatLogRef.current.scrollHeight;
@@ -297,7 +278,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           </button>
         </div>
         
-        {/* Quick Stats */}
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="bg-void-800/30 p-2 rounded text-center">
             <span className="text-gray-500">HP</span>
@@ -319,7 +299,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     const currentNode = floorMap.nodes.find(n => n.id === floorMap.currentNodeId);
     const accessibleNodes = currentNode?.connections || [];
     
-    // Group nodes by row
     const rows = {};
     floorMap.nodes.forEach(node => {
       if (!rows[node.row]) rows[node.row] = [];
@@ -329,18 +308,14 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     
     return (
       <div className="space-y-4">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-display text-lg text-purple-400">{tower?.name}</h2>
             <p className="text-gray-400 text-sm">Floor {character.currentFloor}</p>
           </div>
-          <button onClick={leaveTower} className="btn-secondary text-xs px-3 py-1">
-            🚪 Leave
-          </button>
+          <button onClick={leaveTower} className="btn-secondary text-xs px-3 py-1">🚪 Leave</button>
         </div>
         
-        {/* Node Map */}
         <div className="bg-void-800/50 rounded-xl p-4 neon-border overflow-x-auto">
           <div className="min-w-[280px] space-y-3">
             {sortedRows.map((row, rowIndex) => (
@@ -373,7 +348,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
             ))}
           </div>
           
-          {/* Legend */}
           <div className="mt-4 pt-3 border-t border-gray-700/50">
             <div className="flex flex-wrap justify-center gap-2 text-xs">
               {Object.entries(NODE_ICONS).slice(1).map(([type, icon]) => (
@@ -383,23 +357,18 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           </div>
         </div>
         
-        {/* Current Node Info */}
         {currentNode && (
           <div className="bg-void-800/30 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">{NODE_ICONS[currentNode.type]}</span>
               <div>
                 <p className="text-white font-medium capitalize">{currentNode.type} Node</p>
-                <p className="text-gray-400 text-xs">
-                  {currentNode.cleared ? 'Cleared' : 'Not cleared'}
-                </p>
+                <p className="text-gray-400 text-xs">{currentNode.cleared ? 'Cleared' : 'Not cleared'}</p>
               </div>
             </div>
             
             {!currentNode.cleared && ['combat', 'elite', 'boss'].includes(currentNode.type) && (
-              <button onClick={startCombat} className="w-full btn-primary py-2 mt-2">
-                ⚔️ Start Combat
-              </button>
+              <button onClick={startCombat} className="w-full btn-primary py-2 mt-2">⚔️ Start Combat</button>
             )}
             
             {!currentNode.cleared && ['treasure', 'rest', 'shrine'].includes(currentNode.type) && (
@@ -416,7 +385,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           </div>
         )}
         
-        {/* Message */}
         {message && (
           <div className={`p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
             {message.text}
@@ -434,7 +402,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     
     return (
       <div className="space-y-3">
-        {/* Combat Header */}
         <div className="flex items-center justify-between bg-void-800/50 rounded-lg p-2">
           <div>
             <p className="text-purple-400 font-semibold text-sm">Wave {combat.wave}</p>
@@ -446,7 +413,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           </div>
         </div>
         
-        {/* Enemies */}
         <div className="bg-void-800/50 rounded-xl p-3 neon-border">
           <h3 className="text-gray-400 text-xs mb-2">ENEMIES</h3>
           <div className="space-y-2">
@@ -475,7 +441,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           </div>
         </div>
         
-        {/* Combat Log */}
         <div className="bg-void-800/30 rounded-lg p-2 h-24 overflow-hidden">
           <div ref={combatLogRef} className="h-full overflow-y-auto text-xs space-y-1">
             {combatLog.map((log, i) => (
@@ -486,42 +451,19 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
                 log.type === 'victory' ? 'text-green-400 font-bold' :
                 log.type === 'defeat' ? 'text-red-400 font-bold' :
                 'text-gray-400'
-              }`}>
-                {log.message}
-              </p>
+              }`}>{log.message}</p>
             ))}
           </div>
         </div>
         
-        {/* Actions */}
         {aliveEnemies.length > 0 && (
           <div className="space-y-2">
-            {/* Basic Actions */}
             <div className="grid grid-cols-3 gap-2">
-              <button 
-                onClick={() => doCombatAction('attack')} 
-                disabled={isLoading}
-                className="btn-primary py-2 text-sm disabled:opacity-50"
-              >
-                ⚔️ Attack
-              </button>
-              <button 
-                onClick={() => doCombatAction('defend')} 
-                disabled={isLoading}
-                className="btn-secondary py-2 text-sm disabled:opacity-50"
-              >
-                🛡️ Defend
-              </button>
-              <button 
-                onClick={leaveTower} 
-                disabled={isLoading}
-                className="btn-secondary py-2 text-sm text-red-400 disabled:opacity-50"
-              >
-                💨 Flee
-              </button>
+              <button onClick={() => doCombatAction('attack')} disabled={isLoading} className="btn-primary py-2 text-sm disabled:opacity-50">⚔️ Attack</button>
+              <button onClick={() => doCombatAction('defend')} disabled={isLoading} className="btn-secondary py-2 text-sm disabled:opacity-50">🛡️ Defend</button>
+              <button onClick={leaveTower} disabled={isLoading} className="btn-secondary py-2 text-sm text-red-400 disabled:opacity-50">💨 Flee</button>
             </div>
             
-            {/* Skills */}
             <div className="bg-void-800/30 rounded-lg p-2">
               <p className="text-gray-400 text-xs mb-2">SKILLS</p>
               <div className="grid grid-cols-2 gap-1">
@@ -529,11 +471,11 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
                   <button
                     key={i}
                     onClick={() => doCombatAction('skill', skill.skillId)}
-                    disabled={isLoading || character.stats.mp < 10}
+                    disabled={isLoading || character.stats.mp < (skill.mpCost || 10)}
                     className="bg-void-900/50 hover:bg-void-900 p-2 rounded text-left text-xs disabled:opacity-50 transition-colors"
                   >
                     <span className="text-white">{skill.name}</span>
-                    <span className="text-blue-400 ml-1">({skill.mpCost || 10}MP)</span>
+                    <span className="text-blue-400 ml-1">({skill.mpCost || 10})</span>
                   </button>
                 ))}
               </div>
@@ -541,7 +483,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           </div>
         )}
         
-        {/* Message */}
         {message && (
           <div className={`p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
             {message.text}
@@ -552,7 +493,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   }
 
   // ============================================================
-  // RENDER: EVENT (Mystery/Merchant)
+  // RENDER: EVENT
   // ============================================================
   if (view === 'event' && eventData) {
     return (
@@ -566,12 +507,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
               <p className="text-gray-300 text-sm mb-4">{eventData.scenario.description}</p>
               <div className="flex gap-2 justify-center">
                 {eventData.scenario.choices.map(choice => (
-                  <button
-                    key={choice}
-                    onClick={() => handleInteraction(choice)}
-                    disabled={isLoading}
-                    className="btn-primary px-4 py-2 capitalize disabled:opacity-50"
-                  >
+                  <button key={choice} onClick={() => handleInteraction(choice)} disabled={isLoading} className="btn-primary px-4 py-2 capitalize disabled:opacity-50">
                     {choice}
                   </button>
                 ))}
@@ -582,17 +518,12 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           {eventData.merchant && (
             <div className="space-y-2">
               <p className="text-gray-300 text-sm mb-4">A traveling merchant offers their wares.</p>
-              {/* TODO: Merchant shop UI */}
-              <button onClick={() => { setView('map'); setEventData(null); }} className="btn-secondary">
-                Leave Shop
-              </button>
+              <button onClick={() => { setView('map'); setEventData(null); }} className="btn-secondary">Leave Shop</button>
             </div>
           )}
         </div>
         
-        <button onClick={() => { setView('map'); setEventData(null); }} className="w-full btn-secondary py-2">
-          ← Back to Map
-        </button>
+        <button onClick={() => { setView('map'); setEventData(null); }} className="w-full btn-secondary py-2">← Back to Map</button>
         
         {message && (
           <div className={`p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
@@ -603,7 +534,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     );
   }
 
-  // Default loading
   return (
     <div className="flex items-center justify-center h-64">
       <p className="text-gray-400">Loading...</p>
