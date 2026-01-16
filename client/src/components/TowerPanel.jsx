@@ -248,7 +248,15 @@ const safeNumber = (value, fallback = 0) => {
   return isNaN(parsed) ? fallback : parsed;
 };
 
-const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
+const TowerPanel = ({ 
+  character, 
+  onCharacterUpdate, 
+  updateLocalCharacter,  // NEW: For real-time HP/MP updates
+  addLog: parentAddLog,   // NEW: Use parent's log function
+  onTowerStateChange,
+  savedState,             // NEW: Restore state when switching tabs
+  onSaveState             // NEW: Save state when leaving tab
+}) => {
   const [towers, setTowers] = useState([]);
   const [selectedTower, setSelectedTower] = useState(null);
   const [floors, setFloors] = useState([]);
@@ -268,6 +276,47 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
   const [playerBuffs, setPlayerBuffs] = useState([]);
   const [enemyDebuffs, setEnemyDebuffs] = useState([]);
   const logRef = useRef(null);
+
+  useEffect(() => {
+    if (savedState) {
+      if (savedState.gameState) setGameState(savedState.gameState);
+      if (savedState.selectedTower) setSelectedTower(savedState.selectedTower);
+      if (savedState.currentEnemy) setCurrentEnemy(savedState.currentEnemy);
+      if (savedState.storyText) setStoryText(savedState.storyText);
+      if (savedState.choices) setChoices(savedState.choices);
+      if (savedState.combatLog) setCombatLog(savedState.combatLog);
+      if (savedState.rewards) setRewards(savedState.rewards);
+      if (savedState.playerBuffs) setPlayerBuffs(savedState.playerBuffs);
+      if (savedState.enemyDebuffs) setEnemyDebuffs(savedState.enemyDebuffs);
+    }
+  }, []); // Only run on mount
+
+  // FIX #3: Save state when component unmounts or state changes
+  useEffect(() => {
+    // Don't save if we're in tower_select (nothing to preserve)
+    if (gameState !== 'tower_select' && onSaveState) {
+      onSaveState({
+        gameState,
+        selectedTower,
+        currentEnemy,
+        storyText,
+        choices,
+        combatLog,
+        rewards,
+        playerBuffs,
+        enemyDebuffs
+      });
+    }
+  }, [gameState, selectedTower, currentEnemy, storyText, choices, combatLog, rewards, playerBuffs, enemyDebuffs, onSaveState]);
+
+  // FIX #3: Check if already in tower on mount
+  useEffect(() => {
+    if (character?.isInTower && gameState === 'tower_select') {
+      // Player is in tower but UI shows tower_select - restore to in_tower state
+      setGameState('in_tower');
+      if (onTowerStateChange) onTowerStateChange(true);
+    }
+  }, [character?.isInTower]);
 
   useEffect(() => { fetchTowers(); }, []);
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [combatLog, storyText]);
@@ -292,10 +341,15 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
   };
 
   const addLog = (type, message) => {
-    setCombatLog(prev => [...prev, { type, message: safeString(message) }]);
+    const safeMsg = safeString(message);
+    setCombatLog(prev => [...prev, { type, message: safeMsg }]);
+    // FIX #2: Also add to parent's game log
+    if (parentAddLog) {
+      parentAddLog(type, safeMsg);
+    }
   };
 
-  // FIX #2: Check both min AND max level
+  // Check both min AND max level
   const canEnterTower = (tower) => {
     if (!tower || !tower.isUnlocked) return false;
     const playerLevel = character?.level || 1;
@@ -535,6 +589,16 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
       };
       const { data } = await towerAPI.attack(enemyData, treasureAfter);
       
+      // FIX #1: Immediately update local character for real-time HP/MP display
+      if (data.character && updateLocalCharacter) {
+        updateLocalCharacter({
+          stats: {
+            hp: data.character.hp,
+            mp: data.character.mp
+          }
+        });
+      }
+      
       // Process combat log
       if (data.combatLog && Array.isArray(data.combatLog)) {
         data.combatLog.forEach(log => {
@@ -581,6 +645,16 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
         activeBuffs: enemyDebuffs || []
       };
       const { data } = await towerAPI.useSkill(enemyData, skillId, treasureAfter);
+
+      // FIX #1: Immediately update local character for real-time HP/MP display
+      if (data.character && updateLocalCharacter) {
+        updateLocalCharacter({
+          stats: {
+            hp: data.character.hp,
+            mp: data.character.mp
+          }
+        });
+      }
       
       // Process combat log
       if (data.combatLog && Array.isArray(data.combatLog)) {
@@ -618,6 +692,17 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
         maxHp: safeNumber(data.enemy.maxHp || prev?.maxHp, 100)
       }));
     }
+    
+    // FIX #1: Immediately update local character HP/MP for real-time display
+    if (data.character && updateLocalCharacter) {
+      updateLocalCharacter({
+        stats: {
+          hp: data.character.hp,
+          mp: data.character.mp
+        }
+      });
+    }
+      
     if (data.status === 'victory') {
       setStoryText(safeString(data.message, 'Victory!'));
       setRewards({
