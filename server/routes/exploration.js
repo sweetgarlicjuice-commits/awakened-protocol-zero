@@ -8,45 +8,104 @@ const router = express.Router();
 const ENERGY_PER_EXPLORATION = 5;
 
 // ============================================================
-// SKILL DATABASE - Balanced MP, AOE, Buffs with descriptions
+// SKILL DATABASE - Clear descriptions with PDmg/MDmg labels
 // ============================================================
 const SKILLS = {
-  // Swordsman
-  slash: { name: 'Slash', mpCost: 12, damage: 1.3, damageType: 'physical', target: 'single', desc: 'Quick slash for 130% P.ATK' },
-  heavyStrike: { name: 'Heavy Strike', mpCost: 25, damage: 2.0, damageType: 'physical', target: 'single', desc: 'Heavy blow for 200% P.ATK' },
-  shieldBash: { name: 'Shield Bash', mpCost: 18, damage: 1.2, damageType: 'physical', target: 'single', desc: 'Shield bash for 120% P.ATK' },
-  warCry: { name: 'War Cry', mpCost: 30, damage: 0, damageType: 'buff', target: 'self', buff: { type: 'attack', value: 30, duration: 3 }, desc: '+30% ATK for 3 turns' },
-  whirlwind: { name: 'Whirlwind', mpCost: 35, damage: 0.8, damageType: 'physical', target: 'all', desc: 'Hit ALL enemies for 80% P.ATK' },
+  // ===== SWORDSMAN =====
+  slash: { 
+    name: 'Slash', mpCost: 12, damage: 1.3, damageType: 'physical', target: 'single',
+    desc: 'Quick slash', dmgText: '130% PDmg'
+  },
+  heavyStrike: { 
+    name: 'Heavy Strike', mpCost: 25, damage: 2.0, damageType: 'physical', target: 'single',
+    desc: 'Heavy blow', dmgText: '200% PDmg'
+  },
+  shieldBash: { 
+    name: 'Shield Bash', mpCost: 18, damage: 1.2, damageType: 'physical', target: 'single',
+    desc: 'Bash with shield', dmgText: '120% PDmg'
+  },
+  warCry: { 
+    name: 'War Cry', mpCost: 30, damage: 0, damageType: 'buff', target: 'self',
+    buff: { type: 'attack', value: 30, duration: 3 },
+    desc: 'Battle shout', dmgText: '+30% ATK, 3 turns'
+  },
+  whirlwind: { 
+    name: 'Whirlwind', mpCost: 35, damage: 0.8, damageType: 'physical', target: 'all',
+    desc: 'Spin attack, all enemies', dmgText: '80% PDmg each'
+  },
   
-  // Assassin
-  backstab: { name: 'Backstab', mpCost: 18, damage: 2.2, damageType: 'physical', target: 'single', desc: 'Backstab for 220% P.ATK' },
-  poisonBlade: { name: 'Poison Blade', mpCost: 22, damage: 1.0, damageType: 'physical', target: 'single', desc: 'Poison attack for 100% P.ATK' },
-  smokeScreen: { name: 'Smoke Screen', mpCost: 28, damage: 0, damageType: 'buff', target: 'self', buff: { type: 'evasion', value: 50, duration: 2 }, desc: '+50% Evasion for 2 turns' },
-  fanOfKnives: { name: 'Fan of Knives', mpCost: 32, damage: 0.7, damageType: 'physical', target: 'all', desc: 'Hit ALL enemies for 70% P.ATK' },
+  // ===== ASSASSIN =====
+  backstab: { 
+    name: 'Backstab', mpCost: 18, damage: 2.2, damageType: 'physical', target: 'single',
+    desc: 'Strike from behind', dmgText: '220% PDmg'
+  },
+  poisonBlade: { 
+    name: 'Poison Blade', mpCost: 22, damage: 1.5, damageType: 'physical', target: 'single',
+    desc: 'Poisoned strike', dmgText: '150% PDmg'
+  },
+  smokeScreen: { 
+    name: 'Smoke Screen', mpCost: 28, damage: 0, damageType: 'buff', target: 'self',
+    buff: { type: 'evasion', value: 50, duration: 2 },
+    desc: 'Evasion boost', dmgText: '+50% Evasion, 2 turns'
+  },
+  fanOfKnives: { 
+    name: 'Fan of Knives', mpCost: 32, damage: 0.7, damageType: 'physical', target: 'all',
+    desc: 'Throw knives, all enemies', dmgText: '70% PDmg each'
+  },
   
-  // Archer
-  preciseShot: { name: 'Precise Shot', mpCost: 15, damage: 1.6, damageType: 'physical', target: 'single', desc: 'Precise shot for 160% P.ATK' },
-  multiShot: { name: 'Multi Shot', mpCost: 30, damage: 0.6, damageType: 'physical', target: 'all', desc: 'Hit ALL enemies for 60% P.ATK' },
-  eagleEye: { name: 'Eagle Eye', mpCost: 25, damage: 0, damageType: 'buff', target: 'self', buff: { type: 'critRate', value: 25, duration: 3 }, desc: '+25% Crit for 3 turns' },
-  arrowRain: { name: 'Arrow Rain', mpCost: 40, damage: 1.0, damageType: 'physical', target: 'all', desc: 'Hit ALL enemies for 100% P.ATK' },
+  // ===== ARCHER =====
+  preciseShot: { 
+    name: 'Precise Shot', mpCost: 15, damage: 1.6, damageType: 'physical', target: 'single',
+    desc: 'Aimed shot, single target', dmgText: '160% PDmg'
+  },
+  multiShot: { 
+    name: 'Multi Shot', mpCost: 30, damage: 0.6, damageType: 'physical', target: 'all',
+    desc: '3 arrows, all enemies', dmgText: '60% PDmg each'
+  },
+  eagleEye: { 
+    name: 'Eagle Eye', mpCost: 25, damage: 0, damageType: 'buff', target: 'self',
+    buff: { type: 'critRate', value: 25, duration: 3 },
+    desc: 'Focus aim', dmgText: '+25% Crit, 3 turns'
+  },
+  arrowRain: { 
+    name: 'Arrow Rain', mpCost: 40, damage: 1.0, damageType: 'physical', target: 'all',
+    desc: 'Rain of arrows, all enemies', dmgText: '100% PDmg each'
+  },
   
-  // Mage
-  fireball: { name: 'Fireball', mpCost: 20, damage: 1.8, damageType: 'magical', target: 'single', desc: 'Fire damage for 180% M.ATK' },
-  iceSpear: { name: 'Ice Spear', mpCost: 25, damage: 1.5, damageType: 'magical', target: 'single', desc: 'Ice damage for 150% M.ATK' },
-  manaShield: { name: 'Mana Shield', mpCost: 35, damage: 0, damageType: 'buff', target: 'self', buff: { type: 'shield', value: 40, duration: 3 }, desc: '-40% damage taken for 3 turns' },
-  thunderbolt: { name: 'Thunderbolt', mpCost: 30, damage: 2.2, damageType: 'magical', target: 'single', desc: 'Lightning for 220% M.ATK' },
-  blizzard: { name: 'Blizzard', mpCost: 45, damage: 1.0, damageType: 'magical', target: 'all', desc: 'Hit ALL enemies for 100% M.ATK' },
-  meteor: { name: 'Meteor', mpCost: 55, damage: 1.4, damageType: 'magical', target: 'all', desc: 'Hit ALL enemies for 140% M.ATK' }
+  // ===== MAGE =====
+  fireball: { 
+    name: 'Fireball', mpCost: 20, damage: 1.8, damageType: 'magical', target: 'single',
+    desc: 'Fire blast, single target', dmgText: '180% MDmg'
+  },
+  iceSpear: { 
+    name: 'Ice Spear', mpCost: 25, damage: 1.5, damageType: 'magical', target: 'single',
+    desc: 'Ice pierce, single target', dmgText: '150% MDmg'
+  },
+  manaShield: { 
+    name: 'Mana Shield', mpCost: 35, damage: 0, damageType: 'buff', target: 'self',
+    buff: { type: 'shield', value: 40, duration: 3 },
+    desc: 'Magical barrier', dmgText: '-40% Damage taken, 3 turns'
+  },
+  thunderbolt: { 
+    name: 'Thunderbolt', mpCost: 30, damage: 2.2, damageType: 'magical', target: 'single',
+    desc: 'Lightning strike, single target', dmgText: '220% MDmg'
+  },
+  blizzard: { 
+    name: 'Blizzard', mpCost: 45, damage: 1.0, damageType: 'magical', target: 'all',
+    desc: 'Ice storm, all enemies', dmgText: '100% MDmg each'
+  },
+  meteor: { 
+    name: 'Meteor', mpCost: 55, damage: 1.4, damageType: 'magical', target: 'all',
+    desc: 'Meteor strike, all enemies', dmgText: '140% MDmg each'
+  }
 };
 
-const getSkill = (skillId) => SKILLS[skillId] || { name: 'Attack', mpCost: 0, damage: 1.0, damageType: 'physical', target: 'single', desc: 'Basic attack' };
+const getSkill = (skillId) => SKILLS[skillId] || { name: 'Attack', mpCost: 0, damage: 1.0, damageType: 'physical', target: 'single', desc: 'Basic attack', dmgText: '100% PDmg' };
 
-// Get all skills for frontend
 router.get('/skills', authenticate, (req, res) => res.json({ skills: SKILLS }));
 
 // ============================================================
 // HELPER: Generate floor map
-// FIX #1: Every floor has exit node that advances to next floor
 // ============================================================
 function generateFloorMap(characterId, towerId, floor) {
   const nodes = [];
@@ -69,7 +128,6 @@ function generateFloorMap(characterId, towerId, floor) {
       if (row === 0) {
         type = 'start';
       } else if (row === rows - 1) {
-        // FIX: Last row is always boss/elite/exit combat that advances floor
         type = isBossFloor ? 'boss' : (isEliteFloor ? 'elite' : 'combat');
       } else {
         const roll = Math.random();
@@ -87,7 +145,7 @@ function generateFloorMap(characterId, towerId, floor) {
         cleared: row === 0,
         enemies: [],
         waves: 1,
-        isExit: row === rows - 1 // Last row = exit to next floor
+        isExit: row === rows - 1
       };
       
       if (['combat', 'elite', 'boss'].includes(type)) {
@@ -114,7 +172,6 @@ function generateFloorMap(characterId, towerId, floor) {
     nodeGrid.push(rowNodes);
   }
   
-  // Connect nodes
   for (let row = 0; row < rows - 1; row++) {
     nodeGrid[row].forEach((node, colIndex) => {
       const nextRow = nodeGrid[row + 1];
@@ -124,7 +181,6 @@ function generateFloorMap(characterId, towerId, floor) {
     });
   }
   
-  // Ensure connectivity
   for (let row = 1; row < rows; row++) {
     nodeGrid[row].forEach(node => {
       if (!nodeGrid[row - 1].some(prev => prev.connections.includes(node.id))) {
@@ -136,13 +192,12 @@ function generateFloorMap(characterId, towerId, floor) {
   return { characterId, towerId, floor, nodes, currentNodeId: nodes[0].id, startNodeId: nodes[0].id, bossNodeId: nodes[nodes.length - 1].id };
 }
 
-// FIX #2: Reduced EXP rewards
 function generateEnemies(type, towerId, floor) {
   const enemies = [];
   const towerEnemies = ENEMIES[`tower${towerId}`] || ENEMIES.tower1;
   
   if (!towerEnemies) {
-    return [{ id: 'enemy', name: 'Enemy', icon: '👹', hp: 80, maxHp: 80, atk: 15, def: 6, expReward: 2, goldReward: { min: 2, max: 5 } }];
+    return [{ id: 'skeleton', name: 'Skeleton', icon: '💀', hp: 80, maxHp: 80, atk: 15, def: 6, expReward: 2, goldReward: { min: 2, max: 5 } }];
   }
   
   const floorScale = 1 + (floor - 1) * 0.15;
@@ -152,14 +207,14 @@ function generateEnemies(type, towerId, floor) {
     b.hp = Math.floor((b.baseHp || 800) * floorScale); b.maxHp = b.hp;
     b.atk = Math.floor((b.baseAtk || 50) * floorScale);
     b.def = Math.floor((b.baseDef || 20) * floorScale);
-    b.expReward = Math.floor(10 + floor); // Reduced
+    b.expReward = Math.floor(10 + floor);
     enemies.push(b);
   } else if (type === 'elite' && towerEnemies.elite?.length > 0) {
     const e = { ...towerEnemies.elite[Math.floor(Math.random() * towerEnemies.elite.length)] };
     e.hp = Math.floor((e.baseHp || 300) * floorScale); e.maxHp = e.hp;
     e.atk = Math.floor((e.baseAtk || 30) * floorScale);
     e.def = Math.floor((e.baseDef || 12) * floorScale);
-    e.expReward = Math.floor(5 + floor * 0.5); // Reduced
+    e.expReward = Math.floor(5 + floor * 0.5);
     enemies.push(e);
   } else if (towerEnemies.normal?.length > 0) {
     const count = 1 + Math.floor(Math.random() * 3);
@@ -169,7 +224,7 @@ function generateEnemies(type, towerId, floor) {
       e.hp = Math.floor((e.baseHp || 80) * floorScale); e.maxHp = e.hp;
       e.atk = Math.floor((e.baseAtk || 15) * floorScale);
       e.def = Math.floor((e.baseDef || 6) * floorScale);
-      e.expReward = Math.floor(1 + floor * 0.3); // Reduced
+      e.expReward = Math.floor(1 + floor * 0.3);
       e.instanceId = `${e.id}_${i}`;
       enemies.push(e);
     }
@@ -249,10 +304,26 @@ router.post('/combat/start', authenticate, async (req, res) => {
     if (!['combat', 'elite', 'boss'].includes(currentNode.type)) return res.status(400).json({ error: 'Not combat node' });
     if (currentNode.cleared) return res.status(400).json({ error: 'Already cleared' });
     
+    // Ensure enemies have all required fields
+    const enemies = currentNode.enemies.map((e, i) => ({
+      id: e.id || `enemy_${i}`,
+      instanceId: e.instanceId || `${e.id || 'enemy'}_${i}`,
+      name: e.name || 'Enemy',
+      icon: e.icon || '👹',
+      hp: e.hp || 50,
+      maxHp: e.maxHp || e.hp || 50,
+      atk: e.atk || 10,
+      def: e.def || 5,
+      expReward: e.expReward || 2,
+      goldReward: e.goldReward || { min: 2, max: 5 },
+      isElite: e.isElite || false,
+      isBoss: e.isBoss || false
+    }));
+    
     floorMap.activeCombat = {
       nodeId: currentNode.id,
       wave: 1,
-      enemies: currentNode.enemies.map(e => ({ ...e, buffs: [], debuffs: [] })),
+      enemies: enemies,
       turnCount: 0,
       combatLog: [{ actor: 'system', message: `Combat started! Wave 1/${currentNode.waves}`, damage: 0, type: 'info' }],
       playerBuffs: []
@@ -260,22 +331,39 @@ router.post('/combat/start', authenticate, async (req, res) => {
     floorMap.markModified('activeCombat');
     await floorMap.save();
     
-    // Return skills with descriptions
+    // Return skills with full info
     const playerSkills = (character.skills || []).map(s => {
       const skillData = getSkill(s.skillId);
-      return { ...s, ...skillData };
+      return { 
+        skillId: s.skillId,
+        name: skillData.name,
+        mpCost: skillData.mpCost,
+        damage: skillData.damage,
+        damageType: skillData.damageType,
+        target: skillData.target,
+        desc: skillData.desc,
+        dmgText: skillData.dmgText,
+        buff: skillData.buff
+      };
     });
     
-    res.json({ combat: floorMap.activeCombat, waves: currentNode.waves, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, skills: playerSkills } });
+    res.json({ 
+      combat: floorMap.activeCombat, 
+      waves: currentNode.waves, 
+      character: { 
+        hp: character.stats.hp, 
+        maxHp: character.stats.maxHp, 
+        mp: character.stats.mp, 
+        maxMp: character.stats.maxMp, 
+        skills: playerSkills 
+      } 
+    });
   } catch (error) {
     console.error('Combat start error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// ============================================================
-// COMBAT ACTION - FIX #4,5,6: AOE, Buff logic, Buff display
-// ============================================================
 router.post('/combat/action', authenticate, async (req, res) => {
   try {
     const { action, skillId, targetIndex } = req.body;
@@ -305,7 +393,6 @@ router.post('/combat/action', authenticate, async (req, res) => {
     const aliveEnemies = combat.enemies.filter(e => e.hp > 0);
     
     if (action === 'attack') {
-      // Single target attack
       let target = combat.enemies[targetIndex || 0];
       if (!target || target.hp <= 0) target = aliveEnemies[0];
       if (!target) return res.status(400).json({ error: 'No targets' });
@@ -314,72 +401,74 @@ router.post('/combat/action', authenticate, async (req, res) => {
       const baseDmg = Math.max(1, pDmg - (target.def || 0) * 0.5);
       const damage = isCrit ? Math.floor(baseDmg * critDmg / 100) : Math.floor(baseDmg);
       target.hp = Math.max(0, target.hp - damage);
-      newLogs.push({ actor: 'player', message: `Attack ${target.name} for ${damage}${isCrit ? ' CRIT!' : ''}`, damage, type: isCrit ? 'crit' : 'damage' });
+      newLogs.push({ actor: 'player', message: `Attack ${target.name} for ${damage} PDmg${isCrit ? ' CRIT!' : ''}`, damage, type: isCrit ? 'crit' : 'damage' });
       
     } else if (action === 'skill' && skillId) {
       const skill = getSkill(skillId);
       if (character.stats.mp < skill.mpCost) return res.status(400).json({ error: 'Not enough MP' });
       character.stats.mp -= skill.mpCost;
       
-      // FIX #6: Buff skills should NOT deal damage
       if (skill.damageType === 'buff' && skill.buff) {
-        // Apply buff to player
+        // BUFF - no damage
         combat.playerBuffs = combat.playerBuffs || [];
         combat.playerBuffs.push({ type: skill.buff.type, value: skill.buff.value, duration: skill.buff.duration });
-        newLogs.push({ actor: 'player', message: `Used ${skill.name}! +${skill.buff.value}% ${skill.buff.type} for ${skill.buff.duration} turns`, damage: 0, type: 'buff' });
+        newLogs.push({ actor: 'player', message: `${skill.name}! ${skill.dmgText}`, damage: 0, type: 'buff' });
         
       } else if (skill.target === 'all') {
-        // FIX #4: AOE - hit all enemies
+        // AOE - hit all enemies
         const baseStat = skill.damageType === 'magical' ? mDmg : pDmg;
-        const skillDmg = Math.floor(baseStat * skill.damage);
+        const dmgType = skill.damageType === 'magical' ? 'MDmg' : 'PDmg';
         let totalDmg = 0;
+        let hitCount = 0;
         aliveEnemies.forEach(enemy => {
-          const dmg = Math.max(1, skillDmg - (enemy.def || 0) * 0.3);
+          const dmg = Math.max(1, Math.floor(baseStat * skill.damage) - (enemy.def || 0) * 0.3);
           enemy.hp = Math.max(0, enemy.hp - dmg);
           totalDmg += dmg;
+          hitCount++;
         });
-        newLogs.push({ actor: 'player', message: `${skill.name} hits ALL for ${totalDmg} total damage!`, damage: totalDmg, type: 'skill' });
+        newLogs.push({ actor: 'player', message: `${skill.name}! Hit ${hitCount} enemies for ${totalDmg} ${dmgType} total`, damage: totalDmg, type: 'skill' });
         
       } else {
-        // Single target skill
+        // Single target
         let target = combat.enemies[targetIndex || 0];
         if (!target || target.hp <= 0) target = aliveEnemies[0];
         if (!target) return res.status(400).json({ error: 'No targets' });
         
         const baseStat = skill.damageType === 'magical' ? mDmg : pDmg;
-        const skillDmg = Math.floor(baseStat * skill.damage);
+        const dmgType = skill.damageType === 'magical' ? 'MDmg' : 'PDmg';
         const isCrit = Math.random() * 100 < critRate;
+        const skillDmg = Math.floor(baseStat * skill.damage);
         const damage = isCrit ? Math.floor(skillDmg * critDmg / 100) : skillDmg;
         target.hp = Math.max(0, target.hp - damage);
-        newLogs.push({ actor: 'player', message: `${skill.name} on ${target.name} for ${damage}${isCrit ? ' CRIT!' : ''}`, damage, type: 'skill' });
+        newLogs.push({ actor: 'player', message: `${skill.name} on ${target.name} for ${damage} ${dmgType}${isCrit ? ' CRIT!' : ''}`, damage, type: 'skill' });
       }
       
     } else if (action === 'defend') {
       combat.playerBuffs = combat.playerBuffs || [];
       combat.playerBuffs.push({ type: 'defend', value: 50, duration: 1 });
-      newLogs.push({ actor: 'player', message: 'Defending! -50% damage for 1 turn', damage: 0, type: 'buff' });
+      newLogs.push({ actor: 'player', message: 'Defending! -50% Damage taken, 1 turn', damage: 0, type: 'buff' });
     }
     
     // Check victory
     const stillAlive = combat.enemies.filter(e => e.hp > 0);
     
     if (stillAlive.length === 0) {
-      // FIX #2: Reduced EXP
-      const baseExp = currentNode.enemies.reduce((s, e) => s + (e.expReward || 2), 0);
-      const baseGold = currentNode.enemies.reduce((s, e) => s + Math.floor((e.goldReward?.min || 2) + Math.random() * ((e.goldReward?.max || 5) - (e.goldReward?.min || 2))), 0);
+      const baseExp = combat.enemies.reduce((s, e) => s + (e.expReward || 2), 0);
+      const baseGold = combat.enemies.reduce((s, e) => s + Math.floor((e.goldReward?.min || 2) + Math.random() * ((e.goldReward?.max || 5) - (e.goldReward?.min || 2))), 0);
       const mult = currentNode.type === 'boss' ? 2 : currentNode.type === 'elite' ? 1.5 : 1;
       const rewards = { exp: Math.floor(baseExp * mult), gold: Math.floor(baseGold * mult) };
       
       character.experience += rewards.exp;
       character.gold += rewards.gold;
-      character.statistics.totalKills = (character.statistics.totalKills || 0) + currentNode.enemies.length;
+      character.statistics = character.statistics || {};
+      character.statistics.totalKills = (character.statistics.totalKills || 0) + combat.enemies.length;
       
       let leveledUp = false;
       while (character.experience >= character.experienceToNextLevel) {
         character.experience -= character.experienceToNextLevel;
         character.level++;
         character.statPoints += 5;
-        character.experienceToNextLevel = Math.floor(100 * Math.pow(1.2, character.level - 1)); // Slower leveling
+        character.experienceToNextLevel = Math.floor(100 * Math.pow(1.2, character.level - 1));
         character.stats.maxHp += 10 + character.stats.vit * 2;
         character.stats.maxMp += 5 + character.stats.int;
         character.stats.hp = character.stats.maxHp;
@@ -387,13 +476,11 @@ router.post('/combat/action', authenticate, async (req, res) => {
         leveledUp = true;
       }
       
-      // Mark cleared
       const idx = floorMap.nodes.findIndex(n => n.id === currentNode.id);
       if (idx >= 0) { floorMap.nodes[idx].cleared = true; floorMap.markModified('nodes'); }
       floorMap.activeCombat = undefined;
       floorMap.markModified('activeCombat');
       
-      // FIX #1: Exit node advances floor
       let floorComplete = false;
       if (currentNode.isExit) {
         character.currentFloor++;
@@ -417,33 +504,28 @@ router.post('/combat/action', authenticate, async (req, res) => {
     }
     
     // Enemy turn
-    // FIX #5,6: Calculate damage reduction from buffs
-    let damageReduction = 0;
-    let evasionChance = 0;
+    let damageReduction = 0, evasionChance = 0;
     (combat.playerBuffs || []).forEach(b => {
       if (b.type === 'defend' || b.type === 'shield') damageReduction += b.value;
       if (b.type === 'evasion') evasionChance += b.value;
     });
     
     for (const enemy of stillAlive) {
-      // Check evasion
       if (Math.random() * 100 < evasionChance) {
         newLogs.push({ actor: 'enemy', message: `${enemy.name} attacks but you dodged!`, damage: 0, type: 'miss' });
         continue;
       }
-      
-      const rawDmg = Math.max(1, enemy.atk - pDef * 0.3);
+      const rawDmg = Math.max(1, (enemy.atk || 10) - pDef * 0.3);
       const dmg = Math.max(1, Math.floor(rawDmg * (1 - damageReduction / 100)));
       character.stats.hp = Math.max(0, character.stats.hp - dmg);
       newLogs.push({ actor: 'enemy', message: `${enemy.name} attacks for ${dmg}!`, damage: dmg, type: 'enemy' });
     }
     
-    // Reduce buff durations
     combat.playerBuffs = (combat.playerBuffs || []).map(b => ({ ...b, duration: b.duration - 1 })).filter(b => b.duration > 0);
     
-    // Check defeat
     if (character.stats.hp <= 0) {
       character.stats.hp = 0;
+      character.statistics = character.statistics || {};
       character.statistics.deaths = (character.statistics.deaths || 0) + 1;
       character.isInTower = false;
       floorMap.activeCombat = undefined;
@@ -460,7 +542,6 @@ router.post('/combat/action', authenticate, async (req, res) => {
     await character.save();
     await floorMap.save();
     
-    // FIX #5: Return active buffs with duration
     res.json({ 
       status: 'ongoing', 
       combat: floorMap.activeCombat, 
