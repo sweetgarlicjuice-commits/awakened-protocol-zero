@@ -1,262 +1,270 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
-
+// Create axios instance with base URL
 const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Add auth token to requests
+// Add token to requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('apz_token');
+  const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Handle auth errors
+// Handle token expiration
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('apz_token');
-      localStorage.removeItem('apz_user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
-// Auth API
+// ============================================
+// AUTH API
+// ============================================
 export const authAPI = {
-  login: (username, password) => 
-    api.post('/auth/login', { username, password }),
+  // Login
+  login: (username, password) => api.post('/auth/login', { username, password }),
   
-  getMe: () => 
-    api.get('/auth/me'),
+  // Register
+  register: (username, password) => api.post('/auth/register', { username, password }),
   
-  // GM endpoints
-  createAccount: (username, password, role = 'player') =>
-    api.post('/auth/gm/create-account', { username, password, role }),
+  // Get current user
+  getMe: () => api.get('/auth/me'),
   
-  getPlayers: () =>
-    api.get('/auth/gm/players'),
+  // Get all players (GM/Admin)
+  getPlayers: () => api.get('/auth/players'),
   
-  toggleAccount: (userId) =>
-    api.patch(`/auth/gm/toggle-account/${userId}`)
+  // Create account (GM/Admin)
+  createAccount: (username, password, role) => api.post('/auth/create', { username, password, role }),
+  
+  // Toggle account active status (GM/Admin)
+  toggleAccount: (userId) => api.patch(`/auth/toggle/${userId}`),
 };
 
-// Character API
+// ============================================
+// CHARACTER API
+// ============================================
 export const characterAPI = {
-  getClasses: () => 
-    api.get('/character/classes'),
+  // Get class info
+  getClasses: () => api.get('/character/classes'),
   
-  create: (name, baseClass) =>
-    api.post('/character/create', { name, baseClass }),
+  // Create character
+  create: (name, baseClass) => api.post('/character/create', { name, baseClass }),
   
-  get: () =>
-    api.get('/character'),
+  // Get character
+  get: () => api.get('/character'),
   
-  allocateStats: (stats) =>
-    api.post('/character/allocate-stats', { stats }),
+  // Allocate stat points
+  allocateStats: (stats) => api.post('/character/allocate-stats', { stats }),
   
-  rest: () =>
-    api.post('/character/rest')
+  // Rest to heal
+  rest: () => api.post('/character/rest'),
 };
 
-// Tower API
+// ============================================
+// TOWER API
+// ============================================
 export const towerAPI = {
-  getInfo: () =>
-    api.get('/tower/info'),
+  // Get tower info
+  getInfo: () => api.get('/tower/info'),
   
-  getFloors: (towerId) =>
-    api.get('/tower/floors/' + towerId),
-  
-  selectFloor: (towerId, floor) =>
-    api.post('/tower/select-floor', { towerId, floor }),
-  
-  enter: (towerId) =>
-    api.post('/tower/enter', { towerId }),
-  
-  explore: () =>
-    api.post('/tower/explore'),
-  
-  choosePath: (choice, scenarioId) =>
-    api.post('/tower/choose-path', { choice, scenarioId }),
-  
-  attack: (enemy, treasureAfter) =>
-    api.post('/tower/combat/attack', { enemy, treasureAfter }),
-  
-  useSkill: (enemy, skillId, treasureAfter) =>
-    api.post('/tower/combat/skill', { enemy, skillId, treasureAfter }),
-  
-  flee: (enemy) =>
-    api.post('/tower/combat/flee', { enemy }),
-  
-  usePotion: (potionType) =>
-    api.post('/tower/use-potion', { potionType }),
-  
-  getFloorRequirements: () =>
-    api.get('/tower/floor-requirements'),
-  
-  advance: () =>
-    api.post('/tower/advance'),
-  
-  leave: () =>
-    api.post('/tower/leave'),
-  
-  getHiddenClasses: () =>
-    api.get('/tower/hidden-classes'),
-  
-  unlockHiddenClass: (scrollId) =>
-    api.post('/tower/unlock-hidden-class', { scrollId }),
-  
-  removeHiddenClass: () =>
-    api.post('/tower/remove-hidden-class'),
-  
-  craft: (recipeId) =>
-    api.post('/tower/craft', { recipeId })
+  // Enter tower
+  enter: (towerId, floor = 1) => api.post('/tower/enter', { towerId, floor }),
 };
 
-// GM API
-export const gmAPI = {
-  getPlayer: (userId) =>
-    api.get('/gm/player/' + userId),
+// ============================================
+// EXPLORATION API
+// ============================================
+export const explorationAPI = {
+  // Get/generate floor map
+  getMap: (floor = null) => api.get(`/exploration/map${floor ? `?floor=${floor}` : ''}`),
   
-  updateStats: (userId, stats, statPoints) =>
-    api.patch('/gm/player/' + userId + '/stats', { stats, statPoints }),
+  // Move to connected node
+  move: (nodeId) => api.post('/exploration/move', { nodeId }),
   
-  editStats: (userId, stats) =>
-    api.post('/gm/player/' + userId + '/edit-stats', { stats }),
+  // Start combat on combat node
+  startCombat: () => api.post('/exploration/combat/start'),
   
-  resetStats: (userId) =>
-    api.post('/gm/player/' + userId + '/reset-stats'),
+  // Combat action (attack, skill, defend)
+  combatAction: (action, target = null, skillId = null) => 
+    api.post('/exploration/combat/action', { action, target, skillId }),
   
-  refreshEnergy: (userId) =>
-    api.post('/gm/player/' + userId + '/refresh-energy'),
+  // Interact with non-combat node
+  interact: () => api.post('/exploration/interact'),
   
-  addGold: (userId, amount) =>
-    api.post('/gm/player/' + userId + '/add-gold', { amount }),
+  // Leave tower
+  leave: () => api.post('/exploration/leave'),
   
-  addItem: (userId, item) =>
-    api.post('/gm/player/' + userId + '/add-item', item),
-  
-  removeItem: (userId, itemIndex) =>
-    api.delete('/gm/player/' + userId + '/remove-item/' + itemIndex),
-  
-  clearInventory: (userId) =>
-    api.post('/gm/player/' + userId + '/clear-inventory'),
-  
-  resetProgress: (userId) =>
-    api.post('/gm/player/' + userId + '/reset-progress'),
-  
-  removeHiddenClass: (userId) =>
-    api.post('/gm/player/' + userId + '/remove-hidden-class'),
-  
-  deletePlayer: (userId) =>
-    api.delete('/gm/player/' + userId),
-  
-  setLevel: (userId, level) =>
-    api.post('/gm/player/' + userId + '/set-level', { level }),
-  
-  healPlayer: (userId) =>
-    api.post('/gm/player/' + userId + '/heal'),
-  
-  getHiddenClasses: () =>
-    api.get('/gm/hidden-classes'),
-  
-  // Trading management
-  getTradingListings: () =>
-    api.get('/gm/trading'),
-  
-  removeTradingListing: (listingId) =>
-    api.delete('/gm/trading/' + listingId)
+  // Get skill database
+  getSkills: () => api.get('/exploration/skills'),
 };
 
-// Tavern API
+// ============================================
+// TAVERN API
+// ============================================
 export const tavernAPI = {
-  // Item search
-  searchItems: (q) =>
-    api.get('/tavern/items/search', { params: { q } }),
+  // Get shop inventory (player view)
+  getShop: () => api.get('/tavern/shop'),
   
-  getAllItems: () =>
-    api.get('/tavern/items/all'),
+  // Get GM shop view
+  getGMShop: () => api.get('/tavern/gm/shop'),
   
-  // Shop
-  getShop: () =>
-    api.get('/tavern/shop'),
+  // Buy item from shop
+  buy: (itemId, quantity = 1) => api.post('/tavern/buy', { itemId, quantity }),
   
-  buyFromShop: (itemId, quantity) =>
-    api.post('/tavern/shop/buy', { itemId, quantity }),
+  // Sell item
+  sell: (itemId, quantity = 1) => api.post('/tavern/sell', { itemId, quantity }),
   
-  sellToShop: (itemId, quantity) =>
-    api.post('/tavern/shop/sell', { itemId, quantity }),
+  // Use consumable item
+  useItem: (itemId) => api.post('/tavern/use', { itemId }),
   
-  // Trading
-  getTradingListings: () =>
-    api.get('/tavern/trading'),
+  // Equip item
+  equipItem: (itemId) => api.post('/tavern/equip', { itemId }),
   
-  getMyListings: () =>
-    api.get('/tavern/trading/my'),
+  // Unequip item from slot
+  unequipItem: (slot) => api.post('/tavern/unequip', { slot }),
   
-  listItem: (itemId, quantity, pricePerUnit) =>
-    api.post('/tavern/trading/list', { itemId, quantity, pricePerUnit }),
+  // Discard item
+  discardItem: (itemId, quantity = 1) => api.post('/tavern/discard', { itemId, quantity }),
   
-  buyFromPlayer: (listingId, quantity) =>
-    api.post('/tavern/trading/buy/' + listingId, { quantity }),
+  // Split stack
+  splitStack: (itemId, quantity) => api.post('/tavern/split', { itemId, quantity }),
   
-  cancelListing: (listingId) =>
-    api.delete('/tavern/trading/' + listingId),
+  // Combine stacks of same item
+  combineStacks: (itemId) => api.post('/tavern/combine', { itemId }),
   
-  // Inventory
-  useItem: (itemId) =>
-    api.post('/tavern/inventory/use', { itemId }),
+  // Craft Memory Crystal
+  craftMemoryCrystal: () => api.post('/tavern/craft/memory-crystal'),
   
-  splitStack: (itemId, quantity) =>
-    api.post('/tavern/inventory/split', { itemId, quantity }),
+  // Use Memory Crystal (remove hidden class)
+  useMemoryCrystal: () => api.post('/tavern/use-memory-crystal'),
   
-  combineStacks: (itemId) =>
-    api.post('/tavern/inventory/combine', { itemId }),
+  // Generic craft item
+  craftItem: (recipeId) => api.post('/tavern/craft', { recipeId }),
   
-  discardItem: (itemId, quantity) =>
-    api.delete('/tavern/inventory/' + itemId, { data: { quantity } }),
+  // Search items (old endpoint - fallback)
+  searchItems: (query) => api.get(`/tavern/items/search?q=${encodeURIComponent(query)}`),
   
-  // Equipment
-  equipItem: (itemId) =>
-    api.post('/tavern/equip', { itemId }),
+  // === GM/Admin Shop Management ===
   
-  unequipItem: (slot) =>
-    api.post('/tavern/unequip', { slot }),
+  // Add item to shop
+  addToShop: (itemId, price, stock = -1) => api.post('/tavern/gm/shop/add', { itemId, price, stock }),
   
-  // Crafting
-  craftMemoryCrystal: () =>
-    api.post('/tavern/craft/memory-crystal'),
+  // Update shop item
+  updateShopItem: (itemId, updates) => api.patch(`/tavern/gm/shop/${itemId}`, updates),
   
-  useMemoryCrystal: () =>
-    api.post('/tavern/use-memory-crystal'),
+  // Remove from shop
+  removeFromShop: (itemId) => api.delete(`/tavern/gm/shop/${itemId}`),
   
-  // GM Shop Management
-  getGMShop: () =>
-    api.get('/tavern/gm/shop'),
+  // === Trading ===
   
-  addToShop: (itemId, price, stock) =>
-    api.post('/tavern/gm/shop/add', { itemId, price, stock }),
+  // Get trading listings
+  getListings: () => api.get('/tavern/trading'),
   
-  updateShopItem: (itemId, data) =>
-    api.patch('/tavern/gm/shop/' + itemId, data),
+  // Create listing
+  createListing: (itemId, quantity, price) => api.post('/tavern/trading/list', { itemId, quantity, price }),
   
-  removeFromShop: (itemId) =>
-    api.delete('/tavern/gm/shop/' + itemId)
+  // Buy from listing
+  buyListing: (listingId) => api.post('/tavern/trading/buy', { listingId }),
+  
+  // Cancel own listing
+  cancelListing: (listingId) => api.delete(`/tavern/trading/${listingId}`),
 };
 
-// Game info
-export const gameAPI = {
-  health: () => api.get('/health'),
-  info: () => api.get('/info')
+// ============================================
+// GM API
+// ============================================
+export const gmAPI = {
+  // === Player Management ===
+  
+  // Get player details
+  getPlayer: (id) => api.get(`/gm/player/${id}`),
+  
+  // Update player stats
+  updateStats: (id, stats) => api.post(`/gm/player/${id}/edit-stats`, { stats }),
+  
+  // Reset stats to base
+  resetStats: (id) => api.post(`/gm/player/${id}/reset-stats`),
+  
+  // Refresh energy to 100
+  refreshEnergy: (id) => api.post(`/gm/player/${id}/refresh-energy`),
+  
+  // Add/remove gold
+  addGold: (id, amount) => api.post(`/gm/player/${id}/add-gold`, { amount }),
+  
+  // Set player level
+  setLevel: (id, level) => api.post(`/gm/player/${id}/set-level`, { level }),
+  
+  // Full heal player
+  healPlayer: (id) => api.post(`/gm/player/${id}/heal`),
+  
+  // Reset tower progress
+  resetProgress: (id) => api.post(`/gm/player/${id}/reset-progress`),
+  
+  // Remove hidden class
+  removeHiddenClass: (id) => api.post(`/gm/player/${id}/remove-hidden-class`),
+  
+  // Delete player account
+  deletePlayer: (id) => api.delete(`/gm/player/${id}`),
+  
+  // === Inventory Management ===
+  
+  // Add item to player inventory
+  addItem: (id, item) => api.post(`/gm/player/${id}/add-item`, item),
+  
+  // Remove item by index
+  removeItem: (id, index) => api.delete(`/gm/player/${id}/remove-item/${index}`),
+  
+  // Clear all inventory
+  clearInventory: (id) => api.post(`/gm/player/${id}/clear-inventory`),
+  
+  // === Item Database Search (NEW) ===
+  
+  // Search all items in equipment database
+  searchItems: (query) => api.get(`/gm/items/search?q=${encodeURIComponent(query)}`),
+  
+  // Get all items (paginated)
+  getAllItems: (page = 0, limit = 50, type = null) => 
+    api.get(`/gm/items/all?page=${page}&limit=${limit}${type ? `&type=${type}` : ''}`),
+  
+  // === Hidden Classes ===
+  
+  // Get all hidden class ownership status
+  getHiddenClasses: () => api.get('/gm/hidden-classes'),
+  
+  // === Trading Management ===
+  
+  // Get all trading listings
+  getTradingListings: () => api.get('/gm/trading'),
+  
+  // Remove trading listing (returns item to seller)
+  removeTradingListing: (id) => api.delete(`/gm/trading/${id}`),
+};
+
+// ============================================
+// STORY API (if you have story mode)
+// ============================================
+export const storyAPI = {
+  // Get story progress
+  getProgress: () => api.get('/story/progress'),
+  
+  // Start story scenario
+  startScenario: (scenarioId) => api.post('/story/start', { scenarioId }),
+  
+  // Make story choice
+  makeChoice: (choiceId) => api.post('/story/choice', { choiceId }),
 };
 
 export default api;
