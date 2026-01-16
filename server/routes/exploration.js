@@ -8,6 +8,7 @@ import {
   EQUIPMENT, 
   getRandomEquipment, 
   calculateEquipmentStats,
+  calculateSetBonuses,
   getMaterialsByTower,
   CONSUMABLES
 } from '../data/equipment/index.js';
@@ -15,6 +16,34 @@ import { HIDDEN_CLASS_SCROLLS, MEMORY_CRYSTAL_FRAGMENT } from '../data/equipment
 
 const router = express.Router();
 const ENERGY_PER_EXPLORATION = 5;
+
+// ============================================================
+// SLOT MAPPING - Map character equipment slots to equipment DB slots
+// Character uses: head, body, leg, shoes, leftHand, rightHand, ring, necklace
+// Equipment DB uses: head, body, hands, feet, mainHand, ring, necklace, cape
+// ============================================================
+const SLOT_MAPPING = {
+  head: 'head',
+  body: 'body',
+  leg: 'hands',      // Character 'leg' -> equipment 'hands' (gloves/bracers)
+  shoes: 'feet',     // Character 'shoes' -> equipment 'feet' (boots)
+  leftHand: 'cape',  // Character 'leftHand' -> equipment 'cape' (cloaks)
+  rightHand: 'mainHand', // Character 'rightHand' -> equipment 'mainHand' (weapon)
+  ring: 'ring',
+  necklace: 'necklace'
+};
+
+// Reverse mapping for when adding equipment to inventory
+const REVERSE_SLOT_MAPPING = {
+  head: 'head',
+  body: 'body',
+  hands: 'leg',
+  feet: 'shoes',
+  cape: 'leftHand',
+  mainHand: 'rightHand',
+  ring: 'ring',
+  necklace: 'necklace'
+};
 
 // ============================================================
 // SKILL DATABASE - Clear descriptions with PDmg/MDmg labels
@@ -129,15 +158,18 @@ function getEquippedItemIds(character) {
 }
 
 // ============================================================
-// HELPER: Calculate total combat stats (base + equipment)
+// HELPER: Calculate total combat stats (base + equipment + set bonuses)
 // ============================================================
 function calculateCombatStats(character) {
   const stats = character.stats;
   const level = character.level || 1;
   
-  // Get equipment bonuses
+  // Get equipment bonuses (includes set bonuses from calculateEquipmentStats)
   const equippedIds = getEquippedItemIds(character);
   const equipBonus = calculateEquipmentStats(equippedIds);
+  
+  // Get active set bonuses for display
+  const setBonus = calculateSetBonuses(equippedIds);
   
   // Base stats + equipment bonuses
   const totalStr = (stats.str || 0) + (equipBonus.str || 0);
@@ -164,7 +196,9 @@ function calculateCombatStats(character) {
     critDmg: 150 + totalDex + (equipBonus.critDmg || 0),
     // HP/MP bonuses from equipment
     bonusHp: equipBonus.hp || 0,
-    bonusMp: equipBonus.mp || 0
+    bonusMp: equipBonus.mp || 0,
+    // Set bonuses info (for UI display)
+    activeSets: setBonus
   };
 }
 
@@ -210,6 +244,9 @@ function generateLootDrops(nodeType, towerId, floor, playerLevel, playerClass) {
   if (Math.random() < rates.equipment) {
     const equipment = getRandomEquipment(towerId, floor, playerLevel, playerClass);
     if (equipment) {
+      // Map equipment slot to character slot
+      const characterSlot = REVERSE_SLOT_MAPPING[equipment.slot] || equipment.slot;
+      
       drops.push({
         type: 'equipment',
         item: {
@@ -218,13 +255,16 @@ function generateLootDrops(nodeType, towerId, floor, playerLevel, playerClass) {
           icon: equipment.icon,
           type: equipment.type,
           subtype: equipment.slot,
+          slot: equipment.slot,           // Original slot from equipment DB
+          characterSlot: characterSlot,   // Mapped slot for character equipment
           rarity: equipment.rarity,
           quantity: 1,
           stackable: false,
           stats: equipment.stats,
           sellPrice: equipment.sellPrice || 50,
           levelReq: equipment.levelReq,
-          class: equipment.class
+          class: equipment.class,
+          setId: equipment.setId          // For set bonus tracking
         }
       });
     }
@@ -253,22 +293,44 @@ function generateLootDrops(nodeType, towerId, floor, playerLevel, playerClass) {
   
   // Potion drop
   if (Math.random() < rates.potion) {
-    const potionTypes = ['small_health_potion', 'small_mana_potion', 'medium_health_potion', 'medium_mana_potion'];
-    const potionId = potionTypes[Math.floor(Math.random() * potionTypes.length)];
-    const potion = CONSUMABLES[potionId];
+    // CONSUMABLES might be array or object - handle both
+    const potionPool = [];
+    
+    if (Array.isArray(CONSUMABLES)) {
+      // If array, filter for potions
+      potionPool.push(...CONSUMABLES.filter(c => 
+        c.subtype === 'health_potion' || c.subtype === 'mana_potion'
+      ));
+    } else if (typeof CONSUMABLES === 'object') {
+      // If object, get values and filter
+      potionPool.push(...Object.values(CONSUMABLES).filter(c => 
+        c && (c.subtype === 'health_potion' || c.subtype === 'mana_potion')
+      ));
+    }
+    
+    // Fallback potions if CONSUMABLES not loaded properly
+    if (potionPool.length === 0) {
+      potionPool.push(
+        { id: 'small_health_potion', name: 'Small Health Potion', icon: '🧪', subtype: 'health_potion', rarity: 'common', sellPrice: 25, effect: { type: 'heal', value: 100 } },
+        { id: 'small_mana_potion', name: 'Small Mana Potion', icon: '💙', subtype: 'mana_potion', rarity: 'common', sellPrice: 20, effect: { type: 'mana', value: 50 } }
+      );
+    }
+    
+    const potion = potionPool[Math.floor(Math.random() * potionPool.length)];
     if (potion) {
       drops.push({
         type: 'consumable',
         item: {
           itemId: potion.id,
           name: potion.name,
-          icon: potion.icon,
+          icon: potion.icon || '🧪',
           type: 'consumable',
           subtype: potion.subtype,
           rarity: potion.rarity || 'common',
           quantity: 1,
           stackable: true,
-          sellPrice: potion.sellPrice || 25
+          sellPrice: potion.sellPrice || 25,
+          effect: potion.effect
         }
       });
     }
