@@ -138,7 +138,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           </button>
         </div>
         <div className="bg-void-800/30 p-3 rounded-lg text-sm text-gray-400">
-          <p>💡 Clear the exit node (🚩) to advance floor</p>
+          <p>💡 Clear the <span className="text-yellow-400">top node</span> to advance floor</p>
           <p className="mt-1">👹 Boss every 5 floors (5, 10, 15)</p>
         </div>
       </div>
@@ -149,9 +149,14 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   if (view === 'map' && floorMap) {
     const currentNode = floorMap.nodes.find(n => n.id === floorMap.currentNodeId);
     const accessibleNodes = currentNode?.connections || [];
+    
+    // Group nodes by row
     const rows = {};
     floorMap.nodes.forEach(node => { if (!rows[node.row]) rows[node.row] = []; rows[node.row].push(node); });
     const sortedRows = Object.keys(rows).sort((a, b) => b - a).map(k => rows[k]);
+    
+    // Find max row (exit row)
+    const maxRow = Math.max(...floorMap.nodes.map(n => n.row));
     
     return (
       <div className="space-y-4">
@@ -167,21 +172,27 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
                   const isCurrent = node.id === floorMap.currentNodeId;
                   const isAccessible = accessibleNodes.includes(node.id);
                   const canMove = isAccessible && !node.cleared && !isCurrent && currentNode?.cleared;
+                  const isExitNode = node.row === maxRow; // Top row = exit
+                  
                   return (
                     <button key={node.id} onClick={() => canMove && moveToNode(node.id)} disabled={!canMove || isLoading}
                       className={`w-14 h-14 rounded-lg flex flex-col items-center justify-center transition-all relative
                         ${isCurrent ? 'ring-2 ring-yellow-400 scale-110' : ''} ${node.cleared ? 'opacity-50' : ''}
                         ${canMove ? 'hover:scale-105 cursor-pointer' : 'cursor-default'}
                         ${node.visited ? NODE_COLORS[node.type] : 'bg-gray-700'}
-                        ${isAccessible && !node.cleared && currentNode?.cleared ? 'ring-1 ring-white/30' : ''}`}>
+                        ${isAccessible && !node.cleared && currentNode?.cleared ? 'ring-1 ring-white/30' : ''}
+                        ${isExitNode && !node.cleared ? 'ring-2 ring-yellow-500' : ''}`}>
                       <span className="text-xl">{node.visited ? NODE_ICONS[node.type] : '?'}</span>
                       {node.cleared && <span className="text-xs">✓</span>}
-                      {node.isExit && !node.cleared && <span className="absolute -top-1 -right-1 text-xs">🚩</span>}
+                      {isExitNode && !node.cleared && <span className="absolute -top-2 -right-2 text-sm bg-yellow-500 rounded-full w-5 h-5 flex items-center justify-center">🚩</span>}
                     </button>
                   );
                 })}
               </div>
             ))}
+          </div>
+          <div className="mt-3 pt-2 border-t border-gray-700/50 text-center text-xs text-gray-500">
+            <span className="text-yellow-400">🚩 = Exit (clear to advance)</span>
           </div>
         </div>
         {currentNode && (
@@ -189,7 +200,10 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">{NODE_ICONS[currentNode.type]}</span>
               <div>
-                <p className="text-white font-medium capitalize">{currentNode.type} {currentNode.isExit && <span className="text-yellow-400 text-xs">(EXIT 🚩)</span>}</p>
+                <p className="text-white font-medium capitalize">
+                  {currentNode.type} Node
+                  {currentNode.row === maxRow && <span className="text-yellow-400 text-xs ml-2">🚩 EXIT</span>}
+                </p>
                 <p className="text-gray-400 text-xs">{currentNode.cleared ? 'Cleared ✓' : 'Not cleared'}</p>
               </div>
             </div>
@@ -266,7 +280,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
               <button onClick={leaveTower} disabled={isLoading} className="btn-secondary py-2 text-sm text-red-400 disabled:opacity-50">💨 Flee</button>
             </div>
             
-            {/* Skills with clear info */}
+            {/* Skills */}
             <div className="bg-void-800/30 rounded-lg p-2">
               <p className="text-gray-400 text-xs mb-2">SKILLS</p>
               <div className="grid grid-cols-2 gap-2">
