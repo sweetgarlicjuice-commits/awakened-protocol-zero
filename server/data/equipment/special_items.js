@@ -439,7 +439,7 @@ export const MEMORY_CRYSTAL_FRAGMENT = {
   icon: '💠',
   type: 'material',
   rarity: 'rare',
-  description: 'A fragment of a Memory Crystal. Collect 10 to forge a complete crystal.',
+  description: 'A fragment of a Memory Crystal. Collect 15 to forge a complete crystal.',
   dropSource: ['boss'],
   dropTowers: [1, 2, 3, 4, 5], // All towers
   dropRate: 0.10, // 10% from boss
@@ -449,7 +449,7 @@ export const MEMORY_CRYSTAL_FRAGMENT = {
   maxStack: 99,
   craftRecipe: {
     result: 'memory_crystal',
-    required: 10
+    required: 15
   }
 };
 
