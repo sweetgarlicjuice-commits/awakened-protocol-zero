@@ -193,10 +193,20 @@ const GMDashboard = () => {
     } catch (err) { showMessage('error', 'Failed'); }
   };
 
-  const handleAddGold = async (amount) => {
+  const handleAddGold = async (amount = null) => {
+    let goldAmount = amount;
+    if (goldAmount === null) {
+      const input = prompt('Enter gold amount (negative to remove):', '1000');
+      if (!input) return;
+      goldAmount = parseInt(input);
+      if (isNaN(goldAmount)) {
+        showMessage('error', 'Invalid amount');
+        return;
+      }
+    }
     try {
-      await gmAPI.addGold(selectedPlayer, amount);
-      showMessage('success', 'Gold updated!');
+      await gmAPI.addGold(selectedPlayer, goldAmount);
+      showMessage('success', `Gold ${goldAmount >= 0 ? '+' : ''}${goldAmount}!`);
       fetchPlayerDetails(selectedPlayer);
     } catch (err) { showMessage('error', 'Failed'); }
   };
@@ -455,6 +465,7 @@ const GMDashboard = () => {
                           <button onClick={handleRefreshEnergy} className="btn-secondary text-sm py-2">⚡ Energy</button>
                           <button onClick={handleHealPlayer} className="btn-secondary text-sm py-2">❤️ Heal</button>
                           <button onClick={() => handleAddGold(1000)} className="btn-secondary text-sm py-2">💰 +1000g</button>
+                          <button onClick={() => handleAddGold(null)} className="btn-secondary text-sm py-2">💰 Custom</button>
                           <button onClick={handleSetLevel} className="btn-secondary text-sm py-2">📈 Level</button>
                           <button onClick={openEditStatsModal} className="btn-secondary text-sm py-2">✏️ Edit Stats</button>
                           <button onClick={handleResetStats} className="btn-secondary text-sm py-2">🔄 Reset Stats</button>
