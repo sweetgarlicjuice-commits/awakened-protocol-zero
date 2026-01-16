@@ -3,10 +3,86 @@ import Character from '../models/Character.js';
 import { TavernShop, TradingListing } from '../models/Tavern.js';
 import HiddenClassOwnership from '../models/HiddenClassOwnership.js';
 import { authenticate, requireGM } from '../middleware/auth.js';
-import { ITEMS, getItemById, searchItems, getAllItems } from '../data/itemDatabase.js';
+// Import from Equipment Database v2
+import { 
+  EQUIPMENT, 
+  CONSUMABLES,
+  getEquipmentById
+} from '../data/equipment/index.js';
+import { 
+  HIDDEN_CLASS_SCROLLS, 
+  HIDDEN_CLASS_SCROLL_HELPERS,
+  MEMORY_CRYSTAL,
+  MEMORY_CRYSTAL_FRAGMENT
+} from '../data/equipment/special_items.js';
 import { HIDDEN_CLASS_INFO } from '../data/storyData.js';
+import { HIDDEN_CLASS_SKILLS } from '../models/Character.js';
 
 const router = express.Router();
+
+// ============ CONSUMABLES HELPER ============
+// Convert CONSUMABLES to object keyed by id for easy lookup
+const CONSUMABLES_BY_ID = {};
+if (Array.isArray(CONSUMABLES)) {
+  CONSUMABLES.forEach(c => { CONSUMABLES_BY_ID[c.id] = c; });
+} else if (typeof CONSUMABLES === 'object') {
+  Object.assign(CONSUMABLES_BY_ID, CONSUMABLES);
+}
+
+// ============ ITEM DATABASE HELPERS ============
+// Get item by ID from equipment database or consumables
+function getItemById(itemId) {
+  // Check equipment first
+  const equipment = getEquipmentById ? getEquipmentById(itemId) : (EQUIPMENT ? EQUIPMENT[itemId] : null);
+  if (equipment) return equipment;
+  
+  // Check consumables
+  if (CONSUMABLES_BY_ID[itemId]) return CONSUMABLES_BY_ID[itemId];
+  
+  // Check special items
+  if (HIDDEN_CLASS_SCROLLS) {
+    const scroll = Object.values(HIDDEN_CLASS_SCROLLS).find(s => s.id === itemId);
+    if (scroll) return scroll;
+  }
+  
+  // Check memory crystal
+  if (MEMORY_CRYSTAL && MEMORY_CRYSTAL.id === itemId) return MEMORY_CRYSTAL;
+  if (MEMORY_CRYSTAL_FRAGMENT && MEMORY_CRYSTAL_FRAGMENT.id === itemId) return MEMORY_CRYSTAL_FRAGMENT;
+  
+  return null;
+}
+
+// Search items
+function searchItems(query) {
+  const results = [];
+  const q = query.toLowerCase();
+  
+  // Search equipment
+  if (EQUIPMENT) {
+    Object.values(EQUIPMENT).forEach(item => {
+      if (item.name.toLowerCase().includes(q) || item.id.toLowerCase().includes(q)) {
+        results.push(item);
+      }
+    });
+  }
+  
+  // Search consumables
+  Object.values(CONSUMABLES_BY_ID).forEach(item => {
+    if (item.name.toLowerCase().includes(q) || item.id.toLowerCase().includes(q)) {
+      results.push(item);
+    }
+  });
+  
+  return results.slice(0, 50);
+}
+
+// Get all items
+function getAllItems() {
+  const items = [];
+  if (EQUIPMENT) items.push(...Object.values(EQUIPMENT));
+  items.push(...Object.values(CONSUMABLES_BY_ID));
+  return items;
+}
 
 // ============ INVENTORY HELPERS ============
 
@@ -144,6 +220,66 @@ router.get('/items/all', authenticate, async function(req, res) {
 
 // ============ TAVERN SHOP ROUTES ============
 
+// Helper: Populate shop with consumables from database
+async function populateShopWithConsumables(shop) {
+  // Default consumables to add to shop
+  const defaultShopItems = [
+    // Health Potions
+    { id: 'small_health_potion', price: 50 },
+    { id: 'medium_health_potion', price: 150 },
+    { id: 'large_health_potion', price: 400 },
+    { id: 'mega_health_potion', price: 1000 },
+    // Mana Potions
+    { id: 'small_mana_potion', price: 40 },
+    { id: 'medium_mana_potion', price: 120 },
+    { id: 'large_mana_potion', price: 320 },
+    { id: 'mega_mana_potion', price: 800 },
+    // Utility
+    { id: 'antidote', price: 30 },
+    { id: 'escape_rope', price: 100 },
+    { id: 'energy_drink', price: 200 },
+    // Buffs
+    { id: 'strength_elixir', price: 300 },
+    { id: 'intelligence_elixir', price: 300 },
+    { id: 'iron_skin_potion', price: 250 },
+    { id: 'swift_potion', price: 250 },
+    { id: 'critical_draught', price: 400 }
+  ];
+  
+  let addedCount = 0;
+  
+  for (const shopDef of defaultShopItems) {
+    // Skip if already in shop
+    const exists = shop.items.some(i => i.itemId === shopDef.id);
+    if (exists) continue;
+    
+    // Try to find in consumables database
+    const itemData = CONSUMABLES_BY_ID[shopDef.id];
+    if (itemData) {
+      shop.items.push({
+        itemId: itemData.id,
+        name: itemData.name,
+        icon: itemData.icon || '🧪',
+        type: itemData.type || 'consumable',
+        subtype: itemData.subtype,
+        rarity: itemData.rarity || 'common',
+        price: shopDef.price || itemData.buyPrice || 50,
+        stock: -1, // Unlimited
+        isActive: true
+      });
+      addedCount++;
+    }
+  }
+  
+  if (addedCount > 0) {
+    shop.lastUpdated = new Date();
+    await shop.save();
+    console.log(`[Shop] Added ${addedCount} consumables to shop`);
+  }
+  
+  return shop;
+}
+
 // GET /api/tavern/shop - Get shop items
 router.get('/shop', authenticate, async function(req, res) {
   try {
@@ -151,8 +287,15 @@ router.get('/shop', authenticate, async function(req, res) {
     if (!shop) {
       shop = await TavernShop.initializeShop();
     }
+    
+    // Auto-populate with consumables if shop is empty or missing items
+    if (shop.items.length < 10) {
+      shop = await populateShopWithConsumables(shop);
+    }
+    
     res.json({ items: shop.items.filter(function(i) { return i.isActive; }) });
   } catch (error) {
+    console.error('Get shop error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -485,10 +628,25 @@ router.post('/inventory/use', authenticate, async function(req, res) {
     var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
+    // Find item in inventory first
+    var invItem = character.inventory.find(function(i) { return i.itemId === itemId; });
+    if (!invItem) {
+      return res.status(400).json({ error: 'Item not found in inventory' });
+    }
+
+    // Get item data from database or inventory
     var itemData = getItemById(itemId);
-    if (!itemData || !itemData.usable) {
+    
+    // Check if item can be used (consumable type or has effect)
+    var canUse = (itemData && (itemData.usable || itemData.type === 'consumable' || itemData.effect)) ||
+                 (invItem && (invItem.type === 'consumable' || invItem.effect));
+    
+    if (!canUse) {
       return res.status(400).json({ error: 'Item cannot be used' });
     }
+
+    // Use effect from database or inventory item
+    var effect = (itemData && itemData.effect) || invItem.effect;
 
     var result = removeItemFromInventory(character, itemId, 1);
     if (!result.success) {
@@ -497,23 +655,41 @@ router.post('/inventory/use', authenticate, async function(req, res) {
 
     // Apply effect
     var message = '';
-    if (itemData.effect) {
-      switch (itemData.effect.type) {
+    var itemName = (itemData && itemData.name) || invItem.name || 'Item';
+    
+    if (effect) {
+      switch (effect.type) {
         case 'heal':
-          character.stats.hp = Math.min(character.stats.hp + itemData.effect.value, character.stats.maxHp);
-          message = 'Restored ' + itemData.effect.value + ' HP';
+          var healAmt = effect.value || 100;
+          character.stats.hp = Math.min(character.stats.hp + healAmt, character.stats.maxHp);
+          message = 'Restored ' + healAmt + ' HP';
           break;
         case 'mana':
-          character.stats.mp = Math.min(character.stats.mp + itemData.effect.value, character.stats.maxMp);
-          message = 'Restored ' + itemData.effect.value + ' MP';
+          var manaAmt = effect.value || 50;
+          character.stats.mp = Math.min(character.stats.mp + manaAmt, character.stats.maxMp);
+          message = 'Restored ' + manaAmt + ' MP';
           break;
         case 'energy':
-          character.energy = Math.min(character.energy + itemData.effect.value, 100);
-          message = 'Restored ' + itemData.effect.value + ' Energy';
+          var energyAmt = effect.value || 20;
+          character.energy = Math.min(character.energy + energyAmt, 100);
+          message = 'Restored ' + energyAmt + ' Energy';
+          break;
+        case 'exp':
+          var expAmt = effect.value || 100;
+          character.experience += expAmt;
+          // Check for level up
+          var levelsGained = character.checkLevelUp ? character.checkLevelUp() : 0;
+          message = 'Gained ' + expAmt + ' EXP' + (levelsGained > 0 ? ' and leveled up!' : '');
+          break;
+        case 'cure':
+          // Remove status effects (poison, etc)
+          message = 'Cured status effects';
           break;
         default:
-          message = 'Used ' + itemData.name;
+          message = 'Used ' + itemName;
       }
+    } else {
+      message = 'Used ' + itemName;
     }
 
     await character.save();
@@ -525,11 +701,14 @@ router.post('/inventory/use', authenticate, async function(req, res) {
         maxHp: character.stats.maxHp,
         mp: character.stats.mp,
         maxMp: character.stats.maxMp,
-        energy: character.energy
+        energy: character.energy,
+        level: character.level,
+        experience: character.experience
       },
       inventory: character.inventory
     });
   } catch (error) {
+    console.error('Use item error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -864,24 +1043,36 @@ router.post('/use-memory-crystal', authenticate, async function(req, res) {
     // Release class ownership
     await HiddenClassOwnership.releaseClass(character.hiddenClass, character._id);
 
-    // Get scroll ID for the hidden class
-    var scrollMap = {
-      flameblade: 'scroll_flameblade',
-      shadowDancer: 'scroll_shadow_dancer',
-      stormRanger: 'scroll_storm_ranger',
-      frostWeaver: 'scroll_frost_weaver'
-    };
-    var scrollId = scrollMap[character.hiddenClass];
-    var scrollData = getItemById(scrollId);
+    // Get scroll ID for the hidden class (all 20 classes)
+    var scrollId = 'scroll_' + character.hiddenClass.toLowerCase();
+    
+    // Try to get scroll data from HIDDEN_CLASS_SCROLLS
+    var scrollData = null;
+    if (HIDDEN_CLASS_SCROLLS) {
+      scrollData = Object.values(HIDDEN_CLASS_SCROLLS).find(s => s.hiddenClass === character.hiddenClass);
+    }
+    
+    if (!scrollData) {
+      // Fallback scroll data
+      scrollData = {
+        id: scrollId,
+        name: character.hiddenClass + ' Awakening Scroll',
+        icon: '📜',
+        type: 'hidden_class_scroll',
+        rarity: 'legendary',
+        stackable: false
+      };
+    }
 
     // Add scroll back to inventory
-    addItemToInventory(character, scrollId, 1, scrollData);
+    addItemToInventory(character, scrollData.id || scrollId, 1, scrollData);
 
     var oldClass = character.hiddenClass;
 
     // Remove hidden class and skills
     character.hiddenClass = 'none';
     character.hiddenClassUnlocked = false;
+    character.element = 'none';
 
     var baseSkillIds = [
       'slash', 'heavyStrike', 'shieldBash', 'warCry',
@@ -900,6 +1091,158 @@ router.post('/use-memory-crystal', authenticate, async function(req, res) {
     });
   } catch (error) {
     console.error('Use memory crystal error:', error);
+    res.status(500).json({ error: error.message || 'Server error' });
+  }
+});
+
+// POST /api/tavern/use-scroll - Use hidden class scroll to awaken
+router.post('/use-scroll', authenticate, async function(req, res) {
+  try {
+    var scrollItemId = req.body.itemId;
+    if (!scrollItemId) {
+      return res.status(400).json({ error: 'No scroll specified' });
+    }
+
+    var character = await Character.findOne({ userId: req.userId });
+    if (!character) return res.status(404).json({ error: 'Character not found' });
+
+    // Check if player already has a hidden class
+    if (character.hiddenClass !== 'none') {
+      return res.status(400).json({ error: 'You already have a hidden class! Use Memory Crystal to remove it first.' });
+    }
+
+    // Find scroll in inventory - check multiple possible type values
+    var scrollIndex = character.inventory.findIndex(function(i) { 
+      return i.itemId === scrollItemId && 
+        (i.type === 'hidden_class_scroll' || i.type === 'special' || i.type === 'scroll' || 
+         i.subtype === 'scroll' || (i.name && i.name.toLowerCase().includes('scroll')));
+    });
+    if (scrollIndex === -1) {
+      return res.status(400).json({ error: 'Scroll not found in inventory' });
+    }
+
+    var scrollItem = character.inventory[scrollIndex];
+    
+    // Get scroll data from HIDDEN_CLASS_SCROLLS
+    var scrollData = null;
+    var hiddenClassName = null;
+    var baseClassName = null;
+    var element = 'none';
+    
+    if (HIDDEN_CLASS_SCROLLS) {
+      scrollData = Object.values(HIDDEN_CLASS_SCROLLS).find(s => s.id === scrollItemId);
+      if (scrollData) {
+        hiddenClassName = scrollData.hiddenClass;
+        baseClassName = scrollData.baseClass;
+        element = scrollData.element || 'none';
+      }
+    }
+    
+    // Fallback: try to extract from scroll item data stored in inventory
+    if (!hiddenClassName && scrollItem.hiddenClass) {
+      hiddenClassName = scrollItem.hiddenClass;
+      baseClassName = scrollItem.baseClass;
+      element = scrollItem.element || 'none';
+    }
+    
+    // Fallback: try to extract hidden class from scroll ID (e.g., scroll_assassin -> assassin)
+    if (!hiddenClassName && scrollItemId.startsWith('scroll_')) {
+      hiddenClassName = scrollItemId.replace('scroll_', '');
+      // Convert snake_case to camelCase if needed (e.g., shadow_dancer -> shadowDancer)
+      hiddenClassName = hiddenClassName.replace(/_([a-z])/g, function(match, letter) {
+        return letter.toUpperCase();
+      });
+    }
+    
+    if (!hiddenClassName) {
+      return res.status(400).json({ error: 'Invalid scroll - cannot determine hidden class. Scroll ID: ' + scrollItemId });
+    }
+
+    // Determine base class from hidden class name if not provided
+    if (!baseClassName) {
+      var hiddenClassToBase = {
+        // Swordsman
+        flameblade: 'swordsman', berserker: 'swordsman', paladin: 'swordsman',
+        earthshaker: 'swordsman', frostguard: 'swordsman',
+        // Thief
+        shadowDancer: 'thief', venomancer: 'thief', assassin: 'thief',
+        phantom: 'thief', bloodreaper: 'thief',
+        // Archer
+        stormRanger: 'archer', pyroArcher: 'archer', frostSniper: 'archer',
+        natureWarden: 'archer', voidHunter: 'archer',
+        // Mage
+        frostWeaver: 'mage', pyromancer: 'mage', stormcaller: 'mage',
+        necromancer: 'mage', arcanist: 'mage'
+      };
+      baseClassName = hiddenClassToBase[hiddenClassName];
+    }
+
+    // Check if scroll matches player's base class (CASE INSENSITIVE)
+    if (baseClassName) {
+      var playerBaseClass = character.baseClass.toLowerCase();
+      var requiredBaseClass = baseClassName.toLowerCase();
+      
+      if (playerBaseClass !== requiredBaseClass) {
+        return res.status(400).json({ 
+          error: 'This scroll is for ' + baseClassName + ' class. You are a ' + character.baseClass + '.' 
+        });
+      }
+    }
+
+    // Check if hidden class is already owned by someone else (UNIQUE system)
+    var isAvailable = await HiddenClassOwnership.isClassAvailable(hiddenClassName);
+    if (!isAvailable) {
+      return res.status(400).json({ 
+        error: 'This hidden class is already owned by another player! The scroll crumbles to dust...',
+        scrollLost: true
+      });
+    }
+
+    // Remove scroll from inventory
+    if (scrollItem.quantity > 1) {
+      character.inventory[scrollIndex].quantity -= 1;
+    } else {
+      character.inventory.splice(scrollIndex, 1);
+    }
+
+    // Claim the hidden class
+    await HiddenClassOwnership.claimClass(hiddenClassName, character._id, character.name);
+
+    // Apply hidden class to character
+    character.hiddenClass = hiddenClassName;
+    character.hiddenClassUnlocked = true;
+    character.element = element;
+
+    // Add hidden class skills
+    var hiddenClassSkills = [];
+    if (HIDDEN_CLASS_SKILLS && HIDDEN_CLASS_SKILLS[hiddenClassName]) {
+      hiddenClassSkills = HIDDEN_CLASS_SKILLS[hiddenClassName];
+    }
+    
+    // Add skills that don't already exist
+    hiddenClassSkills.forEach(function(skill) {
+      var exists = character.skills.some(function(s) { return s.skillId === skill.skillId; });
+      if (!exists) {
+        character.skills.push({
+          skillId: skill.skillId,
+          name: skill.name,
+          level: skill.level || 1,
+          unlocked: true
+        });
+      }
+    });
+
+    await character.save();
+
+    res.json({
+      message: 'You have awakened as a ' + hiddenClassName + '!',
+      hiddenClass: hiddenClassName,
+      element: element,
+      newSkills: hiddenClassSkills.map(function(s) { return s.name; }),
+      inventory: character.inventory
+    });
+  } catch (error) {
+    console.error('Use scroll error:', error);
     res.status(500).json({ error: error.message || 'Server error' });
   }
 });
@@ -995,6 +1338,32 @@ router.delete('/gm/shop/:itemId', authenticate, requireGM, async function(req, r
 
     res.json({ message: 'Removed ' + removed.name + ' from shop', shop: shop });
   } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/tavern/gm/shop/repopulate - Reset and repopulate shop with consumables
+router.post('/gm/shop/repopulate', authenticate, requireGM, async function(req, res) {
+  try {
+    var shop = await TavernShop.findOne();
+    if (!shop) {
+      shop = await TavernShop.initializeShop();
+    }
+    
+    // Clear existing items if requested
+    if (req.body.clearExisting) {
+      shop.items = [];
+    }
+    
+    // Repopulate with consumables
+    shop = await populateShopWithConsumables(shop);
+    
+    res.json({ 
+      message: 'Shop repopulated with ' + shop.items.length + ' items',
+      shop: shop 
+    });
+  } catch (error) {
+    console.error('Repopulate shop error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
