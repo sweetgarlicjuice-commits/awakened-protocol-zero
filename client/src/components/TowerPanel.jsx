@@ -140,6 +140,92 @@ const ELEMENT_ICONS = {
 };
 
 // ============================================================
+// TOWER INFO DATA - Mobs and Drops per Tower
+// ============================================================
+const TOWER_INFO = {
+  1: {
+    name: "Crimson Spire",
+    mobs: ["💀 Skeleton Warrior", "🧟 Rotting Zombie", "⚔️ Cursed Knight", "👻 Wandering Ghost", "🦴 Bone Mage"],
+    elites: ["☠️ Death Knight", "👤 Spectral Assassin"],
+    boss: "🏴 Lich King Malachar",
+    drops: ["Iron Ore", "Healing Herb", "Bone Fragment", "Cursed Cloth"],
+    setName: "Gridz Set"
+  },
+  2: {
+    name: "Azure Depths",
+    mobs: ["🦀 Giant Crab", "🐙 Tentacle Horror", "🧜 Sea Witch", "🦈 Abyssal Shark", "🌊 Water Elemental"],
+    elites: ["🐋 Kraken Spawn", "🧜‍♂️ Trident Guardian"],
+    boss: "🐋 Leviathan's Herald",
+    drops: ["Steel Ingot", "Greater Healing Herb", "Sea Scale", "Coral Piece"],
+    setName: "Tempest Set"
+  },
+  3: {
+    name: "Volcanic Core",
+    mobs: ["🔥 Fire Imp", "🪨 Lava Golem", "👤 Flame Wraith", "🐉 Magma Serpent", "🧙 Ember Mage"],
+    elites: ["🔶 Infernal Knight", "🦅 Phoenix Guardian"],
+    boss: "👑🔥 Molten King",
+    drops: ["Mystic Crystal", "Mana Elixir", "Fire Essence", "Molten Core"],
+    setName: "Inferno Set"
+  },
+  4: {
+    name: "Frozen Peak",
+    mobs: ["❄️ Frost Sprite", "🧊 Ice Golem", "🥶 Frozen Knight", "🐺 Blizzard Wolf", "🧙‍♀️ Ice Witch"],
+    elites: ["🗿 Frost Giant", "⛰️ Avalanche Lord"],
+    boss: "👑❄️ Ice Emperor",
+    drops: ["Titanium Ingot", "Greater Mana Crystal", "Frost Shard", "Frozen Tear"],
+    setName: "Glacial Set"
+  },
+  5: {
+    name: "Shadow Realm",
+    mobs: ["🌑 Shadow Stalker", "🐕‍🦺 Nightmare Hound", "👁️ Void Walker", "😈 Dark Seraph", "🧙‍♂️ Nightmare Mage"],
+    elites: ["🦇 Shadow Lord", "💀 Nightmare King"],
+    boss: "👁️‍🗨️ Void Emperor",
+    drops: ["Elemental Stone", "Elixir of Power", "Shadow Essence", "Nightmare Dust"],
+    setName: "Nightmare Set"
+  },
+  6: {
+    name: "Celestial Sanctum",
+    mobs: ["⭐ Star Guardian", "🛡️ Celestial Sentinel", "✨ Light Weaver", "🔱 Divine Champion"],
+    elites: ["💎 Celestial Champion"],
+    boss: "👑 Celestial Overlord",
+    drops: ["Celestial Crystal", "Divine Elixir", "Angel Feather", "Holy Essence"],
+    setName: "Celestial Set"
+  },
+  7: {
+    name: "Abyssal Void",
+    mobs: ["⚔️ Void Guardian", "🛡️ Void Sentinel"],
+    elites: ["💎 Void Champion"],
+    boss: "👑 Void Overlord",
+    drops: ["Astral Gem", "Phoenix Feather", "Void Essence", "Dimension Shard"],
+    setName: "Abyssal Set"
+  },
+  8: {
+    name: "Dragon's Domain",
+    mobs: ["⚔️ Dragon Guardian", "🛡️ Dragon Sentinel"],
+    elites: ["💎 Dragon Champion"],
+    boss: "👑 Dragon Overlord",
+    drops: ["Sunstone", "Moonstone", "Dragon Scale", "Dragon Heart"],
+    setName: "Dragonborn Set"
+  },
+  9: {
+    name: "Eternal Citadel",
+    mobs: ["⚔️ Eternal Guardian", "🛡️ Eternal Sentinel"],
+    elites: ["💎 Eternal Champion"],
+    boss: "👑 Eternal Overlord",
+    drops: ["Essence of Eternity", "Time Crystal", "Eternal Flame", "Ancient Rune"],
+    setName: "Eternal Set"
+  },
+  10: {
+    name: "Throne of Gods",
+    mobs: ["⚔️ Divine Guardian", "🛡️ Divine Sentinel"],
+    elites: ["💎 Divine Champion"],
+    boss: "👑 Divine Overlord",
+    drops: ["God Essence", "Primordial Stone", "Divine Tear", "Creation Spark"],
+    setName: "Divine Set"
+  }
+};
+
+// ============================================================
 // HELPER: Safe string conversion
 // ============================================================
 const safeString = (value, fallback = '') => {
@@ -209,16 +295,50 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
     setCombatLog(prev => [...prev, { type, message: safeString(message) }]);
   };
 
+  // FIX #2: Check both min AND max level
+  const canEnterTower = (tower) => {
+    if (!tower || !tower.isUnlocked) return false;
+    const playerLevel = character?.level || 1;
+    const minLevel = tower.levelRange?.min || 1;
+    const maxLevel = tower.levelRange?.max || 999;
+    return playerLevel >= minLevel && playerLevel <= maxLevel;
+  };
+
   const handleSelectTower = async (tower) => {
     if (!tower || !tower.isUnlocked) {
       addLog('error', 'Tower locked! Clear previous tower first.');
       return;
     }
+    
+    // FIX #2: Check max level
+    const playerLevel = character?.level || 1;
+    const maxLevel = tower.levelRange?.max || 999;
+    if (playerLevel > maxLevel) {
+      addLog('error', `Your level (${playerLevel}) exceeds this tower's max level (${maxLevel})!`);
+      return;
+    }
+    
     setSelectedTower(tower);
+    await fetchFloors(tower.id);
   };
 
   const handleEnterTower = async () => {
     if (!selectedTower) return;
+    
+    // FIX #2: Double check level requirement
+    const playerLevel = character?.level || 1;
+    const minLevel = selectedTower.levelRange?.min || 1;
+    const maxLevel = selectedTower.levelRange?.max || 999;
+    
+    if (playerLevel < minLevel) {
+      addLog('error', `Minimum level ${minLevel} required!`);
+      return;
+    }
+    if (playerLevel > maxLevel) {
+      addLog('error', `Your level (${playerLevel}) exceeds max level (${maxLevel})!`);
+      return;
+    }
+    
     setIsLoading(true);
     try {
       const { data } = await towerAPI.enter(selectedTower.id);
@@ -253,10 +373,13 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
     setIsLoading(false);
   };
 
+  // FIX #3: Explore button - ensure proper API call and state transition
   const handleExplore = async () => {
     setIsLoading(true);
+    setCombatLog([]); // Clear previous log
     try {
       const { data } = await towerAPI.explore();
+      console.log('Explore response:', data); // Debug log
       
       // Handle lockout
       if (data.lockoutTime) {
@@ -269,6 +392,28 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
       // Handle event progress
       if (data.eventProgress) {
         setEventProgress(data.eventProgress);
+      }
+      
+      // FIX #3: Handle exploration type response (multi-event system)
+      if (data.type === 'exploration' || data.scenarioId) {
+        setStoryText(safeString(data.story) || safeString(data.message) || 'You explore the tower...');
+        if (data.choices && Array.isArray(data.choices)) {
+          setChoices(data.choices);
+          setScenarioId(data.scenarioId);
+          setGameState('choosing_path');
+        }
+        onCharacterUpdate();
+        setIsLoading(false);
+        return;
+      }
+      
+      // Handle safe zone
+      if (data.type === 'safe_zone') {
+        setStoryText(safeString(data.story) || safeString(data.message));
+        setGameState('safe_zone');
+        onCharacterUpdate();
+        setIsLoading(false);
+        return;
       }
       
       // Handle different event types
@@ -351,11 +496,22 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
           break;
           
         default:
-          setStoryText(safeString(data.message) || 'Something happened...');
+          // Default case - check if there are choices
+          if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
+            setStoryText(safeString(data.story) || safeString(data.message) || 'A choice awaits...');
+            setChoices(data.choices);
+            setScenarioId(data.scenarioId);
+            setGameState('choosing_path');
+          } else {
+            setStoryText(safeString(data.message) || 'Something happened...');
+          }
       }
       
       onCharacterUpdate();
-    } catch (err) { addLog('error', err.response?.data?.error || 'Exploration failed'); }
+    } catch (err) { 
+      console.error('Explore error:', err);
+      addLog('error', err.response?.data?.error || 'Exploration failed'); 
+    }
     setIsLoading(false);
   };
 
@@ -454,62 +610,49 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
     setIsLoading(false);
   };
 
-  const handleFlee = async () => {
-    if (!currentEnemy) return;
-    setIsLoading(true);
-    try {
-      const { data } = await towerAPI.flee(currentEnemy);
-      if (data.success) {
-        addLog('info', safeString(data.message));
-        setCurrentEnemy(null);
-        setGameState('in_tower');
-        setEnemyDebuffs([]);
-      } else {
-        setCombatLog(prev => [...prev, { type: 'enemy', message: safeString(data.message) }]);
-        handleCombatResult(data);
-      }
-    } catch (err) { addLog('error', 'Failed to flee'); }
-    setIsLoading(false);
-  };
-
   const handleCombatResult = (data) => {
-    if (data.victory) {
-      setStoryText(safeString(data.message) || 'Victory!');
+    if (data.enemy) {
+      setCurrentEnemy(prev => ({
+        ...prev,
+        hp: safeNumber(data.enemy.hp, 0),
+        maxHp: safeNumber(data.enemy.maxHp || prev?.maxHp, 100)
+      }));
+    }
+    if (data.status === 'victory') {
+      setStoryText(safeString(data.message, 'Victory!'));
       setRewards({
-        exp: safeNumber(data.exp, 0),
-        gold: safeNumber(data.gold, 0),
-        items: Array.isArray(data.items) ? data.items : [],
-        treasureGold: safeNumber(data.treasureGold, 0)
+        exp: safeNumber(data.rewards?.exp, 0),
+        gold: safeNumber(data.rewards?.gold, 0),
+        treasureGold: safeNumber(data.rewards?.treasureGold, 0),
+        items: Array.isArray(data.rewards?.items) ? data.rewards.items : []
       });
       setCurrentEnemy(null);
-      setTreasureAfter(null);
-      setEnemyDebuffs([]);
       setGameState('victory');
-    } else if (data.defeat) {
-      addLog('error', safeString(data.message) || 'You were defeated...');
-      setStoryText(safeString(data.message) || 'You were defeated...');
+      onCharacterUpdate();
+    } else if (data.status === 'defeat') {
+      setStoryText(safeString(data.message, 'You have been defeated...'));
       setGameState('defeat');
-    } else {
-      // Combat continues
-      if (data.enemy) {
-        setCurrentEnemy(prev => ({
-          ...prev,
-          hp: safeNumber(data.enemy.hp, prev?.hp || 0),
-          maxHp: safeNumber(data.enemy.maxHp, prev?.maxHp || 50)
-        }));
-      }
+      onCharacterUpdate();
     }
-    onCharacterUpdate();
+  };
+
+  const handleFlee = async () => {
+    setIsLoading(true);
+    try {
+      const { data } = await towerAPI.flee();
+      addLog('info', safeString(data.message, 'You fled!'));
+      setCurrentEnemy(null);
+      setGameState('in_tower');
+      onCharacterUpdate();
+    } catch (err) { addLog('error', 'Failed to flee'); }
+    setIsLoading(false);
   };
 
   const handleUsePotion = async (type) => {
     setIsLoading(true);
     try {
       const { data } = await towerAPI.usePotion(type);
-      addLog('success', safeString(data.message));
-      if (gameState === 'combat') {
-        setCombatLog(prev => [...prev, { type: 'player', message: safeString(data.message) }]);
-      }
+      addLog('success', safeString(data.message, 'Potion used!'));
       onCharacterUpdate();
     } catch (err) { addLog('error', err.response?.data?.error || 'No potions'); }
     setIsLoading(false);
@@ -519,33 +662,45 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
     setIsLoading(true);
     try {
       const { data } = await towerAPI.choosePath(choice, scenarioId);
+      console.log('Choose path response:', data); // Debug log
       
-      setStoryText(safeString(data.message));
-      addLog('info', safeString(data.message));
+      // Handle next event in chain
+      if (data.nextEvent) {
+        setStoryText(safeString(data.nextEvent.story) || safeString(data.message));
+        setChoices(data.nextEvent.choices || []);
+        setScenarioId(data.nextEvent.scenarioId);
+        setEventProgress(data.eventProgress);
+        if (data.damage) addLog('enemy', `Took ${data.damage} damage!`);
+        if (data.heal) addLog('success', `Healed ${data.heal} HP!`);
+        onCharacterUpdate();
+        setIsLoading(false);
+        return;
+      }
       
-      if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
-        setChoices(data.choices);
-        setScenarioId(data.scenarioId);
-      } else if (data.enemy) {
-        const normalizedEnemy = {
-          id: data.enemy.id || safeString(data.enemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
-          hp: safeNumber(data.enemy.hp, 50),
-          maxHp: safeNumber(data.enemy.maxHp || data.enemy.hp, 50),
-          atk: safeNumber(data.enemy.atk || data.enemy.attack, 10),
-          def: safeNumber(data.enemy.def || data.enemy.defense, 5),
-          name: safeString(data.enemy.name, 'Unknown Enemy'),
-          icon: safeString(data.enemy.icon, '👹'),
-          element: safeString(data.enemy.element, 'none'),
-          isBoss: !!data.enemy.isBoss,
-          isElite: !!data.enemy.isElite,
-          expReward: safeNumber(data.enemy.expReward || data.enemy.exp, 20),
-          goldReward: safeNumber(data.enemy.goldReward || data.enemy.gold, 10)
-        };
-        setCurrentEnemy(normalizedEnemy);
-        setTreasureAfter(data.treasureAfter || null);
-        setChoices([]);
-        setGameState('combat');
-      } else if (data.exp || data.gold || (data.items && data.items.length > 0)) {
+      // Handle combat result
+      if (data.type === 'combat' || data.enemy) {
+        const enemy = data.enemy;
+        if (enemy) {
+          setCurrentEnemy({
+            id: enemy.id || safeString(enemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
+            hp: safeNumber(enemy.hp, 50),
+            maxHp: safeNumber(enemy.maxHp || enemy.hp, 50),
+            atk: safeNumber(enemy.atk || enemy.attack, 10),
+            def: safeNumber(enemy.def || enemy.defense, 5),
+            name: safeString(enemy.name, 'Enemy'),
+            icon: safeString(enemy.icon, '👹'),
+            element: safeString(enemy.element, 'none'),
+            isBoss: !!enemy.isBoss,
+            isElite: !!enemy.isElite,
+            expReward: safeNumber(enemy.expReward, 20),
+            goldReward: safeNumber(enemy.goldReward, 10)
+          });
+          if (data.treasureAfter) setTreasureAfter(data.treasureAfter);
+          setGameState('combat');
+          addLog('combat', `${enemy.name} appears!`);
+        }
+      } else if (data.rewards || data.exp || data.gold || (data.items && data.items.length > 0)) {
+        setStoryText(safeString(data.message, 'You found treasure!'));
         setRewards({
           exp: safeNumber(data.exp, 0),
           gold: safeNumber(data.gold, 0),
@@ -555,13 +710,17 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
         setEventProgress(null);
         setGameState('victory');
       } else {
+        setStoryText(safeString(data.message, 'You continue onward...'));
         setChoices([]);
         setEventProgress(null);
         setGameState('in_tower');
       }
       
       onCharacterUpdate();
-    } catch (err) { addLog('error', err.response?.data?.error || 'Failed'); }
+    } catch (err) { 
+      console.error('Choose path error:', err);
+      addLog('error', err.response?.data?.error || 'Failed'); 
+    }
     setIsLoading(false);
   };
 
@@ -646,58 +805,154 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
   };
 
   // ============================================================
-  // RENDER: Tower Select
+  // RENDER: Tower Select - FIX #4 & #5: Tower info + new styling
   // ============================================================
   
   const renderTowerSelect = () => (
     <div className="space-y-4">
-      <h3 className="text-lg font-bold text-purple-400">🏰 Select Tower</h3>
+      <h3 className="text-lg font-bold text-purple-400 flex items-center gap-2">
+        <span>🏰</span> Select Tower
+      </h3>
+      
       <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-        {(towers || []).map(tower => (
-          <button
-            key={tower.id}
-            onClick={() => handleSelectTower(tower)}
-            className={`p-3 rounded-lg text-left transition-all ${
-              selectedTower?.id === tower.id
-                ? 'bg-purple-700 border-2 border-purple-400'
-                : tower.isUnlocked
-                  ? 'bg-gray-800 hover:bg-gray-700 border border-gray-600'
-                  : 'bg-gray-900 opacity-50 cursor-not-allowed border border-gray-700'
-            }`}
-          >
-            <div className="font-bold text-sm">{safeString(tower.name, 'Tower')}</div>
-            <div className="text-xs text-gray-400">Lv.{safeString(tower.levelRange, '?')}</div>
-            {!tower.isUnlocked && <div className="text-xs text-red-400">🔒 Locked</div>}
-          </button>
-        ))}
+        {(towers || []).map(tower => {
+          const playerLevel = character?.level || 1;
+          const minLevel = tower.levelRange?.min || 1;
+          const maxLevel = tower.levelRange?.max || 999;
+          const levelOk = playerLevel >= minLevel && playerLevel <= maxLevel;
+          const canEnter = tower.isUnlocked && levelOk;
+          
+          return (
+            <button
+              key={tower.id}
+              onClick={() => handleSelectTower(tower)}
+              className={`p-3 rounded-lg text-left transition-all border ${
+                selectedTower?.id === tower.id
+                  ? 'bg-purple-900/50 border-purple-500 shadow-lg shadow-purple-500/20'
+                  : canEnter
+                    ? 'bg-void-800/50 hover:bg-void-700/50 border-purple-500/30 hover:border-purple-500/50'
+                    : 'bg-void-900/50 opacity-50 cursor-not-allowed border-gray-700/30'
+              }`}
+            >
+              <div className="font-bold text-sm text-purple-300">{safeString(tower.name, 'Tower')}</div>
+              <div className="text-xs text-gray-400">
+                Lv.{safeNumber(tower.levelRange?.min, '?')}-{safeNumber(tower.levelRange?.max, '?')}
+              </div>
+              {!tower.isUnlocked && <div className="text-xs text-yellow-500">🔒 Locked</div>}
+              {tower.isUnlocked && !levelOk && (
+                <div className="text-xs text-red-400">
+                  {playerLevel < minLevel ? `⬆️ Min Lv.${minLevel}` : `⬇️ Max Lv.${maxLevel}`}
+                </div>
+              )}
+            </button>
+          );
+        })}
       </div>
       
-      {/* Tower Details */}
+      {/* FIX #4 & #5: Tower Details with Info Panel - Purple theme like Skills */}
       {selectedTower && (
-        <div className="bg-gray-800/50 rounded-lg p-4 space-y-3">
+        <div className="bg-void-800/50 rounded-xl p-4 space-y-4 border border-purple-500/30">
           <h4 className="font-bold text-lg text-purple-300">{safeString(selectedTower.name, 'Tower')}</h4>
           <p className="text-gray-400 text-sm">{safeString(selectedTower.description, 'A mysterious tower awaits...')}</p>
           
+          {/* FIX #4: Tower Information Panel */}
+          {TOWER_INFO[selectedTower.id] && (
+            <div className="bg-void-900/50 rounded-lg p-3 space-y-3 border border-purple-500/20">
+              {/* Mobs */}
+              <div>
+                <div className="text-xs text-gray-500 mb-1 font-semibold">MONSTERS</div>
+                <div className="flex flex-wrap gap-1">
+                  {TOWER_INFO[selectedTower.id].mobs.map((mob, i) => (
+                    <span key={i} className="text-xs bg-red-900/30 text-red-300 px-2 py-0.5 rounded border border-red-500/20">
+                      {mob}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Elites */}
+              <div>
+                <div className="text-xs text-gray-500 mb-1 font-semibold">ELITES</div>
+                <div className="flex flex-wrap gap-1">
+                  {TOWER_INFO[selectedTower.id].elites.map((elite, i) => (
+                    <span key={i} className="text-xs bg-orange-900/30 text-orange-300 px-2 py-0.5 rounded border border-orange-500/20">
+                      {elite}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Boss */}
+              <div>
+                <div className="text-xs text-gray-500 mb-1 font-semibold">BOSS (Floor 15)</div>
+                <span className="text-sm bg-purple-900/30 text-purple-300 px-2 py-1 rounded border border-purple-500/20">
+                  {TOWER_INFO[selectedTower.id].boss}
+                </span>
+              </div>
+              
+              {/* Drops */}
+              <div>
+                <div className="text-xs text-gray-500 mb-1 font-semibold">POTENTIAL DROPS</div>
+                <div className="flex flex-wrap gap-1">
+                  {TOWER_INFO[selectedTower.id].drops.map((drop, i) => (
+                    <span key={i} className="text-xs bg-blue-900/30 text-blue-300 px-2 py-0.5 rounded border border-blue-500/20">
+                      {drop}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Set Info */}
+              <div className="text-xs text-yellow-400">
+                🏆 Set Equipment: {TOWER_INFO[selectedTower.id].setName}
+              </div>
+            </div>
+          )}
+          
           {/* Floor Selection */}
-          <div>
+          <div className="flex items-center gap-3">
             <label className="text-sm text-gray-400">Start Floor:</label>
             <select 
               value={selectedFloor}
               onChange={(e) => setSelectedFloor(Number(e.target.value))}
-              className="ml-2 bg-gray-700 rounded px-2 py-1 text-sm"
+              className="bg-void-700 border border-purple-500/30 rounded px-3 py-1.5 text-sm text-purple-300 focus:border-purple-500 focus:outline-none"
             >
-              {Array.from({ length: character?.highestFloorReached?.floor || 1 }, (_, i) => (
+              {Array.from({ length: Math.min(character?.towerProgress?.['tower' + selectedTower.id] || 1, 15) }, (_, i) => (
                 <option key={i+1} value={i+1}>Floor {i+1}</option>
               ))}
             </select>
           </div>
           
+          {/* FIX #2: Show level requirement warning */}
+          {(() => {
+            const playerLevel = character?.level || 1;
+            const minLevel = selectedTower.levelRange?.min || 1;
+            const maxLevel = selectedTower.levelRange?.max || 999;
+            
+            if (playerLevel < minLevel) {
+              return (
+                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-2 text-center">
+                  <span className="text-red-400 text-sm">⚠️ Minimum level {minLevel} required! (You are Lv.{playerLevel})</span>
+                </div>
+              );
+            }
+            if (playerLevel > maxLevel) {
+              return (
+                <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-2 text-center">
+                  <span className="text-yellow-400 text-sm">⚠️ Your level ({playerLevel}) exceeds max level ({maxLevel})!</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
+          
+          {/* FIX #5: Purple gradient button like Skills panel */}
           <button 
             onClick={handleEnterTower}
-            disabled={isLoading}
-            className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-bold transition-all"
+            disabled={isLoading || !canEnterTower(selectedTower)}
+            className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-700 disabled:opacity-50 rounded-lg font-bold transition-all border border-purple-500/30"
           >
-            {isLoading ? '⏳...' : '⚔️ Enter Tower'}
+            {isLoading ? '⏳ Entering...' : '⚔️ Enter Tower'}
           </button>
         </div>
       )}
@@ -705,62 +960,68 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
   );
 
   // ============================================================
-  // RENDER: In Tower
+  // RENDER: In Tower - FIX #5: Purple styling
   // ============================================================
   
   const renderInTower = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-bold text-blue-400">
+        <h3 className="text-lg font-bold text-purple-400">
           🏰 {safeString(selectedTower?.name, 'Tower')} - Floor {safeNumber(character?.currentFloor, 1)}
         </h3>
         <div className="text-sm text-gray-400">
-          HP: {safeNumber(character?.stats?.hp, 0)}/{safeNumber(character?.stats?.maxHp, 0)}
+          HP: <span className="text-green-400">{safeNumber(character?.stats?.hp, 0)}</span>/{safeNumber(character?.stats?.maxHp, 0)}
         </div>
       </div>
       
       {/* Player Buffs Display */}
       {playerBuffs.length > 0 && (
-        <div className="bg-blue-900/20 rounded-lg p-2">
-          <div className="text-xs text-blue-400 mb-1">Your Buffs:</div>
+        <div className="bg-purple-900/20 rounded-lg p-2 border border-purple-500/20">
+          <div className="text-xs text-purple-400 mb-1">Your Buffs:</div>
           <BuffDisplay buffs={playerBuffs} />
         </div>
       )}
       
-      <div className="bg-gray-900/50 rounded-lg p-4 text-center">
+      <div className="bg-void-900/50 rounded-lg p-4 text-center border border-purple-500/20">
         <p className="text-gray-300">The tower awaits exploration...</p>
+        <p className="text-xs text-gray-500 mt-2">Energy: {character?.energy || 0}/100</p>
       </div>
       
+      {/* FIX #5: Purple gradient buttons */}
       <div className="grid grid-cols-2 gap-3">
         <button 
           onClick={handleExplore} 
           disabled={isLoading}
-          className="py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-500 hover:to-teal-500 rounded-lg font-bold transition-all"
+          className="py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 rounded-lg font-bold transition-all border border-purple-500/30"
         >
           {isLoading ? '⏳...' : '🔍 Explore'}
         </button>
-        <button onClick={handleCheckDoorkeeper} disabled={isLoading} className="py-3 bg-purple-700 hover:bg-purple-600 rounded-lg font-bold">
+        <button 
+          onClick={handleCheckDoorkeeper} 
+          disabled={isLoading} 
+          className="py-3 bg-purple-700/50 hover:bg-purple-600/50 rounded-lg font-bold border border-purple-500/30"
+        >
           ⛩️ Doorkeeper
         </button>
       </div>
       
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => handleUsePotion('hp')} disabled={isLoading} className="py-2 bg-red-700 hover:bg-red-600 rounded">
+        <button onClick={() => handleUsePotion('hp')} disabled={isLoading} className="py-2 bg-red-900/50 hover:bg-red-800/50 rounded border border-red-500/30">
           ❤️ HP Potion
         </button>
-        <button onClick={() => handleUsePotion('mp')} disabled={isLoading} className="py-2 bg-blue-700 hover:bg-blue-600 rounded">
+        <button onClick={() => handleUsePotion('mp')} disabled={isLoading} className="py-2 bg-blue-900/50 hover:bg-blue-800/50 rounded border border-blue-500/30">
           💙 MP Potion
         </button>
       </div>
       
-      <button onClick={handleLeaveTower} disabled={isLoading} className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded">
+      <button onClick={handleLeaveTower} disabled={isLoading} className="w-full py-2 bg-void-700/50 hover:bg-void-600/50 rounded border border-gray-500/30">
         🚪 Leave Tower
       </button>
     </div>
   );
 
   // ============================================================
-  // RENDER: Choosing Path
+  // RENDER: Choosing Path - FIX #5: Purple styling
   // ============================================================
   
   const renderChoosingPath = () => (
@@ -772,9 +1033,9 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
               key={i}
               className={`w-3 h-3 rounded-full ${
                 i < (eventProgress.current || 0)
-                  ? 'bg-green-500' 
+                  ? 'bg-purple-500' 
                   : i === (eventProgress.current || 0) - 1 
-                    ? 'bg-blue-500 ring-2 ring-blue-300' 
+                    ? 'bg-purple-400 ring-2 ring-purple-300' 
                     : 'bg-gray-600'
               }`}
             />
@@ -782,7 +1043,7 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
         </div>
       )}
       
-      <div className="bg-gray-900/50 rounded-lg p-4">
+      <div className="bg-void-900/50 rounded-lg p-4 border border-purple-500/20">
         <p className="text-gray-300 whitespace-pre-line">{safeString(storyText, 'A choice awaits...')}</p>
       </div>
       
@@ -792,7 +1053,7 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
             key={idx}
             onClick={() => handleChoosePath(choice)}
             disabled={isLoading}
-            className="w-full py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left capitalize transition-all hover:translate-x-1"
+            className="w-full py-3 px-4 bg-void-700/50 hover:bg-purple-900/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-left capitalize transition-all hover:translate-x-1"
           >
             {choice === 'left' ? '← ' : choice === 'right' ? '→ ' : 
              choice === 'crown' ? '👑 ' : choice === 'skull' ? '💀 ' : choice === 'sword' ? '🗡️ ' : '• '}
@@ -800,127 +1061,134 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
           </button>
         ))}
       </div>
+      
+      <button 
+        onClick={() => { setChoices([]); setGameState('in_tower'); }}
+        className="w-full py-2 bg-void-700/50 hover:bg-void-600/50 rounded border border-gray-500/30"
+      >
+        ← Back to Tower
+      </button>
     </div>
   );
 
   // ============================================================
-  // RENDER: Combat (with buffs/debuffs)
+  // RENDER: Combat - FIX #5: Purple styling
   // ============================================================
   
   const renderCombat = () => {
     const unlockedSkills = getUnlockedSkills();
     
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Enemy Display */}
         {currentEnemy && (
-          <div className="bg-gray-800 p-4 rounded-lg text-center">
-            <div className="text-4xl mb-1">{safeString(currentEnemy.icon, '👹')}</div>
-            <h4 className="font-bold text-lg">{safeString(currentEnemy.name, 'Enemy')}</h4>
-            <div className="flex justify-center gap-2 text-sm">
-              {currentEnemy.isBoss && <span className="text-red-400">👑 BOSS</span>}
-              {currentEnemy.isElite && <span className="text-purple-400">⚔️ ELITE</span>}
-              {currentEnemy.element && currentEnemy.element !== 'none' && (
-                <span className="text-gray-400">{ELEMENT_ICONS[currentEnemy.element] || ''} {currentEnemy.element}</span>
-              )}
-            </div>
-            
-            {/* Enemy HP Bar */}
-            <div className="mt-2">
-              <div className="bg-gray-700 rounded-full h-4 overflow-hidden">
-                <div 
-                  className="bg-red-500 h-full transition-all" 
-                  style={{ width: Math.max(0, (safeNumber(currentEnemy.hp, 0) / safeNumber(currentEnemy.maxHp, 1)) * 100) + '%' }}
-                />
-              </div>
-              <span className="text-sm">{Math.max(0, safeNumber(currentEnemy.hp, 0))} / {safeNumber(currentEnemy.maxHp, 0)}</span>
-            </div>
-            
-            {/* Enemy Debuffs */}
-            {enemyDebuffs.length > 0 && (
-              <div className="mt-2">
-                <div className="text-xs text-red-400 mb-1">Debuffs:</div>
-                <BuffDisplay buffs={enemyDebuffs} isEnemy={true} />
+          <div className="bg-void-900/50 rounded-lg p-4 text-center border border-red-500/20">
+            <div className="text-4xl mb-2">{safeString(currentEnemy.icon, '👹')}</div>
+            <h4 className="font-bold text-lg text-red-400">
+              {safeString(currentEnemy.name, 'Enemy')}
+              {currentEnemy.isBoss && <span className="ml-2 text-yellow-400">👑 BOSS</span>}
+              {currentEnemy.isElite && !currentEnemy.isBoss && <span className="ml-2 text-orange-400">⭐ ELITE</span>}
+            </h4>
+            {currentEnemy.element && currentEnemy.element !== 'none' && (
+              <div className="text-xs text-gray-400 mt-1">
+                {ELEMENT_ICONS[currentEnemy.element]} {currentEnemy.element}
               </div>
             )}
+            <div className="mt-2">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>HP</span>
+                <span>{safeNumber(currentEnemy.hp, 0)}/{safeNumber(currentEnemy.maxHp, 100)}</span>
+              </div>
+              <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
+                  style={{ width: `${(safeNumber(currentEnemy.hp, 0) / safeNumber(currentEnemy.maxHp, 100)) * 100}%` }}
+                />
+              </div>
+            </div>
+            <BuffDisplay buffs={enemyDebuffs} isEnemy={true} />
           </div>
         )}
         
         {/* Combat Log */}
-        <div ref={logRef} className="bg-gray-900 p-3 rounded-lg h-28 overflow-y-auto text-sm">
-          {(combatLog || []).map((log, i) => {
-            const message = safeString(log?.message, '');
-            const element = safeString(log?.element, '');
-            const logType = safeString(log?.type, 'system');
-            
-            return (
-              <p key={i} className={`${
-                logType === 'player' ? 'text-green-400' : 
-                logType === 'enemy' ? 'text-red-400' : 
-                logType === 'system' ? 'text-yellow-400' : 'text-gray-400'
-              } ${log?.isCritical ? 'font-bold' : ''}`}>
-                {element && ELEMENT_ICONS[element]} {message}
-              </p>
-            );
-          })}
+        <div 
+          ref={logRef}
+          className="bg-void-900/30 rounded-lg p-3 h-32 overflow-y-auto text-sm border border-purple-500/20"
+        >
+          {combatLog.map((log, i) => (
+            <div 
+              key={i} 
+              className={`mb-1 ${
+                log.type === 'player' ? 'text-blue-400' : 
+                log.type === 'enemy' ? 'text-red-400' : 
+                log.type === 'combat' ? 'text-yellow-400' :
+                log.type === 'success' ? 'text-green-400' :
+                log.type === 'error' ? 'text-red-500' :
+                'text-gray-400'
+              }`}
+            >
+              {log.isCritical && <span className="text-yellow-300">💥 CRIT! </span>}
+              {safeString(log.message)}
+            </div>
+          ))}
         </div>
         
-        {/* Player Stats with Buffs */}
-        <div className="bg-gray-800/50 p-2 rounded space-y-1">
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <span className="text-gray-400">HP: </span>
-              <span className="text-green-400">{safeNumber(character?.stats?.hp, 0)}/{safeNumber(character?.stats?.maxHp, 0)}</span>
-            </div>
-            <div>
-              <span className="text-gray-400">MP: </span>
-              <span className="text-blue-400">{safeNumber(character?.stats?.mp, 0)}/{safeNumber(character?.stats?.maxMp, 0)}</span>
-            </div>
+        {/* Player Status */}
+        <div className="bg-purple-900/20 rounded-lg p-2 border border-purple-500/20">
+          <div className="flex justify-between text-sm">
+            <span className="text-green-400">❤️ {safeNumber(character?.stats?.hp, 0)}/{safeNumber(character?.stats?.maxHp, 100)}</span>
+            <span className="text-blue-400">💎 {safeNumber(character?.stats?.mp, 0)}/{safeNumber(character?.stats?.maxMp, 50)}</span>
           </div>
-          
-          {/* Player Buffs */}
-          {playerBuffs.length > 0 && (
-            <div>
-              <div className="text-xs text-blue-400 mb-1">Buffs:</div>
-              <BuffDisplay buffs={playerBuffs} />
-            </div>
-          )}
+          <BuffDisplay buffs={playerBuffs} />
         </div>
         
-        {/* Combat Actions */}
+        {/* Actions */}
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={handleAttack} disabled={isLoading} className="py-2 bg-red-600 hover:bg-red-500 rounded font-bold">
+          <button 
+            onClick={handleAttack} 
+            disabled={isLoading}
+            className="py-3 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:opacity-50 rounded-lg font-bold border border-red-500/30"
+          >
             ⚔️ Attack
           </button>
-          <button onClick={handleFlee} disabled={isLoading} className="py-2 bg-gray-600 hover:bg-gray-500 rounded">
+          <button 
+            onClick={handleFlee} 
+            disabled={isLoading}
+            className="py-3 bg-void-700/50 hover:bg-void-600/50 rounded-lg font-bold border border-gray-500/30"
+          >
             🏃 Flee
           </button>
         </div>
         
-        {/* Skills Section */}
+        {/* Skills */}
         {unlockedSkills.length > 0 && (
           <div className="space-y-2">
-            <div className="text-sm text-purple-400 font-semibold">⚡ Skills</div>
+            <div className="text-xs text-gray-500 font-semibold">SKILLS</div>
             <div className="grid grid-cols-2 gap-2">
-              {unlockedSkills.slice(0, 8).map(skill => {
+              {unlockedSkills.slice(0, 4).map(skill => {
+                const skillInfo = SKILL_DATA[skill.skillId] || {};
                 const mpCost = getSkillMpCost(skill.skillId);
                 const element = getSkillElement(skill.skillId);
-                const hasEnoughMp = safeNumber(character?.stats?.mp, 0) >= mpCost;
-                const elementIcon = ELEMENT_ICONS[element] || '';
+                const canUse = (character?.stats?.mp || 0) >= mpCost;
                 
                 return (
                   <button
                     key={skill.skillId}
                     onClick={() => handleUseSkill(skill.skillId)}
-                    disabled={isLoading || !hasEnoughMp}
-                    className={`py-2 px-2 rounded text-sm transition-all ${
-                      hasEnoughMp 
-                        ? 'bg-purple-700 hover:bg-purple-600' 
-                        : 'bg-gray-700 opacity-50 cursor-not-allowed'
+                    disabled={isLoading || !canUse}
+                    className={`p-2 rounded-lg text-left text-xs border transition-all ${
+                      canUse 
+                        ? 'bg-purple-900/30 hover:bg-purple-800/30 border-purple-500/30' 
+                        : 'bg-gray-800/30 opacity-50 cursor-not-allowed border-gray-700/30'
                     }`}
-                    title={SKILL_DATA[skill.skillId]?.desc || safeString(skill.name)}
                   >
-                    {elementIcon} {safeString(skill.name, 'Skill')} <span className="text-blue-300">({mpCost})</span>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-purple-300">
+                        {ELEMENT_ICONS[element]} {skillInfo.name || skill.skillId}
+                      </span>
+                      <span className="text-blue-400">{mpCost} MP</span>
+                    </div>
+                    <div className="text-gray-500 text-[10px] mt-0.5">{skillInfo.desc}</div>
                   </button>
                 );
               })}
@@ -928,23 +1196,17 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
           </div>
         )}
         
-        {unlockedSkills.length === 0 && (
-          <div className="text-center text-gray-500 text-sm py-2">
-            No skills available - check Skills tab
-          </div>
-        )}
-        
         {/* Potions */}
-        <div className="flex gap-2">
-          <button onClick={() => handleUsePotion('hp')} className="flex-1 py-1 bg-red-800 hover:bg-red-700 rounded text-sm">❤️ HP</button>
-          <button onClick={() => handleUsePotion('mp')} className="flex-1 py-1 bg-blue-800 hover:bg-blue-700 rounded text-sm">💙 MP</button>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => handleUsePotion('hp')} className="flex-1 py-1 bg-red-900/50 hover:bg-red-800/50 rounded text-sm border border-red-500/30">❤️ HP</button>
+          <button onClick={() => handleUsePotion('mp')} className="flex-1 py-1 bg-blue-900/50 hover:bg-blue-800/50 rounded text-sm border border-blue-500/30">💙 MP</button>
         </div>
       </div>
     );
   };
 
   // ============================================================
-  // RENDER: Victory
+  // RENDER: Victory - FIX #5: Purple styling
   // ============================================================
   
   const renderVictory = () => (
@@ -952,14 +1214,14 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
       <div className="text-4xl">🎉</div>
       <p className="text-gray-300 whitespace-pre-line">{safeString(storyText, 'Victory!')}</p>
       {rewards && (
-        <div className="bg-gray-800 p-4 rounded-lg">
+        <div className="bg-void-800/50 p-4 rounded-lg border border-purple-500/20">
           <h4 className="font-bold text-yellow-400 mb-2">Rewards</h4>
           <p>+{safeNumber(rewards.exp, 0)} EXP | +{safeNumber(rewards.gold, 0)} Gold</p>
           {rewards.treasureGold > 0 && <p className="text-yellow-300">💰 +{safeNumber(rewards.treasureGold, 0)} Treasure Gold</p>}
           {rewards.items && Array.isArray(rewards.items) && rewards.items.length > 0 && (
             <div className="mt-2">
               {rewards.items.map((item, i) => (
-                <span key={i} className="inline-block bg-gray-700 px-2 py-1 rounded m-1 text-sm">
+                <span key={i} className="inline-block bg-purple-900/30 px-2 py-1 rounded m-1 text-sm border border-purple-500/20">
                   {safeString(item?.icon, '📦')} {safeString(item?.name, 'Item')} {safeNumber(item?.quantity, 1) > 1 && 'x' + safeNumber(item?.quantity, 1)}
                 </span>
               ))}
@@ -967,14 +1229,17 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
           )}
         </div>
       )}
-      <button onClick={() => setGameState('in_tower')} className="px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-bold">
+      <button 
+        onClick={() => setGameState('in_tower')} 
+        className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-bold border border-purple-500/30"
+      >
         Continue
       </button>
     </div>
   );
 
   // ============================================================
-  // RENDER: Defeat
+  // RENDER: Defeat - FIX #5: Purple styling
   // ============================================================
   
   const renderDefeat = () => (
@@ -988,7 +1253,7 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
           if (onTowerStateChange) onTowerStateChange(false);
           onCharacterUpdate();
         }} 
-        className="px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-bold"
+        className="px-6 py-2 bg-void-700/50 hover:bg-void-600/50 rounded-lg font-bold border border-gray-500/30"
       >
         Return
       </button>
@@ -996,14 +1261,14 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
   );
 
   // ============================================================
-  // RENDER: Doorkeeper
+  // RENDER: Doorkeeper - FIX #5: Purple styling
   // ============================================================
   
   const renderDoorkeeper = () => (
     <div className="space-y-4">
       <p className="text-gray-300 italic">{safeString(storyText, 'The doorkeeper awaits...')}</p>
       {floorRequirements && (
-        <div className="bg-gray-800 p-4 rounded-lg">
+        <div className="bg-void-800/50 p-4 rounded-lg border border-purple-500/20">
           <h4 className="font-bold text-yellow-400 mb-2">Requirements for Floor {safeNumber(floorRequirements.nextFloor, 1)}</h4>
           {floorRequirements.requirements?.items && Array.isArray(floorRequirements.requirements.items) && floorRequirements.requirements.items.map((req, i) => {
             const have = safeNumber(floorRequirements.playerItems?.[req.id], 0);
@@ -1021,10 +1286,14 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={handleAdvance} disabled={isLoading || !floorRequirements?.canAdvance} className="py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:opacity-50 rounded font-bold">
+        <button 
+          onClick={handleAdvance} 
+          disabled={isLoading || !floorRequirements?.canAdvance} 
+          className="py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-700 disabled:opacity-50 rounded font-bold border border-purple-500/30"
+        >
           ⬆️ Advance
         </button>
-        <button onClick={() => setGameState('in_tower')} className="py-2 bg-gray-600 hover:bg-gray-500 rounded">
+        <button onClick={() => setGameState('in_tower')} className="py-2 bg-void-700/50 hover:bg-void-600/50 rounded border border-gray-500/30">
           ← Back
         </button>
       </div>
@@ -1032,7 +1301,7 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
   );
 
   // ============================================================
-  // RENDER: Safe Zone
+  // RENDER: Safe Zone - FIX #5: Purple styling
   // ============================================================
   
   const renderSafeZone = () => (
@@ -1041,25 +1310,28 @@ const TowerPanel = ({ character, onCharacterUpdate, onTowerStateChange }) => {
       <h3 className="text-xl font-bold text-green-400">Safe Zone</h3>
       <p className="text-gray-300">{safeString(storyText, 'A safe place to rest...')}</p>
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => handleUsePotion('hp')} className="py-2 bg-red-700 hover:bg-red-600 rounded">
+        <button onClick={() => handleUsePotion('hp')} className="py-2 bg-red-900/50 hover:bg-red-800/50 rounded border border-red-500/30">
           ❤️ HP Potion
         </button>
-        <button onClick={() => handleUsePotion('mp')} className="py-2 bg-blue-700 hover:bg-blue-600 rounded">
+        <button onClick={() => handleUsePotion('mp')} className="py-2 bg-blue-900/50 hover:bg-blue-800/50 rounded border border-blue-500/30">
           💙 MP Potion
         </button>
       </div>
-      <button onClick={() => setGameState('in_tower')} className="px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg">
+      <button 
+        onClick={() => setGameState('in_tower')} 
+        className="px-6 py-2 bg-void-700/50 hover:bg-void-600/50 rounded-lg border border-gray-500/30"
+      >
         Continue
       </button>
     </div>
   );
 
   // ============================================================
-  // MAIN RENDER
+  // MAIN RENDER - FIX #5: Purple border wrapper
   // ============================================================
   
   return (
-    <div className="bg-gray-800/30 rounded-xl p-4 border border-purple-500/20">
+    <div className="bg-void-800/30 rounded-xl p-4 border border-purple-500/20">
       {gameState === 'tower_select' && renderTowerSelect()}
       {gameState === 'in_tower' && renderInTower()}
       {gameState === 'choosing_path' && renderChoosingPath()}
