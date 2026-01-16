@@ -51,13 +51,16 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('apz_user', JSON.stringify(data.user));
       setUser(data.user);
       
-      // Fetch character if exists
-      if (data.hasCharacter) {
+      // Check if user is GM/Admin
+      const userIsGM = data.user?.role === 'gm' || data.user?.role === 'admin';
+      
+      // Fetch character if exists (and not GM)
+      if (data.hasCharacter && !userIsGM) {
         const charResponse = await characterAPI.get();
         setCharacter(charResponse.data.character);
       }
       
-      return { success: true, hasCharacter: data.hasCharacter };
+      return { success: true, hasCharacter: data.hasCharacter, isGM: userIsGM };
     } catch (err) {
       const message = err.response?.data?.error || 'Login failed';
       setError(message);
