@@ -9,12 +9,17 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [showIntro, setShowIntro] = useState(true);
   
-  const { login, isAuthenticated, character, isGM } = useAuth();
+  const { login, isAuthenticated, character, isGM, loading } = useAuth();
   const navigate = useNavigate();
 
-  // FIX: Redirect based on auth state - only after login is processed
+  // FIX #1: Only redirect when NOT loading and properly authenticated
   useEffect(() => {
+    // Don't redirect while auth is still loading
+    if (loading) return;
+    
     if (isAuthenticated) {
+      console.log('Auth state:', { isAuthenticated, isGM, hasCharacter: !!character });
+      
       if (isGM) {
         navigate('/gm', { replace: true });
       } else if (character) {
@@ -23,7 +28,7 @@ const LoginPage = () => {
         navigate('/create-character', { replace: true });
       }
     }
-  }, [isAuthenticated, character, isGM, navigate]);
+  }, [isAuthenticated, character, isGM, navigate, loading]);
 
   useEffect(() => {
     const timer = setTimeout(() => setShowIntro(false), 2500);
@@ -36,13 +41,19 @@ const LoginPage = () => {
     setIsLoading(true);
 
     const result = await login(username, password);
+    console.log('Login result:', result);
     
     if (result.success) {
-      // FIX: Immediate redirect after login based on hasCharacter
-      // Don't wait for useEffect - navigate immediately
-      if (result.hasCharacter) {
+      // FIX #1: Navigate immediately based on login result, don't wait for useEffect
+      // This is more reliable because we have fresh data from the server
+      if (result.isGM) {
+        console.log('Redirecting GM to /gm');
+        navigate('/gm', { replace: true });
+      } else if (result.hasCharacter) {
+        console.log('Redirecting player with character to /game');
         navigate('/game', { replace: true });
       } else {
+        console.log('Redirecting new player to /create-character');
         navigate('/create-character', { replace: true });
       }
     } else {
@@ -168,7 +179,7 @@ const LoginPage = () => {
 
         {/* Version info */}
         <div className="mt-6 text-center text-gray-600 text-xs">
-          <p>Phase 7.1 • Version 1.0.0</p>
+          <p>Phase 7.2 • Version 1.0.0</p>
         </div>
       </div>
     </div>
