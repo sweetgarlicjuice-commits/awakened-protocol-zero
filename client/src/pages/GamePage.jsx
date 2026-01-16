@@ -271,7 +271,7 @@ const HIDDEN_CLASS_ICONS = {
 };
 
 const GamePage = () => {
-  const { character, logout, refreshCharacter } = useAuth();
+  const { character, logout, refreshCharacter, updateLocalCharacter } = useAuth();
   const [activeTab, setActiveTab] = useState('status');
   const [statusSubTab, setStatusSubTab] = useState('info'); // 'info' or 'combat'
   const [isResting, setIsResting] = useState(false);
@@ -665,6 +665,7 @@ const GamePage = () => {
                 <TowerPanel 
                   character={character} 
                   onCharacterUpdate={refreshCharacter}
+                  updateLocalCharacter={updateLocalCharacter}
                   addLog={addLog}
                   onTowerStateChange={handleTowerStateChange}
                 />
