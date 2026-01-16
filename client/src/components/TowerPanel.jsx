@@ -1,27 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const NODE_ICONS = {
-  start: '🚪', combat: '⚔️', elite: '💀', boss: '👹',
-  treasure: '💰', rest: '🏕️', mystery: '❓', merchant: '🛒', shrine: '📜'
-};
-
-const NODE_COLORS = {
-  start: 'bg-green-600', combat: 'bg-red-600', elite: 'bg-purple-600', boss: 'bg-red-800',
-  treasure: 'bg-yellow-600', rest: 'bg-blue-600', mystery: 'bg-indigo-600', merchant: 'bg-emerald-600', shrine: 'bg-cyan-600'
-};
-
-const BUFF_ICONS = {
-  attack: '⚔️', critRate: '🎯', evasion: '💨', shield: '🛡️', defend: '🛡️'
-};
+const NODE_ICONS = { start: '🚪', combat: '⚔️', elite: '💀', boss: '👹', treasure: '💰', rest: '🏕️', mystery: '❓', merchant: '🛒', shrine: '📜' };
+const NODE_COLORS = { start: 'bg-green-600', combat: 'bg-red-600', elite: 'bg-purple-600', boss: 'bg-red-800', treasure: 'bg-yellow-600', rest: 'bg-blue-600', mystery: 'bg-indigo-600', merchant: 'bg-emerald-600', shrine: 'bg-cyan-600' };
+const BUFF_ICONS = { attack: '⚔️', critRate: '🎯', evasion: '💨', shield: '🛡️', defend: '🛡️' };
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const api = axios.create({ baseURL: API_BASE, headers: { 'Content-Type': 'application/json' } });
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('apz_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
+api.interceptors.request.use(config => { const token = localStorage.getItem('apz_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config; });
 
 const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog, onTowerStateChange }) => {
   const [view, setView] = useState('select');
@@ -35,7 +21,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const [message, setMessage] = useState(null);
   const [playerBuffs, setPlayerBuffs] = useState([]);
   const [playerSkills, setPlayerSkills] = useState([]);
-  const [hoveredSkill, setHoveredSkill] = useState(null);
   const combatLogRef = useRef(null);
 
   const loadFloorMap = async () => {
@@ -47,9 +32,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       setView('map');
       onTowerStateChange?.(true);
       addLog?.('info', `Entered ${data.tower.name} Floor ${data.floor}`);
-    } catch (err) {
-      addLog?.('error', err.response?.data?.error || err.message);
-    }
+    } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
     setIsLoading(false);
   };
 
@@ -58,20 +41,13 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     setIsLoading(true);
     try {
       const { data } = await api.post('/exploration/move', { nodeId });
-      setFloorMap(prev => ({
-        ...prev,
-        currentNodeId: nodeId,
-        nodes: prev.nodes.map(n => n.id === nodeId ? { ...n, visited: true } : n)
-      }));
+      setFloorMap(prev => ({ ...prev, currentNodeId: nodeId, nodes: prev.nodes.map(n => n.id === nodeId ? { ...n, visited: true } : n) }));
       updateLocalCharacter?.({ energy: data.energy });
       addLog?.('info', `Moved to ${NODE_ICONS[data.nodeType]} ${data.nodeType} node`);
-      
       if (['combat', 'elite', 'boss'].includes(data.nodeType)) await startCombat();
       else if (['treasure', 'rest', 'shrine'].includes(data.nodeType)) await handleInteraction();
       else if (data.nodeType === 'mystery') { setEventData(data.node); setView('event'); }
-    } catch (err) {
-      addLog?.('error', err.response?.data?.error || err.message);
-    }
+    } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
     setIsLoading(false);
   };
 
@@ -84,9 +60,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       setPlayerBuffs([]);
       setSelectedTarget(0);
       setView('combat');
-    } catch (err) {
-      addLog?.('error', err.response?.data?.error || err.message);
-    }
+    } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
   };
 
   const doCombatAction = async (action, skillId = null) => {
@@ -99,9 +73,8 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         setMessage({ type: 'success', text: `Victory! +${data.rewards.exp} EXP, +${data.rewards.gold} Gold` });
         addLog?.('success', `Victory! +${data.rewards.exp} EXP, +${data.rewards.gold} Gold`);
         setFloorMap(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n) }));
-        
         if (data.floorComplete) {
-          addLog?.('success', `Floor ${character.currentFloor} cleared! Advancing to Floor ${character.currentFloor + 1}!`);
+          addLog?.('success', `Floor cleared! Advancing to Floor ${character.currentFloor + 1}!`);
           setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); onCharacterUpdate?.(); }, 2500);
         } else {
           setTimeout(() => { setView('map'); setCombat(null); setMessage(null); setPlayerBuffs([]); onCharacterUpdate?.(); }, 1500);
@@ -110,7 +83,6 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       } else if (data.status === 'defeat') {
         setCombatLog(data.combatLog);
         setMessage({ type: 'error', text: 'Defeated! Returning to town...' });
-        addLog?.('error', 'You have been defeated!');
         setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); onTowerStateChange?.(false); onCharacterUpdate?.(); }, 2000);
       } else {
         setCombat(data.combat);
@@ -118,9 +90,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         setPlayerBuffs(data.playerBuffs || []);
         updateLocalCharacter?.({ stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp } });
       }
-    } catch (err) {
-      addLog?.('error', err.response?.data?.error || err.message);
-    }
+    } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
     setIsLoading(false);
   };
 
@@ -133,9 +103,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       setFloorMap(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n) }));
       updateLocalCharacter?.({ stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp }, gold: data.character.gold });
       setTimeout(() => { setView('map'); setEventData(null); setMessage(null); }, 1500);
-    } catch (err) {
-      addLog?.('error', err.response?.data?.error || err.message);
-    }
+    } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
     setIsLoading(false);
   };
 
@@ -146,14 +114,10 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       onTowerStateChange?.(false);
       addLog?.('info', 'Left the tower');
       onCharacterUpdate?.();
-    } catch (err) {
-      addLog?.('error', err.response?.data?.error || err.message);
-    }
+    } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
   };
 
-  useEffect(() => {
-    if (combatLogRef.current) combatLogRef.current.scrollTop = combatLogRef.current.scrollHeight;
-  }, [combatLog]);
+  useEffect(() => { if (combatLogRef.current) combatLogRef.current.scrollTop = combatLogRef.current.scrollHeight; }, [combatLog]);
 
   // ============ TOWER SELECT ============
   if (view === 'select') {
@@ -161,29 +125,21 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       <div className="space-y-4">
         <div className="text-center mb-6">
           <h2 className="font-display text-xl text-purple-400 mb-2">Tower Selection</h2>
-          <p className="text-gray-400 text-sm">Current: Tower {character.currentTower} - Floor {character.currentFloor}</p>
+          <p className="text-gray-400 text-sm">Tower {character.currentTower} - Floor {character.currentFloor}</p>
         </div>
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-white font-semibold">Tower {character.currentTower}</h3>
-              <p className="text-gray-400 text-sm">Floor {character.currentFloor}/15</p>
-            </div>
-            <div className="text-right">
-              <p className="text-amber-400">⚡ {character.energy}/100</p>
-              <p className="text-gray-500 text-xs">5 energy per node</p>
-            </div>
+            <div><h3 className="text-white font-semibold">Tower {character.currentTower}</h3><p className="text-gray-400 text-sm">Floor {character.currentFloor}/15</p></div>
+            <div className="text-right"><p className="text-amber-400">⚡ {character.energy}/100</p><p className="text-gray-500 text-xs">5 energy per node</p></div>
           </div>
-          <div className="h-2 bg-void-900 rounded-full mb-4">
-            <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${(character.currentFloor / 15) * 100}%` }}></div>
-          </div>
+          <div className="h-2 bg-void-900 rounded-full mb-4"><div className="h-full bg-purple-500 rounded-full" style={{ width: `${(character.currentFloor / 15) * 100}%` }}></div></div>
           <button onClick={loadFloorMap} disabled={isLoading || character.energy < 5 || character.stats.hp <= 0} className="w-full btn-primary py-3 disabled:opacity-50">
             {isLoading ? 'Loading...' : character.stats.hp <= 0 ? 'Need to heal first' : '⚔️ Enter Tower'}
           </button>
         </div>
         <div className="bg-void-800/30 p-3 rounded-lg text-sm text-gray-400">
-          <p>💡 <strong>Tip:</strong> Clear the last node of each floor to advance!</p>
-          <p className="mt-1">Boss appears every 5 floors (5, 10, 15)</p>
+          <p>💡 Clear the exit node (🚩) to advance floor</p>
+          <p className="mt-1">👹 Boss every 5 floors (5, 10, 15)</p>
         </div>
       </div>
     );
@@ -200,13 +156,9 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-display text-lg text-purple-400">{tower?.name}</h2>
-            <p className="text-gray-400 text-sm">Floor {character.currentFloor}</p>
-          </div>
+          <div><h2 className="font-display text-lg text-purple-400">{tower?.name}</h2><p className="text-gray-400 text-sm">Floor {character.currentFloor}</p></div>
           <button onClick={leaveTower} className="btn-secondary text-xs px-3 py-1">🚪 Leave</button>
         </div>
-        
         <div className="bg-void-800/50 rounded-xl p-4 neon-border overflow-x-auto">
           <div className="min-w-[280px] space-y-3">
             {sortedRows.map((row, ri) => (
@@ -231,30 +183,19 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
               </div>
             ))}
           </div>
-          <div className="mt-4 pt-3 border-t border-gray-700/50 flex flex-wrap justify-center gap-2 text-xs">
-            {Object.entries(NODE_ICONS).slice(1).map(([t, i]) => <span key={t} className="text-gray-400">{i} {t}</span>)}
-            <span className="text-yellow-400">🚩 exit</span>
-          </div>
         </div>
-        
         {currentNode && (
           <div className="bg-void-800/30 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">{NODE_ICONS[currentNode.type]}</span>
               <div>
-                <p className="text-white font-medium capitalize">{currentNode.type} Node {currentNode.isExit && <span className="text-yellow-400 text-xs">(EXIT)</span>}</p>
-                <p className="text-gray-400 text-xs">{currentNode.cleared ? 'Cleared' : 'Not cleared'}</p>
+                <p className="text-white font-medium capitalize">{currentNode.type} {currentNode.isExit && <span className="text-yellow-400 text-xs">(EXIT 🚩)</span>}</p>
+                <p className="text-gray-400 text-xs">{currentNode.cleared ? 'Cleared ✓' : 'Not cleared'}</p>
               </div>
             </div>
-            {!currentNode.cleared && ['combat', 'elite', 'boss'].includes(currentNode.type) && (
-              <button onClick={startCombat} className="w-full btn-primary py-2 mt-2">⚔️ Start Combat</button>
-            )}
-            {!currentNode.cleared && ['treasure', 'rest', 'shrine'].includes(currentNode.type) && (
-              <button onClick={() => handleInteraction()} className="w-full btn-secondary py-2 mt-2">{NODE_ICONS[currentNode.type]} Interact</button>
-            )}
-            {!currentNode.cleared && currentNode.type === 'mystery' && (
-              <button onClick={() => { setEventData(currentNode); setView('event'); }} className="w-full btn-secondary py-2 mt-2">❓ Investigate</button>
-            )}
+            {!currentNode.cleared && ['combat', 'elite', 'boss'].includes(currentNode.type) && <button onClick={startCombat} className="w-full btn-primary py-2 mt-2">⚔️ Start Combat</button>}
+            {!currentNode.cleared && ['treasure', 'rest', 'shrine'].includes(currentNode.type) && <button onClick={() => handleInteraction()} className="w-full btn-secondary py-2 mt-2">{NODE_ICONS[currentNode.type]} Interact</button>}
+            {!currentNode.cleared && currentNode.type === 'mystery' && <button onClick={() => { setEventData(currentNode); setView('event'); }} className="w-full btn-secondary py-2 mt-2">❓ Investigate</button>}
           </div>
         )}
         {message && <div className={`p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>{message.text}</div>}
@@ -268,27 +209,17 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     
     return (
       <div className="space-y-3">
-        {/* Header with buffs */}
+        {/* Header */}
         <div className="flex items-center justify-between bg-void-800/50 rounded-lg p-2">
-          <div>
-            <p className="text-purple-400 font-semibold text-sm">Wave {combat.wave}</p>
-            <p className="text-gray-400 text-xs">Turn {combat.turnCount}</p>
-          </div>
-          <div className="text-right text-xs">
-            <p className="text-green-400">HP: {character.stats.hp}/{character.stats.maxHp}</p>
-            <p className="text-blue-400">MP: {character.stats.mp}/{character.stats.maxMp}</p>
-          </div>
+          <div><p className="text-purple-400 font-semibold text-sm">Wave {combat.wave}</p><p className="text-gray-400 text-xs">Turn {combat.turnCount}</p></div>
+          <div className="text-right text-xs"><p className="text-green-400">HP: {character.stats.hp}/{character.stats.maxHp}</p><p className="text-blue-400">MP: {character.stats.mp}/{character.stats.maxMp}</p></div>
         </div>
         
-        {/* Active Buffs Display */}
+        {/* Active Buffs */}
         {playerBuffs.length > 0 && (
           <div className="bg-blue-900/30 rounded-lg p-2 flex flex-wrap gap-2">
-            <span className="text-xs text-blue-300">Buffs:</span>
-            {playerBuffs.map((buff, i) => (
-              <span key={i} className="bg-blue-600/50 px-2 py-1 rounded text-xs text-white">
-                {BUFF_ICONS[buff.type] || '✨'} {buff.type} +{buff.value}% ({buff.duration}t)
-              </span>
-            ))}
+            <span className="text-xs text-blue-300">Active:</span>
+            {playerBuffs.map((b, i) => <span key={i} className="bg-blue-600/50 px-2 py-0.5 rounded text-xs text-white">{BUFF_ICONS[b.type]} {b.type} +{b.value}% ({b.duration}t)</span>)}
           </div>
         )}
         
@@ -301,15 +232,15 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
                 className={`w-full p-2 rounded-lg flex items-center gap-3 transition-all
                   ${selectedTarget === idx && enemy.hp > 0 ? 'bg-red-600/30 ring-1 ring-red-500' : 'bg-void-900/50'}
                   ${enemy.hp <= 0 ? 'opacity-40' : 'hover:bg-void-900'}`}>
-                <span className="text-2xl">{enemy.icon}</span>
+                <span className="text-2xl">{enemy.icon || '👹'}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm truncate">{enemy.name}</p>
+                  <p className="text-white text-sm truncate">{enemy.name || 'Enemy'}</p>
                   <div className="h-2 bg-void-900 rounded-full overflow-hidden">
                     <div className={`h-full transition-all ${enemy.hp <= 0 ? 'bg-gray-600' : enemy.hp / enemy.maxHp > 0.5 ? 'bg-green-500' : enemy.hp / enemy.maxHp > 0.25 ? 'bg-yellow-500' : 'bg-red-500'}`}
                       style={{ width: `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%` }}></div>
                   </div>
                 </div>
-                <span className="text-xs text-gray-400">{Math.max(0, enemy.hp)}/{enemy.maxHp}</span>
+                <span className="text-xs text-gray-400 w-16 text-right">{Math.max(0, enemy.hp)}/{enemy.maxHp}</span>
               </button>
             ))}
           </div>
@@ -319,7 +250,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         <div className="bg-void-800/30 rounded-lg p-2 h-20 overflow-hidden">
           <div ref={combatLogRef} className="h-full overflow-y-auto text-xs space-y-1">
             {combatLog.map((log, i) => (
-              <p key={i} className={`${log.type === 'crit' ? 'text-yellow-400 font-bold' : log.type === 'skill' ? 'text-purple-400' : log.type === 'enemy' ? 'text-red-400' : log.type === 'victory' ? 'text-green-400 font-bold' : log.type === 'defeat' ? 'text-red-400 font-bold' : log.type === 'buff' ? 'text-blue-400' : log.type === 'miss' ? 'text-gray-500' : 'text-gray-400'}`}>
+              <p key={i} className={`${log.type === 'crit' ? 'text-yellow-400 font-bold' : log.type === 'skill' ? 'text-purple-400' : log.type === 'enemy' ? 'text-red-400' : log.type === 'victory' ? 'text-green-400 font-bold' : log.type === 'defeat' ? 'text-red-400 font-bold' : log.type === 'buff' ? 'text-blue-400' : log.type === 'miss' ? 'text-gray-500 italic' : 'text-gray-400'}`}>
                 {log.message}
               </p>
             ))}
@@ -335,40 +266,26 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
               <button onClick={leaveTower} disabled={isLoading} className="btn-secondary py-2 text-sm text-red-400 disabled:opacity-50">💨 Flee</button>
             </div>
             
-            {/* Skills with tooltips */}
+            {/* Skills with clear info */}
             <div className="bg-void-800/30 rounded-lg p-2">
-              <p className="text-gray-400 text-xs mb-2">SKILLS (hover for info)</p>
-              <div className="grid grid-cols-2 gap-1 relative">
+              <p className="text-gray-400 text-xs mb-2">SKILLS</p>
+              <div className="grid grid-cols-2 gap-2">
                 {playerSkills.map((skill, i) => (
-                  <div key={i} className="relative">
-                    <button
-                      onClick={() => doCombatAction('skill', skill.skillId)}
-                      disabled={isLoading || character.stats.mp < (skill.mpCost || 10)}
-                      onMouseEnter={() => setHoveredSkill(skill)}
-                      onMouseLeave={() => setHoveredSkill(null)}
-                      className={`w-full p-2 rounded text-left text-xs transition-colors
-                        ${skill.target === 'all' ? 'bg-purple-900/50 hover:bg-purple-900' : 'bg-void-900/50 hover:bg-void-900'}
-                        ${skill.damageType === 'buff' ? 'border border-blue-500/30' : ''}
-                        disabled:opacity-50`}>
-                      <span className="text-white">{skill.name}</span>
-                      <span className="text-blue-400 ml-1">({skill.mpCost})</span>
-                      {skill.target === 'all' && <span className="text-purple-300 ml-1">AOE</span>}
-                      {skill.damageType === 'buff' && <span className="text-blue-300 ml-1">BUFF</span>}
-                    </button>
-                  </div>
+                  <button key={i} onClick={() => doCombatAction('skill', skill.skillId)} disabled={isLoading || character.stats.mp < skill.mpCost}
+                    className={`p-2 rounded text-left text-xs transition-colors disabled:opacity-50
+                      ${skill.damageType === 'buff' ? 'bg-blue-900/50 hover:bg-blue-900 border border-blue-500/30' : 
+                        skill.target === 'all' ? 'bg-purple-900/50 hover:bg-purple-900' : 'bg-void-900/50 hover:bg-void-900'}`}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-white font-medium">{skill.name}</span>
+                      <span className="text-blue-400">{skill.mpCost}MP</span>
+                    </div>
+                    <p className="text-gray-400">{skill.desc}</p>
+                    <p className={`font-medium ${skill.damageType === 'magical' ? 'text-cyan-400' : skill.damageType === 'buff' ? 'text-blue-400' : 'text-orange-400'}`}>
+                      {skill.dmgText}
+                    </p>
+                  </button>
                 ))}
               </div>
-              
-              {/* Skill Tooltip */}
-              {hoveredSkill && (
-                <div className="mt-2 p-2 bg-black/80 rounded border border-purple-500/50 text-xs">
-                  <p className="text-purple-300 font-semibold">{hoveredSkill.name}</p>
-                  <p className="text-gray-300">{hoveredSkill.desc || 'No description'}</p>
-                  <p className="text-blue-400">MP Cost: {hoveredSkill.mpCost}</p>
-                  {hoveredSkill.target === 'all' && <p className="text-purple-400">Hits ALL enemies</p>}
-                  {hoveredSkill.buff && <p className="text-blue-400">+{hoveredSkill.buff.value}% {hoveredSkill.buff.type} for {hoveredSkill.buff.duration} turns</p>}
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -389,14 +306,12 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
             <>
               <p className="text-gray-300 text-sm mb-4">{eventData.scenario.description}</p>
               <div className="flex gap-2 justify-center">
-                {eventData.scenario.choices.map(choice => (
-                  <button key={choice} onClick={() => handleInteraction(choice)} disabled={isLoading} className="btn-primary px-4 py-2 capitalize disabled:opacity-50">{choice}</button>
-                ))}
+                {eventData.scenario.choices.map(c => <button key={c} onClick={() => handleInteraction(c)} disabled={isLoading} className="btn-primary px-4 py-2 capitalize disabled:opacity-50">{c}</button>)}
               </div>
             </>
           )}
         </div>
-        <button onClick={() => { setView('map'); setEventData(null); }} className="w-full btn-secondary py-2">← Back to Map</button>
+        <button onClick={() => { setView('map'); setEventData(null); }} className="w-full btn-secondary py-2">← Back</button>
       </div>
     );
   }
