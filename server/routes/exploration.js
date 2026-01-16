@@ -3,6 +3,15 @@ import Character from '../models/Character.js';
 import FloorMap from '../models/FloorMap.js';
 import { authenticate } from '../middleware/auth.js';
 import { TOWERS, ENEMIES } from '../data/towerData.js';
+// Equipment Database v2
+import { 
+  EQUIPMENT, 
+  getRandomEquipment, 
+  calculateEquipmentStats,
+  getMaterialsByTower,
+  CONSUMABLES
+} from '../data/equipment/index.js';
+import { HIDDEN_CLASS_SCROLLS, MEMORY_CRYSTAL_FRAGMENT } from '../data/equipment/special_items.js';
 
 const router = express.Router();
 const ENERGY_PER_EXPLORATION = 5;
@@ -101,6 +110,251 @@ const SKILLS = {
 };
 
 const getSkill = (skillId) => SKILLS[skillId] || { name: 'Attack', mpCost: 0, damage: 1.0, damageType: 'physical', target: 'single', desc: 'Basic attack', dmgText: '100% PDmg' };
+
+// ============================================================
+// HELPER: Get equipped item IDs from character equipment
+// ============================================================
+function getEquippedItemIds(character) {
+  const itemIds = [];
+  if (!character.equipment) return itemIds;
+  
+  const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
+  slots.forEach(slot => {
+    if (character.equipment[slot]?.itemId) {
+      itemIds.push(character.equipment[slot].itemId);
+    }
+  });
+  
+  return itemIds;
+}
+
+// ============================================================
+// HELPER: Calculate total combat stats (base + equipment)
+// ============================================================
+function calculateCombatStats(character) {
+  const stats = character.stats;
+  const level = character.level || 1;
+  
+  // Get equipment bonuses
+  const equippedIds = getEquippedItemIds(character);
+  const equipBonus = calculateEquipmentStats(equippedIds);
+  
+  // Base stats + equipment bonuses
+  const totalStr = (stats.str || 0) + (equipBonus.str || 0);
+  const totalAgi = (stats.agi || 0) + (equipBonus.agi || 0);
+  const totalDex = (stats.dex || 0) + (equipBonus.dex || 0);
+  const totalInt = (stats.int || 0) + (equipBonus.int || 0);
+  const totalVit = (stats.vit || 0) + (equipBonus.vit || 0);
+  
+  // Level bonus (+2% per level)
+  const levelBonus = 1 + (level - 1) * 0.02;
+  
+  return {
+    // Physical damage: base formula + equipment pAtk
+    pDmg: Math.floor((5 + totalStr * 3 + (equipBonus.pAtk || 0)) * levelBonus),
+    // Magical damage: base formula + equipment mAtk
+    mDmg: Math.floor((5 + totalInt * 4 + (equipBonus.mAtk || 0)) * levelBonus),
+    // Physical defense: base formula + equipment pDef
+    pDef: totalStr + totalVit * 2 + (equipBonus.pDef || 0),
+    // Magical defense: base formula + equipment mDef
+    mDef: totalVit + totalInt + (equipBonus.mDef || 0),
+    // Crit rate: base + equipment (capped at 80%)
+    critRate: Math.min(5 + totalAgi * 0.5 + (equipBonus.critRate || 0), 80),
+    // Crit damage: base + equipment
+    critDmg: 150 + totalDex + (equipBonus.critDmg || 0),
+    // HP/MP bonuses from equipment
+    bonusHp: equipBonus.hp || 0,
+    bonusMp: equipBonus.mp || 0
+  };
+}
+
+// ============================================================
+// DROP SYSTEM - Drop rates by node type
+// ============================================================
+const DROP_RATES = {
+  combat: {
+    equipment: 0.07,    // 7%
+    material: 0.18,     // 18%
+    potion: 0.20,       // 20%
+    gold: { min: 5, max: 15 }
+  },
+  elite: {
+    equipment: 0.15,    // 15%
+    material: 0.30,     // 30%
+    potion: 0.20,       // 20%
+    gold: { min: 15, max: 40 }
+  },
+  boss: {
+    equipment: 0.25,    // 25%
+    hiddenScroll: 0.06, // 6%
+    memoryCrystalFragment: 0.10, // 10%
+    material: 0.50,     // 50%
+    potion: 0.20,       // 20%
+    gold: { min: 50, max: 150 }
+  }
+};
+
+// ============================================================
+// HELPER: Generate loot drops after combat victory
+// ============================================================
+function generateLootDrops(nodeType, towerId, floor, playerLevel, playerClass) {
+  const drops = [];
+  const rates = DROP_RATES[nodeType] || DROP_RATES.combat;
+  
+  // Gold drop (always)
+  const goldAmount = Math.floor(
+    rates.gold.min + Math.random() * (rates.gold.max - rates.gold.min) + floor * 2
+  );
+  
+  // Equipment drop
+  if (Math.random() < rates.equipment) {
+    const equipment = getRandomEquipment(towerId, floor, playerLevel, playerClass);
+    if (equipment) {
+      drops.push({
+        type: 'equipment',
+        item: {
+          itemId: equipment.id,
+          name: equipment.name,
+          icon: equipment.icon,
+          type: equipment.type,
+          subtype: equipment.slot,
+          rarity: equipment.rarity,
+          quantity: 1,
+          stackable: false,
+          stats: equipment.stats,
+          sellPrice: equipment.sellPrice || 50,
+          levelReq: equipment.levelReq,
+          class: equipment.class
+        }
+      });
+    }
+  }
+  
+  // Material drop
+  if (Math.random() < rates.material) {
+    const materials = getMaterialsByTower(towerId);
+    if (materials && materials.length > 0) {
+      const mat = materials[Math.floor(Math.random() * materials.length)];
+      drops.push({
+        type: 'material',
+        item: {
+          itemId: mat.id,
+          name: mat.name,
+          icon: mat.icon || '🧱',
+          type: 'material',
+          rarity: mat.rarity || 'common',
+          quantity: Math.floor(1 + Math.random() * 3),
+          stackable: true,
+          sellPrice: mat.sellPrice || 10
+        }
+      });
+    }
+  }
+  
+  // Potion drop
+  if (Math.random() < rates.potion) {
+    const potionTypes = ['small_health_potion', 'small_mana_potion', 'medium_health_potion', 'medium_mana_potion'];
+    const potionId = potionTypes[Math.floor(Math.random() * potionTypes.length)];
+    const potion = CONSUMABLES[potionId];
+    if (potion) {
+      drops.push({
+        type: 'consumable',
+        item: {
+          itemId: potion.id,
+          name: potion.name,
+          icon: potion.icon,
+          type: 'consumable',
+          subtype: potion.subtype,
+          rarity: potion.rarity || 'common',
+          quantity: 1,
+          stackable: true,
+          sellPrice: potion.sellPrice || 25
+        }
+      });
+    }
+  }
+  
+  // Boss-only drops
+  if (nodeType === 'boss') {
+    // Hidden Class Scroll (6% - very rare!)
+    if (Math.random() < rates.hiddenScroll) {
+      // Get scrolls that can drop from this tower
+      const availableScrolls = Object.values(HIDDEN_CLASS_SCROLLS).filter(
+        s => s.dropTowers.includes(towerId)
+      );
+      if (availableScrolls.length > 0) {
+        const scroll = availableScrolls[Math.floor(Math.random() * availableScrolls.length)];
+        drops.push({
+          type: 'hidden_class_scroll',
+          item: {
+            itemId: scroll.id,
+            name: scroll.name,
+            icon: scroll.icon,
+            type: 'hidden_class_scroll',
+            rarity: 'legendary',
+            quantity: 1,
+            stackable: false,
+            sellPrice: null, // Cannot sell
+            hiddenClass: scroll.hiddenClass,
+            baseClass: scroll.baseClass
+          }
+        });
+      }
+    }
+    
+    // Memory Crystal Fragment (10%)
+    if (Math.random() < rates.memoryCrystalFragment) {
+      drops.push({
+        type: 'material',
+        item: {
+          itemId: 'memory_crystal_fragment',
+          name: MEMORY_CRYSTAL_FRAGMENT.name,
+          icon: MEMORY_CRYSTAL_FRAGMENT.icon,
+          type: 'material',
+          rarity: MEMORY_CRYSTAL_FRAGMENT.rarity,
+          quantity: 1,
+          stackable: true,
+          sellPrice: MEMORY_CRYSTAL_FRAGMENT.sellPrice
+        }
+      });
+    }
+  }
+  
+  return { drops, goldAmount };
+}
+
+// ============================================================
+// HELPER: Add items to character inventory
+// ============================================================
+function addItemsToInventory(character, drops) {
+  const addedItems = [];
+  
+  drops.forEach(drop => {
+    const item = drop.item;
+    
+    // Check if stackable item already exists in inventory
+    if (item.stackable) {
+      const existing = character.inventory.find(i => i.itemId === item.itemId);
+      if (existing) {
+        existing.quantity += item.quantity;
+        addedItems.push({ ...item, action: 'stacked' });
+        return;
+      }
+    }
+    
+    // Check inventory space
+    if (character.inventory.length >= character.inventorySize) {
+      addedItems.push({ ...item, action: 'inventory_full' });
+      return;
+    }
+    
+    // Add new item
+    character.inventory.push(item);
+    addedItems.push({ ...item, action: 'added' });
+  });
+  
+  return addedItems;
+}
 
 router.get('/skills', authenticate, (req, res) => res.json({ skills: SKILLS }));
 
@@ -406,18 +660,22 @@ router.post('/combat/action', authenticate, async (req, res) => {
     const currentNode = floorMap.nodes.find(n => n.id === combat.nodeId);
     const newLogs = [];
     
-    // Calculate player stats with buffs
+    // Calculate player stats with EQUIPMENT BONUSES + buffs
+    const combatStats = calculateCombatStats(character);
+    
     let atkBonus = 0, critBonus = 0;
     (combat.playerBuffs || []).forEach(b => {
       if (b.type === 'attack') atkBonus += b.value;
       if (b.type === 'critRate') critBonus += b.value;
     });
     
-    const pDmg = Math.floor((5 + character.stats.str * 3) * (1 + (character.level - 1) * 0.02) * (1 + atkBonus / 100));
-    const mDmg = Math.floor((5 + character.stats.int * 4) * (1 + (character.level - 1) * 0.02) * (1 + atkBonus / 100));
-    const pDef = character.stats.str + character.stats.vit * 2;
-    const critRate = Math.min(5 + character.stats.agi * 0.5 + critBonus, 80);
-    const critDmg = 150 + character.stats.dex;
+    // Apply buff bonuses to equipment-enhanced stats
+    const pDmg = Math.floor(combatStats.pDmg * (1 + atkBonus / 100));
+    const mDmg = Math.floor(combatStats.mDmg * (1 + atkBonus / 100));
+    const pDef = combatStats.pDef;
+    const mDef = combatStats.mDef;
+    const critRate = Math.min(combatStats.critRate + critBonus, 80);
+    const critDmg = combatStats.critDmg;
     
     const aliveEnemies = combat.enemies.filter(e => e.hp > 0);
     
@@ -485,12 +743,63 @@ router.post('/combat/action', authenticate, async (req, res) => {
       const baseExp = combat.enemies.reduce((s, e) => s + (e.expReward || 2), 0);
       const baseGold = combat.enemies.reduce((s, e) => s + Math.floor((e.goldReward?.min || 2) + Math.random() * ((e.goldReward?.max || 5) - (e.goldReward?.min || 2))), 0);
       const mult = currentNode.type === 'boss' ? 2 : currentNode.type === 'elite' ? 1.5 : 1;
-      const rewards = { exp: Math.floor(baseExp * mult), gold: Math.floor(baseGold * mult) };
+      const rewards = { exp: Math.floor(baseExp * mult), gold: Math.floor(baseGold * mult), items: [] };
+      
+      // Generate loot drops based on node type
+      const playerClass = character.hiddenClass !== 'none' 
+        ? character.baseClass  // Hidden class uses base class for equipment
+        : character.baseClass;
+      const loot = generateLootDrops(currentNode.type, floorMap.towerId, floorMap.floor, character.level, playerClass);
+      
+      // Add extra gold from loot
+      rewards.gold += loot.goldAmount;
+      
+      // Add items to inventory
+      if (loot.drops.length > 0) {
+        const addedItems = addItemsToInventory(character, loot.drops);
+        rewards.items = addedItems;
+        character.markModified('inventory');
+        
+        // Log dropped items
+        addedItems.forEach(item => {
+          if (item.action === 'added' || item.action === 'stacked') {
+            const rarityColors = { common: '', uncommon: '🟢', rare: '🔵', epic: '🟣', legendary: '🟡' };
+            const rarityIcon = rarityColors[item.rarity] || '';
+            newLogs.push({ 
+              actor: 'system', 
+              message: `${rarityIcon} Obtained: ${item.icon || '📦'} ${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ''}`, 
+              damage: 0, 
+              type: 'loot' 
+            });
+          } else if (item.action === 'inventory_full') {
+            newLogs.push({ 
+              actor: 'system', 
+              message: `⚠️ Inventory full! Lost: ${item.name}`, 
+              damage: 0, 
+              type: 'warning' 
+            });
+          }
+        });
+        
+        // Track scroll finds in statistics
+        const scrollDrops = addedItems.filter(i => i.type === 'hidden_class_scroll');
+        if (scrollDrops.length > 0) {
+          character.statistics.scrollsFound = (character.statistics.scrollsFound || 0) + scrollDrops.length;
+        }
+      }
       
       character.experience += rewards.exp;
       character.gold += rewards.gold;
       character.statistics = character.statistics || {};
       character.statistics.totalKills = (character.statistics.totalKills || 0) + combat.enemies.length;
+      character.statistics.totalGoldEarned = (character.statistics.totalGoldEarned || 0) + rewards.gold;
+      
+      // Track boss/elite kills
+      if (currentNode.type === 'boss') {
+        character.statistics.bossKills = (character.statistics.bossKills || 0) + 1;
+      } else if (currentNode.type === 'elite') {
+        character.statistics.eliteKills = (character.statistics.eliteKills || 0) + 1;
+      }
       
       let leveledUp = false;
       while (character.experience >= character.experienceToNextLevel) {
