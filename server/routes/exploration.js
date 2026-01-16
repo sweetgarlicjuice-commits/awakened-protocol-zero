@@ -158,47 +158,113 @@ function getEquippedItemIds(character) {
 }
 
 // ============================================================
+// HELPER: Get equipment stats directly from character's equipped items
+// This handles both DB items and dynamically generated items
+// ============================================================
+function getEquipmentStatsFromCharacter(character) {
+  const stats = {
+    pAtk: 0, mAtk: 0, pDef: 0, mDef: 0,
+    hp: 0, mp: 0,
+    str: 0, agi: 0, dex: 0, int: 0, vit: 0,
+    critRate: 0, critDmg: 0
+  };
+  
+  if (!character.equipment) return stats;
+  
+  const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
+  
+  slots.forEach(slot => {
+    const equippedItem = character.equipment[slot];
+    if (equippedItem && equippedItem.stats) {
+      // Add stats from the equipped item directly
+      Object.keys(equippedItem.stats).forEach(statKey => {
+        if (stats.hasOwnProperty(statKey)) {
+          stats[statKey] += equippedItem.stats[statKey] || 0;
+        }
+      });
+    }
+  });
+  
+  return stats;
+}
+
+// ============================================================
 // HELPER: Calculate total combat stats (base + equipment + set bonuses)
 // ============================================================
 function calculateCombatStats(character) {
   const stats = character.stats;
   const level = character.level || 1;
   
-  // Get equipment bonuses (includes set bonuses from calculateEquipmentStats)
+  // Get equipment bonuses - try DB lookup first, fallback to direct stats
   const equippedIds = getEquippedItemIds(character);
-  const equipBonus = calculateEquipmentStats(equippedIds);
+  
+  // First try to get stats from equipment database (for set bonus support)
+  let equipBonus = { pAtk: 0, mAtk: 0, pDef: 0, mDef: 0, hp: 0, mp: 0, str: 0, agi: 0, dex: 0, int: 0, vit: 0, critRate: 0, critDmg: 0 };
+  
+  try {
+    equipBonus = calculateEquipmentStats(equippedIds);
+  } catch (err) {
+    console.log('[Combat] Equipment DB lookup failed, using direct stats');
+  }
+  
+  // If DB lookup returned nothing, get stats directly from equipped items
+  const directStats = getEquipmentStatsFromCharacter(character);
+  
+  // Use whichever has more stats (combine if needed)
+  const totalEquipBonus = {
+    pAtk: Math.max(equipBonus.pAtk || 0, directStats.pAtk || 0),
+    mAtk: Math.max(equipBonus.mAtk || 0, directStats.mAtk || 0),
+    pDef: Math.max(equipBonus.pDef || 0, directStats.pDef || 0),
+    mDef: Math.max(equipBonus.mDef || 0, directStats.mDef || 0),
+    hp: Math.max(equipBonus.hp || 0, directStats.hp || 0),
+    mp: Math.max(equipBonus.mp || 0, directStats.mp || 0),
+    str: Math.max(equipBonus.str || 0, directStats.str || 0),
+    agi: Math.max(equipBonus.agi || 0, directStats.agi || 0),
+    dex: Math.max(equipBonus.dex || 0, directStats.dex || 0),
+    int: Math.max(equipBonus.int || 0, directStats.int || 0),
+    vit: Math.max(equipBonus.vit || 0, directStats.vit || 0),
+    critRate: Math.max(equipBonus.critRate || 0, directStats.critRate || 0),
+    critDmg: Math.max(equipBonus.critDmg || 0, directStats.critDmg || 0)
+  };
   
   // Get active set bonuses for display
-  const setBonus = calculateSetBonuses(equippedIds);
+  let setBonus = {};
+  try {
+    setBonus = calculateSetBonuses(equippedIds);
+  } catch (err) {
+    console.log('[Combat] Set bonus calculation failed');
+  }
   
   // Base stats + equipment bonuses
-  const totalStr = (stats.str || 0) + (equipBonus.str || 0);
-  const totalAgi = (stats.agi || 0) + (equipBonus.agi || 0);
-  const totalDex = (stats.dex || 0) + (equipBonus.dex || 0);
-  const totalInt = (stats.int || 0) + (equipBonus.int || 0);
-  const totalVit = (stats.vit || 0) + (equipBonus.vit || 0);
+  const totalStr = (stats.str || 0) + (totalEquipBonus.str || 0);
+  const totalAgi = (stats.agi || 0) + (totalEquipBonus.agi || 0);
+  const totalDex = (stats.dex || 0) + (totalEquipBonus.dex || 0);
+  const totalInt = (stats.int || 0) + (totalEquipBonus.int || 0);
+  const totalVit = (stats.vit || 0) + (totalEquipBonus.vit || 0);
   
   // Level bonus (+2% per level)
   const levelBonus = 1 + (level - 1) * 0.02;
   
   return {
     // Physical damage: base formula + equipment pAtk
-    pDmg: Math.floor((5 + totalStr * 3 + (equipBonus.pAtk || 0)) * levelBonus),
+    pDmg: Math.floor((5 + totalStr * 3 + (totalEquipBonus.pAtk || 0)) * levelBonus),
     // Magical damage: base formula + equipment mAtk
-    mDmg: Math.floor((5 + totalInt * 4 + (equipBonus.mAtk || 0)) * levelBonus),
+    mDmg: Math.floor((5 + totalInt * 4 + (totalEquipBonus.mAtk || 0)) * levelBonus),
     // Physical defense: base formula + equipment pDef
-    pDef: totalStr + totalVit * 2 + (equipBonus.pDef || 0),
+    pDef: totalStr + totalVit * 2 + (totalEquipBonus.pDef || 0),
     // Magical defense: base formula + equipment mDef
-    mDef: totalVit + totalInt + (equipBonus.mDef || 0),
+    mDef: totalVit + totalInt + (totalEquipBonus.mDef || 0),
     // Crit rate: base + equipment (capped at 80%)
-    critRate: Math.min(5 + totalAgi * 0.5 + (equipBonus.critRate || 0), 80),
+    critRate: Math.min(5 + totalAgi * 0.5 + (totalEquipBonus.critRate || 0), 80),
     // Crit damage: base + equipment
-    critDmg: 150 + totalDex + (equipBonus.critDmg || 0),
+    critDmg: 150 + totalDex + (totalEquipBonus.critDmg || 0),
     // HP/MP bonuses from equipment
-    bonusHp: equipBonus.hp || 0,
-    bonusMp: equipBonus.mp || 0,
+    bonusHp: totalEquipBonus.hp || 0,
+    bonusMp: totalEquipBonus.mp || 0,
     // Set bonuses info (for UI display)
-    activeSets: setBonus
+    activeSets: setBonus,
+    // Debug info
+    equipmentBonus: totalEquipBonus
   };
 }
 
