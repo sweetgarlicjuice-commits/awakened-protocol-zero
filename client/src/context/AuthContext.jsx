@@ -32,12 +32,10 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data } = await authAPI.getMe();
       setUser(data.user);
-      // FIX: Check hasCharacter OR character object
-      if (data.hasCharacter || data.character) {
+      if (data.character) {
         setCharacter(data.character);
       }
     } catch (err) {
-      console.error('Auth check failed:', err);
       localStorage.removeItem('apz_token');
       localStorage.removeItem('apz_user');
     } finally {
@@ -47,51 +45,22 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     setError(null);
-    setLoading(true);
-    
     try {
       const { data } = await authAPI.login(username, password);
-      
-      // Store token first
       localStorage.setItem('apz_token', data.token);
       localStorage.setItem('apz_user', JSON.stringify(data.user));
-      
-      // Set user state
       setUser(data.user);
       
-      // FIX #1: Fetch character data BEFORE returning
-      // This ensures character state is set before navigation happens
-      let characterData = null;
-      let hasChar = data.hasCharacter;
-      
+      // Fetch character if exists
       if (data.hasCharacter) {
-        try {
-          const charResponse = await characterAPI.get();
-          characterData = charResponse.data.character;
-          setCharacter(characterData);
-          hasChar = !!characterData;
-        } catch (charErr) {
-          console.error('Failed to fetch character:', charErr);
-          // If fetch fails, character might not exist
-          hasChar = false;
-        }
-      } else {
-        setCharacter(null);
+        const charResponse = await characterAPI.get();
+        setCharacter(charResponse.data.character);
       }
       
-      setLoading(false);
-      
-      // Return with accurate hasCharacter status
-      return { 
-        success: true, 
-        hasCharacter: hasChar,
-        isGM: data.user?.role === 'gm' || data.user?.role === 'admin',
-        user: data.user
-      };
+      return { success: true, hasCharacter: data.hasCharacter };
     } catch (err) {
       const message = err.response?.data?.error || 'Login failed';
       setError(message);
-      setLoading(false);
       return { success: false, error: message };
     }
   };
@@ -107,7 +76,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data } = await characterAPI.create(name, baseClass);
       setCharacter(data.character);
-      return { success: true, character: data.character };
+      return { success: true };
     } catch (err) {
       return { success: false, error: err.response?.data?.error || 'Failed to create character' };
     }
@@ -124,6 +93,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Update character locally without API call (for real-time UI updates)
+  const updateLocalCharacter = (updates) => {
+    setCharacter(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      
+      // Handle nested stats object
+      if (updates.stats) {
+        updated.stats = { ...prev.stats, ...updates.stats };
+      }
+      
+      // Handle other top-level properties
+      Object.keys(updates).forEach(key => {
+        if (key !== 'stats') {
+          updated[key] = updates[key];
+        }
+      });
+      
+      return updated;
+    });
+  };
+
   const isGM = user?.role === 'gm' || user?.role === 'admin';
   const isAdmin = user?.role === 'admin';
 
@@ -136,6 +127,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     createCharacter,
     refreshCharacter,
+    updateLocalCharacter,
     isGM,
     isAdmin,
     isAuthenticated: !!user
