@@ -4,7 +4,200 @@ import User from '../models/User.js';
 import HiddenClassOwnership from '../models/HiddenClassOwnership.js';
 import { authenticate, requireGM } from '../middleware/auth.js';
 
+// Import equipment database
+import { allEquipment, getEquipmentById } from '../data/equipment/index.js';
+import { CONSUMABLES } from '../data/equipment/consumables.js';
+import { SPECIAL_ITEMS } from '../data/equipment/special_items.js';
+
 const router = express.Router();
+
+// Build complete item database for search
+function buildItemDatabase() {
+  const items = [];
+  
+  // Add all equipment
+  allEquipment.forEach(item => {
+    items.push({
+      id: item.id,
+      name: item.name,
+      type: 'equipment',
+      subtype: item.type, // weapon, armor, accessory
+      slot: item.slot,
+      rarity: item.rarity || 'common',
+      icon: getEquipmentIcon(item),
+      stats: item.stats || {},
+      levelReq: item.levelReq,
+      classReq: item.class,
+      description: item.description
+    });
+  });
+  
+  // Add consumables
+  CONSUMABLES.forEach(item => {
+    items.push({
+      id: item.id,
+      name: item.name,
+      type: 'consumable',
+      subtype: item.subtype || 'potion',
+      rarity: item.rarity || 'common',
+      icon: item.icon || '🧪',
+      effect: item.effect,
+      stackable: true,
+      description: item.description
+    });
+  });
+  
+  // Add special items (scrolls, memory crystals, etc.)
+  SPECIAL_ITEMS.forEach(item => {
+    items.push({
+      id: item.id,
+      name: item.name,
+      type: item.type || 'special',
+      subtype: item.subtype,
+      rarity: item.rarity || 'legendary',
+      icon: item.icon || '📜',
+      stackable: item.stackable !== false,
+      description: item.description
+    });
+  });
+  
+  // Add crafting materials
+  const materials = [
+    // Tower 1 - Crimson Spire
+    { id: 'bone_fragment', name: 'Bone Fragment', icon: '🦴', rarity: 'common' },
+    { id: 'cursed_cloth', name: 'Cursed Cloth', icon: '🧵', rarity: 'common' },
+    { id: 'ghost_essence', name: 'Ghost Essence', icon: '👻', rarity: 'uncommon' },
+    { id: 'death_knight_core', name: 'Death Knight Core', icon: '💀', rarity: 'rare' },
+    { id: 'soul_shard', name: 'Soul Shard', icon: '💎', rarity: 'uncommon' },
+    
+    // Tower 2 - Frost Citadel
+    { id: 'frost_crystal', name: 'Frost Crystal', icon: '❄️', rarity: 'common' },
+    { id: 'ice_shard', name: 'Ice Shard', icon: '🧊', rarity: 'common' },
+    { id: 'frozen_heart', name: 'Frozen Heart', icon: '💙', rarity: 'rare' },
+    { id: 'permafrost_chunk', name: 'Permafrost Chunk', icon: '🏔️', rarity: 'uncommon' },
+    
+    // Tower 3 - Shadow Keep
+    { id: 'shadow_essence', name: 'Shadow Essence', icon: '🌑', rarity: 'uncommon' },
+    { id: 'dark_crystal', name: 'Dark Crystal', icon: '🖤', rarity: 'rare' },
+    { id: 'nightmare_dust', name: 'Nightmare Dust', icon: '💭', rarity: 'uncommon' },
+    { id: 'void_fragment', name: 'Void Fragment', icon: '🌀', rarity: 'epic' },
+    
+    // Tower 4 - Storm Bastion
+    { id: 'lightning_shard', name: 'Lightning Shard', icon: '⚡', rarity: 'uncommon' },
+    { id: 'storm_core', name: 'Storm Core', icon: '🌩️', rarity: 'rare' },
+    { id: 'thunder_essence', name: 'Thunder Essence', icon: '🔋', rarity: 'uncommon' },
+    
+    // Tower 5 - Verdant Spire
+    { id: 'verdant_sap', name: 'Verdant Sap', icon: '🌿', rarity: 'uncommon' },
+    { id: 'ancient_bark', name: 'Ancient Bark', icon: '🌳', rarity: 'rare' },
+    { id: 'poison_gland', name: 'Poison Gland', icon: '🐍', rarity: 'uncommon' },
+    { id: 'life_essence', name: 'Life Essence', icon: '💚', rarity: 'rare' },
+    
+    // Special materials
+    { id: 'memory_crystal_fragment', name: 'Memory Crystal Fragment', icon: '💠', rarity: 'epic' },
+  ];
+  
+  materials.forEach(mat => {
+    items.push({
+      id: mat.id,
+      name: mat.name,
+      type: 'material',
+      subtype: 'drop',
+      rarity: mat.rarity,
+      icon: mat.icon,
+      stackable: true
+    });
+  });
+  
+  return items;
+}
+
+// Get icon for equipment based on slot/type
+function getEquipmentIcon(item) {
+  if (item.icon) return item.icon;
+  
+  const slotIcons = {
+    weapon: '⚔️',
+    head: '🧢',
+    helmet: '🧢',
+    body: '👕',
+    chest: '👕',
+    armor: '👕',
+    leg: '👖',
+    legs: '👖',
+    pants: '👖',
+    shoes: '👢',
+    boots: '👢',
+    feet: '👢',
+    ring: '💍',
+    necklace: '📿',
+    amulet: '📿',
+    accessory: '💍',
+    offhand: '🛡️',
+    shield: '🛡️'
+  };
+  
+  return slotIcons[item.slot] || slotIcons[item.type] || '📦';
+}
+
+// Cache the item database
+let itemDatabase = null;
+function getItemDatabase() {
+  if (!itemDatabase) {
+    itemDatabase = buildItemDatabase();
+  }
+  return itemDatabase;
+}
+
+// GET /api/gm/items/search - Search all items in database
+router.get('/items/search', authenticate, requireGM, async (req, res) => {
+  try {
+    const { q } = req.query;
+    const items = getItemDatabase();
+    
+    if (!q || q.length < 1) {
+      return res.json({ items: items.slice(0, 20) }); // Return first 20 if no query
+    }
+    
+    const query = q.toLowerCase();
+    const results = items.filter(item => 
+      item.name.toLowerCase().includes(query) ||
+      item.id.toLowerCase().includes(query) ||
+      (item.type && item.type.toLowerCase().includes(query))
+    );
+    
+    res.json({ items: results.slice(0, 20) });
+  } catch (error) {
+    console.error('Item search error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/gm/items/all - Get all items (paginated)
+router.get('/items/all', authenticate, requireGM, async (req, res) => {
+  try {
+    const { page = 0, limit = 50, type } = req.query;
+    let items = getItemDatabase();
+    
+    // Filter by type if specified
+    if (type) {
+      items = items.filter(item => item.type === type);
+    }
+    
+    const start = parseInt(page) * parseInt(limit);
+    const paginatedItems = items.slice(start, start + parseInt(limit));
+    
+    res.json({ 
+      items: paginatedItems,
+      total: items.length,
+      page: parseInt(page),
+      totalPages: Math.ceil(items.length / parseInt(limit))
+    });
+  } catch (error) {
+    console.error('Get all items error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // GET /api/gm/player/:id - Get full player profile
 router.get('/player/:id', authenticate, requireGM, async (req, res) => {
@@ -179,33 +372,59 @@ router.post('/player/:id/add-gold', authenticate, requireGM, async (req, res) =>
   }
 });
 
-// POST /api/gm/player/:id/add-item - Add item to inventory
+// POST /api/gm/player/:id/add-item - Add item to inventory (IMPROVED)
 router.post('/player/:id/add-item', authenticate, requireGM, async (req, res) => {
   try {
-    const { itemId, name, type, rarity, quantity, stats } = req.body;
+    const { itemId, name, type, rarity, quantity, stats, slot, icon, classReq, levelReq, effect, subtype, stackable } = req.body;
     const character = await Character.findOne({ userId: req.params.id });
     
     if (!character) {
       return res.status(404).json({ error: 'Character not found' });
     }
     
+    // Try to find item in database first
+    const dbItem = getItemDatabase().find(i => i.id === itemId);
+    
+    // Build item data - prefer database values, fall back to request values
+    const itemData = {
+      itemId: itemId,
+      name: dbItem?.name || name,
+      type: dbItem?.type || type || 'item',
+      subtype: dbItem?.subtype || subtype,
+      rarity: dbItem?.rarity || rarity || 'common',
+      quantity: quantity || 1,
+      stats: dbItem?.stats || stats || {},
+      slot: dbItem?.slot || slot,
+      icon: dbItem?.icon || icon || '📦',
+      classReq: dbItem?.classReq || classReq,
+      levelReq: dbItem?.levelReq || levelReq,
+      effect: dbItem?.effect || effect,
+      stackable: dbItem?.stackable !== undefined ? dbItem.stackable : (stackable !== false && type !== 'equipment')
+    };
+    
+    // Check if stackable and already exists
+    if (itemData.stackable) {
+      const existingIndex = character.inventory.findIndex(i => i.itemId === itemId);
+      if (existingIndex >= 0) {
+        character.inventory[existingIndex].quantity += itemData.quantity;
+        await character.save();
+        return res.json({
+          message: `Added ${itemData.quantity}x ${itemData.name} to inventory (stacked)`,
+          inventory: character.inventory
+        });
+      }
+    }
+    
+    // Check inventory space
     if (character.inventory.length >= character.inventorySize) {
       return res.status(400).json({ error: 'Inventory is full' });
     }
     
-    character.inventory.push({
-      itemId,
-      name,
-      type: type || 'item',
-      rarity: rarity || 'common',
-      quantity: quantity || 1,
-      stats: stats || {}
-    });
-    
+    character.inventory.push(itemData);
     await character.save();
     
     res.json({
-      message: `Added ${name} to inventory`,
+      message: `Added ${itemData.name} to inventory`,
       inventory: character.inventory
     });
   } catch (error) {
@@ -256,7 +475,7 @@ router.post('/player/:id/clear-inventory', authenticate, requireGM, async (req, 
     
     res.json({
       message: 'Inventory cleared',
-      inventory: character.inventory
+      inventory: []
     });
   } catch (error) {
     console.error('Clear inventory error:', error);
