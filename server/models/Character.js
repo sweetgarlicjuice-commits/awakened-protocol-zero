@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 // ============================================================
-// BASE STATS CONFIGURATION
+// BASE STATS CONFIGURATION - Different for each class!
 // ============================================================
 
 const CLASS_BASE_STATS = {
@@ -220,7 +220,8 @@ const inventoryItemSchema = new mongoose.Schema({
   rarity: { type: String, enum: ['common', 'uncommon', 'rare', 'epic', 'legendary'], default: 'common' },
   quantity: { type: Number, default: 1 },
   stackable: { type: Boolean, default: true },
-  stats: mongoose.Schema.Types.Mixed
+  stats: mongoose.Schema.Types.Mixed,
+  sellPrice: { type: Number, default: 5 }
 });
 
 const equipmentSlotSchema = new mongoose.Schema({
@@ -249,6 +250,7 @@ const activeBuffSchema = new mongoose.Schema({
 
 // ============================================================
 // MAIN CHARACTER SCHEMA
+// FIX #2 & #3: Remove default stats - they will be set in pre-save based on class
 // ============================================================
 
 const characterSchema = new mongoose.Schema({
@@ -303,7 +305,7 @@ const characterSchema = new mongoose.Schema({
     type: Number,
     default: 1,
     min: 1,
-    max: 200  // Increased for 10 towers
+    max: 200
   },
   experience: {
     type: Number,
@@ -314,32 +316,31 @@ const characterSchema = new mongoose.Schema({
     default: 100
   },
   
-  // Base Stats (allocated by player)
+  // FIX #2 & #3: Base Stats - NO DEFAULTS! Set by pre-save hook based on class
   stats: {
-    hp: { type: Number, default: 100 },
-    maxHp: { type: Number, default: 100 },
-    mp: { type: Number, default: 50 },
-    maxMp: { type: Number, default: 50 },
-    str: { type: Number, default: 10 },
-    agi: { type: Number, default: 10 },
-    dex: { type: Number, default: 10 },
-    int: { type: Number, default: 10 },
-    vit: { type: Number, default: 10 }
+    hp: { type: Number },
+    maxHp: { type: Number },
+    mp: { type: Number },
+    maxMp: { type: Number },
+    str: { type: Number },
+    agi: { type: Number },
+    dex: { type: Number },
+    int: { type: Number },
+    vit: { type: Number }
   },
   
   // Derived Stats (calculated from base + equipment)
   derivedStats: {
-    pDmg: { type: Number, default: 0 },     // Physical Damage
-    mDmg: { type: Number, default: 0 },     // Magic Damage
-    pDef: { type: Number, default: 0 },     // Physical Defense
-    mDef: { type: Number, default: 0 },     // Magic Defense
-    critRate: { type: Number, default: 5 }, // Critical Rate %
-    critDmg: { type: Number, default: 150 },// Critical Damage %
-    accuracy: { type: Number, default: 90 },// Hit Rate %
-    evasion: { type: Number, default: 0 },  // Dodge %
-    hpRegen: { type: Number, default: 0 },  // HP per turn
-    mpRegen: { type: Number, default: 0 },  // MP per turn
-    // Elemental Resistances
+    pDmg: { type: Number, default: 0 },
+    mDmg: { type: Number, default: 0 },
+    pDef: { type: Number, default: 0 },
+    mDef: { type: Number, default: 0 },
+    critRate: { type: Number, default: 5 },
+    critDmg: { type: Number, default: 150 },
+    accuracy: { type: Number, default: 90 },
+    evasion: { type: Number, default: 0 },
+    hpRegen: { type: Number, default: 0 },
+    mpRegen: { type: Number, default: 0 },
     fireRes: { type: Number, default: 0 },
     waterRes: { type: Number, default: 0 },
     lightningRes: { type: Number, default: 0 },
@@ -350,10 +351,7 @@ const characterSchema = new mongoose.Schema({
     holyRes: { type: Number, default: 0 }
   },
   
-  // Active Buffs/Debuffs (for combat persistence)
-  activeBuffs: [activeBuffSchema],
-  
-  // Unallocated stat points
+  // Stat points from leveling
   statPoints: {
     type: Number,
     default: 0
@@ -363,6 +361,7 @@ const characterSchema = new mongoose.Schema({
   energy: {
     type: Number,
     default: 100,
+    min: 0,
     max: 100
   },
   lastEnergyUpdate: {
@@ -370,17 +369,13 @@ const characterSchema = new mongoose.Schema({
     default: Date.now
   },
   
-  // Currency
+  // Gold
   gold: {
     type: Number,
     default: 100
   },
-  gems: {
-    type: Number,
-    default: 0
-  },
   
-  // Progress
+  // Tower Progress
   currentTower: {
     type: Number,
     default: 1
@@ -394,24 +389,28 @@ const characterSchema = new mongoose.Schema({
     default: 0
   },
   highestFloorReached: {
-    towerId: { type: Number, default: 1 },
+    tower: { type: Number, default: 1 },
     floor: { type: Number, default: 1 }
   },
   towerProgress: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
+  isInTower: {
+    type: Boolean,
+    default: false
+  },
   towerLockoutUntil: {
     type: Date,
     default: null
   },
-  isInTower: { type: Boolean, default: false },
-  
-  // Exploration progress for multi-event system
   explorationProgress: {
     type: mongoose.Schema.Types.Mixed,
     default: null
   },
+  
+  // Combat state
+  activeBuffs: [activeBuffSchema],
   
   // Skills
   skills: [skillSchema],
@@ -475,10 +474,30 @@ const characterSchema = new mongoose.Schema({
 });
 
 // ============================================================
-// PRE-SAVE MIDDLEWARE - Initialize skills if empty
+// PRE-SAVE MIDDLEWARE - Initialize stats and skills based on class
+// FIX #2 & #3: Apply CLASS_BASE_STATS when creating new character
 // ============================================================
 
 characterSchema.pre('save', function(next) {
+  // FIX #2 & #3: Initialize stats from CLASS_BASE_STATS if not set
+  if (this.isNew || !this.stats || !this.stats.str) {
+    const baseStats = CLASS_BASE_STATS[this.baseClass];
+    if (baseStats) {
+      this.stats = {
+        hp: baseStats.hp,
+        maxHp: baseStats.hp,
+        mp: baseStats.mp,
+        maxMp: baseStats.mp,
+        str: baseStats.str,
+        agi: baseStats.agi,
+        dex: baseStats.dex,
+        int: baseStats.int,
+        vit: baseStats.vit
+      };
+      console.log(`Initialized stats for ${this.baseClass}:`, this.stats);
+    }
+  }
+  
   // Initialize base class skills if empty
   if (!this.skills || this.skills.length === 0) {
     const baseSkills = CLASS_DEFAULT_SKILLS[this.baseClass] || [];
@@ -503,29 +522,72 @@ characterSchema.pre('save', function(next) {
     }
   }
   
+  // Calculate and update derived stats
+  this.derivedStats = Character.calculateDerivedStats(this);
+  
   next();
 });
+
+// ============================================================
+// METHOD - Update energy based on time passed
+// ============================================================
+
+characterSchema.methods.updateEnergy = function() {
+  const now = new Date();
+  const lastUpdate = this.lastEnergyUpdate || now;
+  const hoursPassed = (now - lastUpdate) / (1000 * 60 * 60);
+  const energyGain = Math.floor(hoursPassed * 25); // 25 energy per hour
+  
+  if (energyGain > 0) {
+    this.energy = Math.min(100, this.energy + energyGain);
+    this.lastEnergyUpdate = now;
+  }
+  
+  return this.energy;
+};
+
+// ============================================================
+// METHOD - Check and process level up
+// ============================================================
+
+characterSchema.methods.checkLevelUp = function() {
+  let levelsGained = 0;
+  
+  while (this.experience >= this.experienceToNextLevel && this.level < 200) {
+    this.experience -= this.experienceToNextLevel;
+    this.level += 1;
+    this.statPoints += 5; // 5 stat points per level
+    this.experienceToNextLevel = Math.floor(100 * Math.pow(1.15, this.level - 1));
+    levelsGained++;
+    
+    // Heal on level up
+    this.stats.hp = this.stats.maxHp;
+    this.stats.mp = this.stats.maxMp;
+  }
+  
+  return levelsGained;
+};
 
 // ============================================================
 // STATIC METHOD - Calculate derived stats
 // ============================================================
 
 characterSchema.statics.calculateDerivedStats = function(character) {
-  const stats = character.stats;
+  const stats = character.stats || {};
   const equipment = character.equipment;
   
-  // Base formulas
+  // Base formulas using class stats
   const derived = {
-    pDmg: 5 + (stats.str * 3),
-    mDmg: 5 + (stats.int * 4),
-    pDef: (stats.str * 1) + (stats.vit * 2),
-    mDef: (stats.vit * 1) + (stats.int * 1),
-    critRate: 5 + (stats.agi * 0.5),
-    critDmg: 150 + (stats.dex * 1),
-    accuracy: 90 + (stats.dex * 0.5),
-    evasion: (stats.agi * 0.3),
-    hpRegen: Math.floor(stats.vit * 1),
-    mpRegen: Math.floor(stats.int * 0.5),
+    pDmg: 5 + ((stats.str || 0) * 3),
+    mDmg: 5 + ((stats.int || 0) * 4),
+    pDef: ((stats.str || 0) * 1) + ((stats.vit || 0) * 2),
+    mDef: ((stats.vit || 0) * 1) + ((stats.int || 0) * 1),
+    critRate: 5 + ((stats.agi || 0) * 0.5),
+    critDmg: 150 + ((stats.dex || 0) * 1),
+    accuracy: 90 + ((stats.dex || 0) * 0.5),
+    evasion: (stats.agi || 0) * 0.3,
+    hpRegen: Math.floor((stats.vit || 0) * 1),
+    mpRegen: Math.floor((stats.int || 0) * 0.5),
     fireRes: 0, waterRes: 0, lightningRes: 0, earthRes: 0,
     natureRes: 0, iceRes: 0, darkRes: 0, holyRes: 0
   };
@@ -546,7 +608,7 @@ characterSchema.statics.calculateDerivedStats = function(character) {
   }
   
   // Apply level bonus (+2% per level)
-  const levelBonus = 1 + (character.level - 1) * 0.02;
+  const levelBonus = 1 + ((character.level || 1) - 1) * 0.02;
   derived.pDmg = Math.floor(derived.pDmg * levelBonus);
   derived.mDmg = Math.floor(derived.mDmg * levelBonus);
   
@@ -587,6 +649,40 @@ characterSchema.statics.repairSkills = function(character) {
 };
 
 // ============================================================
+// STATIC METHOD - Repair stats for existing characters
+// FIX #2 & #3: Add method to fix existing characters with wrong stats
+// ============================================================
+
+characterSchema.statics.repairStats = function(character) {
+  const baseStats = CLASS_BASE_STATS[character.baseClass];
+  if (!baseStats) return character;
+  
+  // Check if stats are default (10 for all) - indicates broken character
+  const isDefault = character.stats.str === 10 && 
+                    character.stats.agi === 10 && 
+                    character.stats.dex === 10 && 
+                    character.stats.int === 10 && 
+                    character.stats.vit === 10;
+  
+  if (isDefault) {
+    character.stats = {
+      hp: baseStats.hp,
+      maxHp: baseStats.hp,
+      mp: baseStats.mp,
+      maxMp: baseStats.mp,
+      str: baseStats.str,
+      agi: baseStats.agi,
+      dex: baseStats.dex,
+      int: baseStats.int,
+      vit: baseStats.vit
+    };
+    console.log(`Repaired stats for ${character.name} (${character.baseClass}):`, character.stats);
+  }
+  
+  return character;
+};
+
+// ============================================================
 // STATIC METHOD - Get skills for class combo
 // ============================================================
 
@@ -604,6 +700,8 @@ characterSchema.statics.getSkillsForClass = function(baseClass, hiddenClass = 'n
 // EXPORTS
 // ============================================================
 
+const Character = mongoose.model('Character', characterSchema);
+
 export { 
   CLASS_BASE_STATS, 
   HIDDEN_CLASSES, 
@@ -611,4 +709,4 @@ export {
   HIDDEN_CLASS_SKILLS 
 };
 
-export default mongoose.model('Character', characterSchema);
+export default Character;
