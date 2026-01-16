@@ -10,6 +10,7 @@ import characterRoutes from './routes/character.js';
 import towerRoutes from './routes/tower.js';
 import gmRoutes from './routes/gm.js';
 import tavernRoutes from './routes/tavern.js';
+import explorationRoutes from './routes/exploration.js';
 
 // Import models
 import User from './models/User.js';
@@ -38,6 +39,7 @@ app.use('/api/character', characterRoutes);
 app.use('/api/tower', towerRoutes);
 app.use('/api/gm', gmRoutes);
 app.use('/api/tavern', tavernRoutes);
+app.use('/api/exploration', explorationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -133,6 +135,7 @@ async function startServer() {
 ║                                                       ║
 ║        Port: ${PORT}                                    ║
 ║        Phase: 1 - Foundation                          ║
+║        Exploration: ENABLED                           ║
 ║                                                       ║
 ╚═══════════════════════════════════════════════════════╝
       `);
