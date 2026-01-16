@@ -515,6 +515,22 @@ router.post('/enter', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Tower locked! Clear Tower ' + tower.requirement.tower + ' first.' });
     }
     
+    // FIX #2: Check level requirements (BOTH min AND max)
+    const minLevel = tower.levelRange?.min || 1;
+    const maxLevel = tower.levelRange?.max || 999;
+    
+    if (character.level < minLevel) {
+      return res.status(400).json({ 
+        error: 'Minimum level ' + minLevel + ' required! You are level ' + character.level + '.' 
+      });
+    }
+    
+    if (character.level > maxLevel) {
+      return res.status(400).json({ 
+        error: 'Your level (' + character.level + ') exceeds this tower\'s maximum level (' + maxLevel + '). Try a higher tower!' 
+      });
+    }
+    
     // Check energy - consume 10 energy ONLY when entering tower
     if (character.energy < ENERGY_PER_FLOOR) {
       return res.status(400).json({ error: 'Not enough energy! Need ' + ENERGY_PER_FLOOR + ' energy to enter tower.' });
@@ -533,8 +549,16 @@ router.post('/enter', authenticate, async (req, res) => {
     character.isInTower = true;
     
     await character.save();
-    res.json({ message: 'Entered ' + tower.name + ' (-' + ENERGY_PER_FLOOR + ' energy)', tower, currentFloor: character.currentFloor, energyUsed: ENERGY_PER_FLOOR });
-  } catch (error) { res.status(500).json({ error: 'Server error' }); }
+    res.json({ 
+      message: 'Entered ' + tower.name + ' (-' + ENERGY_PER_FLOOR + ' energy)', 
+      tower, 
+      currentFloor: character.currentFloor, 
+      energyUsed: ENERGY_PER_FLOOR 
+    });
+  } catch (error) { 
+    console.error('Tower enter error:', error);
+    res.status(500).json({ error: 'Server error' }); 
+  }
 });
 
 // Get available floors for a tower
