@@ -1,1430 +1,604 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { towerAPI } from '../services/api';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { characterAPI } from '../services/api';
 
 // ============================================================
-// SKILL DATA - Phase 7 Complete Skill Database (for display)
+// NODE MAP EXPLORATION SYSTEM
 // ============================================================
 
-const SKILL_DATA = {
-  // Base Swordsman
-  slash: { name: 'Slash', mpCost: 5, element: 'none', desc: '120% P.DMG' },
-  heavyStrike: { name: 'Heavy Strike', mpCost: 12, element: 'none', desc: '180% P.DMG' },
-  shieldBash: { name: 'Shield Bash', mpCost: 8, element: 'none', desc: '100% P.DMG + -15% ATK' },
-  warCry: { name: 'War Cry', mpCost: 15, element: 'none', desc: '+25% P.DMG (3t)' },
-  // Base Thief
-  backstab: { name: 'Backstab', mpCost: 8, element: 'none', desc: '200% P.DMG +30% crit' },
-  poisonBlade: { name: 'Poison Blade', mpCost: 10, element: 'nature', desc: '100% P.DMG + Poison' },
-  smokeScreen: { name: 'Smoke Screen', mpCost: 12, element: 'none', desc: '+40% Evasion (2t)' },
-  steal: { name: 'Steal', mpCost: 5, element: 'none', desc: 'Steal 5-15% gold' },
-  // Base Archer
-  preciseShot: { name: 'Precise Shot', mpCost: 6, element: 'none', desc: '150% P.DMG, never miss' },
-  multiShot: { name: 'Multi Shot', mpCost: 14, element: 'none', desc: '3× 60% P.DMG' },
-  eagleEye: { name: 'Eagle Eye', mpCost: 10, element: 'none', desc: '+25% Crit, +20% CritDMG' },
-  arrowRain: { name: 'Arrow Rain', mpCost: 20, element: 'none', desc: '220% P.DMG' },
-  // Base Mage
-  fireball: { name: 'Fireball', mpCost: 10, element: 'fire', desc: '160% M.DMG + Burn' },
-  iceSpear: { name: 'Ice Spear', mpCost: 12, element: 'ice', desc: '140% M.DMG + -20% ATK' },
-  manaShield: { name: 'Mana Shield', mpCost: 15, element: 'none', desc: 'Shield = 50% MP' },
-  thunderbolt: { name: 'Thunderbolt', mpCost: 18, element: 'lightning', desc: '200% M.DMG' },
-  // Flameblade
-  flameSlash: { name: 'Flame Slash', mpCost: 15, element: 'fire', desc: '180% P.DMG + Burn' },
-  infernoStrike: { name: 'Inferno Strike', mpCost: 25, element: 'fire', desc: '280% P.DMG' },
-  fireAura: { name: 'Fire Aura', mpCost: 20, element: 'fire', desc: '+30% P.DMG, reflect' },
-  volcanicRage: { name: 'Volcanic Rage', mpCost: 40, element: 'fire', desc: '350% P.DMG + Burn' },
-  // Berserker
-  rageSlash: { name: 'Rage Slash', mpCost: 10, element: 'none', desc: '200% P.DMG, -5% HP' },
-  bloodFury: { name: 'Blood Fury', mpCost: 20, element: 'none', desc: '+50% P.DMG, -20% DEF' },
-  recklessCharge: { name: 'Reckless Charge', mpCost: 15, element: 'none', desc: '250% P.DMG, -10% HP' },
-  deathwish: { name: 'Deathwish', mpCost: 35, element: 'none', desc: '400% P.DMG, -20% HP' },
-  // Paladin
-  holyStrike: { name: 'Holy Strike', mpCost: 12, element: 'holy', desc: '160% P.DMG' },
-  divineShield: { name: 'Divine Shield', mpCost: 18, element: 'holy', desc: 'Shield = 200% P.DEF' },
-  healingLight: { name: 'Healing Light', mpCost: 20, element: 'holy', desc: 'Heal 35% Max HP' },
-  judgment: { name: 'Judgment', mpCost: 35, element: 'holy', desc: '300% P.DMG + Purify' },
-  // Earthshaker
-  groundSlam: { name: 'Ground Slam', mpCost: 12, element: 'earth', desc: '150% P.DMG + -20% DEF' },
-  stoneSkin: { name: 'Stone Skin', mpCost: 15, element: 'earth', desc: '+50% P.DEF (3t)' },
-  earthquake: { name: 'Earthquake', mpCost: 25, element: 'earth', desc: '220% P.DMG + -30% DEF' },
-  titansWrath: { name: 'Titan\'s Wrath', mpCost: 40, element: 'earth', desc: '320% P.DMG + Stun' },
-  // Frostguard
-  frostStrike: { name: 'Frost Strike', mpCost: 12, element: 'ice', desc: '140% P.DMG + -15% ATK' },
-  iceBarrier: { name: 'Ice Barrier', mpCost: 18, element: 'ice', desc: '+40% DEF, reflect' },
-  frozenBlade: { name: 'Frozen Blade', mpCost: 20, element: 'ice', desc: '200% P.DMG + -25% ATK' },
-  glacialFortress: { name: 'Glacial Fortress', mpCost: 35, element: 'ice', desc: '+60% DEF, immune' },
-  // Shadow Dancer
-  shadowStrike: { name: 'Shadow Strike', mpCost: 12, element: 'dark', desc: '220% P.DMG +40% crit' },
-  vanish: { name: 'Vanish', mpCost: 20, element: 'dark', desc: 'Next attack auto-crit' },
-  deathMark: { name: 'Death Mark', mpCost: 18, element: 'dark', desc: '+30% damage taken' },
-  shadowDance: { name: 'Shadow Dance', mpCost: 35, element: 'dark', desc: '5× 80% P.DMG' },
-  // Venomancer
-  toxicStrike: { name: 'Toxic Strike', mpCost: 10, element: 'nature', desc: '120% P.DMG + Poison' },
-  venomCoat: { name: 'Venom Coat', mpCost: 15, element: 'nature', desc: 'Attacks add Poison' },
-  plague: { name: 'Plague', mpCost: 22, element: 'nature', desc: '150% P.DMG + strong Poison' },
-  pandemic: { name: 'Pandemic', mpCost: 38, element: 'nature', desc: '200% P.DMG + mega Poison' },
-  // Assassin
-  exposeWeakness: { name: 'Expose Weakness', mpCost: 10, element: 'none', desc: '130% P.DMG + -25% DEF' },
-  markForDeath: { name: 'Mark for Death', mpCost: 15, element: 'none', desc: '+40% crit received' },
-  execute: { name: 'Execute', mpCost: 25, element: 'none', desc: '250% P.DMG (+100% if <30%)' },
-  assassination: { name: 'Assassination', mpCost: 40, element: 'none', desc: '500% P.DMG (if <20%)' },
-  // Phantom
-  haunt: { name: 'Haunt', mpCost: 12, element: 'dark', desc: '140% P.DMG + -15% stats' },
-  nightmare: { name: 'Nightmare', mpCost: 18, element: 'dark', desc: '-30% ATK & DEF' },
-  soulDrain: { name: 'Soul Drain', mpCost: 20, element: 'dark', desc: '180% P.DMG + Lifesteal' },
-  dread: { name: 'Dread', mpCost: 40, element: 'dark', desc: '250% P.DMG + -40% stats' },
-  // Bloodreaper
-  bloodlet: { name: 'Bloodlet', mpCost: 10, element: 'none', desc: '150% P.DMG + 20% LS' },
-  sanguineBlade: { name: 'Sanguine Blade', mpCost: 15, element: 'none', desc: 'Attacks lifesteal' },
-  crimsonSlash: { name: 'Crimson Slash', mpCost: 22, element: 'none', desc: '220% P.DMG + 35% LS' },
-  exsanguinate: { name: 'Exsanguinate', mpCost: 38, element: 'none', desc: '300% P.DMG + 50% LS' },
-  // Storm Ranger
-  lightningArrow: { name: 'Lightning Arrow', mpCost: 14, element: 'lightning', desc: '200% P.DMG' },
-  chainLightning: { name: 'Chain Lightning', mpCost: 22, element: 'lightning', desc: '3× 100% M.DMG' },
-  stormEye: { name: 'Storm Eye', mpCost: 18, element: 'lightning', desc: '+30% Acc, +40% CritDMG' },
-  thunderstorm: { name: 'Thunderstorm', mpCost: 45, element: 'lightning', desc: '4× 120% M.DMG' },
-  // Pyro Archer
-  fireArrow: { name: 'Fire Arrow', mpCost: 12, element: 'fire', desc: '170% P.DMG + Burn' },
-  explosiveShot: { name: 'Explosive Shot', mpCost: 18, element: 'fire', desc: '230% P.DMG' },
-  ignite: { name: 'Ignite', mpCost: 15, element: 'fire', desc: 'Attacks add Burn' },
-  meteorArrow: { name: 'Meteor Arrow', mpCost: 40, element: 'fire', desc: '350% P.DMG + Burn' },
-  // Frost Sniper
-  iceArrow: { name: 'Ice Arrow', mpCost: 12, element: 'ice', desc: '180% P.DMG + -15% ATK' },
-  frozenAim: { name: 'Frozen Aim', mpCost: 15, element: 'ice', desc: '+50% CritDMG (3t)' },
-  piercingCold: { name: 'Piercing Cold', mpCost: 22, element: 'ice', desc: '260% P.DMG + -25% DEF' },
-  absoluteShot: { name: 'Absolute Shot', mpCost: 42, element: 'ice', desc: '420% P.DMG + Freeze' },
-  // Nature Warden
-  thornArrow: { name: 'Thorn Arrow', mpCost: 10, element: 'nature', desc: '150% P.DMG + Poison' },
-  naturesGift: { name: 'Nature\'s Gift', mpCost: 18, element: 'nature', desc: 'Heal 30% + Cleanse' },
-  vineTrap: { name: 'Vine Trap', mpCost: 15, element: 'nature', desc: '130% P.DMG + -40% Eva' },
-  overgrowth: { name: 'Overgrowth', mpCost: 35, element: 'nature', desc: '280% P.DMG + Poison' },
-  // Void Hunter
-  voidArrow: { name: 'Void Arrow', mpCost: 14, element: 'dark', desc: '190% P.DMG, -30% DEF pen' },
-  darkMark: { name: 'Dark Mark', mpCost: 16, element: 'dark', desc: '+25% damage taken' },
-  nullField: { name: 'Null Field', mpCost: 20, element: 'dark', desc: 'Dispel buffs, -40% M.DEF' },
-  oblivion: { name: 'Oblivion', mpCost: 42, element: 'dark', desc: '380% P.DMG, ignore DEF' },
-  // Frost Weaver
-  frostBolt: { name: 'Frost Bolt', mpCost: 12, element: 'ice', desc: '170% M.DMG + -20% ATK' },
-  blizzard: { name: 'Blizzard', mpCost: 25, element: 'ice', desc: '200% M.DMG + -30% ATK' },
-  iceArmor: { name: 'Ice Armor', mpCost: 18, element: 'ice', desc: '+40% M.DEF (3t)' },
-  absoluteZero: { name: 'Absolute Zero', mpCost: 45, element: 'ice', desc: '350% M.DMG + Freeze' },
-  // Pyromancer
-  flameBurst: { name: 'Flame Burst', mpCost: 14, element: 'fire', desc: '180% M.DMG + Burn' },
-  inferno: { name: 'Inferno', mpCost: 28, element: 'fire', desc: '250% M.DMG + strong Burn' },
-  fireShield: { name: 'Fire Shield', mpCost: 20, element: 'fire', desc: 'Reflect 30% damage' },
-  supernova: { name: 'Supernova', mpCost: 50, element: 'fire', desc: '400% M.DMG + mega Burn' },
-  // Stormcaller
-  sparkBolt: { name: 'Spark Bolt', mpCost: 12, element: 'lightning', desc: '160% M.DMG' },
-  thunderclap: { name: 'Thunderclap', mpCost: 22, element: 'lightning', desc: '2× 130% M.DMG' },
-  staticField: { name: 'Static Field', mpCost: 18, element: 'lightning', desc: '-25% enemy evasion' },
-  tempest: { name: 'Tempest', mpCost: 48, element: 'lightning', desc: '5× 100% M.DMG' },
-  // Necromancer
-  drainLife: { name: 'Drain Life', mpCost: 15, element: 'dark', desc: '150% M.DMG + 30% LS' },
-  curse: { name: 'Curse', mpCost: 20, element: 'dark', desc: '-30% all stats (3t)' },
-  soulHarvest: { name: 'Soul Harvest', mpCost: 25, element: 'dark', desc: '200% M.DMG + 50% LS' },
-  deathPact: { name: 'Death Pact', mpCost: 45, element: 'dark', desc: '300% M.DMG + full LS' },
-  // Arcanist
-  arcaneBolt: { name: 'Arcane Bolt', mpCost: 10, element: 'none', desc: '3× 60% M.DMG' },
-  manaStorm: { name: 'Mana Storm', mpCost: 25, element: 'none', desc: '4× 70% M.DMG' },
-  arcaneShield: { name: 'Arcane Shield', mpCost: 15, element: 'none', desc: 'Shield = 100% INT' },
-  arcaneBarrage: { name: 'Arcane Barrage', mpCost: 45, element: 'none', desc: '6× 80% M.DMG' }
+const NODE_ICONS = {
+  start: '🚪',
+  combat: '⚔️',
+  elite: '💀',
+  boss: '👹',
+  treasure: '💰',
+  rest: '🏕️',
+  mystery: '❓',
+  merchant: '🛒',
+  shrine: '📜'
 };
 
-const ELEMENT_ICONS = {
-  fire: '🔥',
-  ice: '❄️',
-  lightning: '⚡',
-  nature: '🌿',
-  dark: '🌑',
-  holy: '✨',
-  earth: '🌍',
-  none: ''
+const NODE_COLORS = {
+  start: 'bg-green-600',
+  combat: 'bg-red-600',
+  elite: 'bg-purple-600',
+  boss: 'bg-red-800',
+  treasure: 'bg-yellow-600',
+  rest: 'bg-blue-600',
+  mystery: 'bg-indigo-600',
+  merchant: 'bg-emerald-600',
+  shrine: 'bg-cyan-600'
 };
 
-// ============================================================
-// TOWER INFO DATA - Mobs and Drops per Tower
-// ============================================================
-const TOWER_INFO = {
-  1: {
-    name: "Crimson Spire",
-    mobs: ["💀 Skeleton Warrior", "🧟 Rotting Zombie", "⚔️ Cursed Knight", "👻 Wandering Ghost", "🦴 Bone Mage"],
-    elites: ["☠️ Death Knight", "👤 Spectral Assassin"],
-    boss: "🏴 Lich King Malachar",
-    drops: ["Iron Ore", "Healing Herb", "Bone Fragment", "Cursed Cloth"],
-    setName: "Gridz Set"
-  },
-  2: {
-    name: "Azure Depths",
-    mobs: ["🦀 Giant Crab", "🐙 Tentacle Horror", "🧜 Sea Witch", "🦈 Abyssal Shark", "🌊 Water Elemental"],
-    elites: ["🐋 Kraken Spawn", "🧜‍♂️ Trident Guardian"],
-    boss: "🐋 Leviathan's Herald",
-    drops: ["Steel Ingot", "Greater Healing Herb", "Sea Scale", "Coral Piece"],
-    setName: "Tempest Set"
-  },
-  3: {
-    name: "Volcanic Core",
-    mobs: ["🔥 Fire Imp", "🪨 Lava Golem", "👤 Flame Wraith", "🐉 Magma Serpent", "🧙 Ember Mage"],
-    elites: ["🔶 Infernal Knight", "🦅 Phoenix Guardian"],
-    boss: "👑🔥 Molten King",
-    drops: ["Mystic Crystal", "Mana Elixir", "Fire Essence", "Molten Core"],
-    setName: "Inferno Set"
-  },
-  4: {
-    name: "Frozen Peak",
-    mobs: ["❄️ Frost Sprite", "🧊 Ice Golem", "🥶 Frozen Knight", "🐺 Blizzard Wolf", "🧙‍♀️ Ice Witch"],
-    elites: ["🗿 Frost Giant", "⛰️ Avalanche Lord"],
-    boss: "👑❄️ Ice Emperor",
-    drops: ["Titanium Ingot", "Greater Mana Crystal", "Frost Shard", "Frozen Tear"],
-    setName: "Glacial Set"
-  },
-  5: {
-    name: "Shadow Realm",
-    mobs: ["🌑 Shadow Stalker", "🐕‍🦺 Nightmare Hound", "👁️ Void Walker", "😈 Dark Seraph", "🧙‍♂️ Nightmare Mage"],
-    elites: ["🦇 Shadow Lord", "💀 Nightmare King"],
-    boss: "👁️‍🗨️ Void Emperor",
-    drops: ["Elemental Stone", "Elixir of Power", "Shadow Essence", "Nightmare Dust"],
-    setName: "Nightmare Set"
-  },
-  6: {
-    name: "Celestial Sanctum",
-    mobs: ["⭐ Star Guardian", "🛡️ Celestial Sentinel", "✨ Light Weaver", "🔱 Divine Champion"],
-    elites: ["💎 Celestial Champion"],
-    boss: "👑 Celestial Overlord",
-    drops: ["Celestial Crystal", "Divine Elixir", "Angel Feather", "Holy Essence"],
-    setName: "Celestial Set"
-  },
-  7: {
-    name: "Abyssal Void",
-    mobs: ["⚔️ Void Guardian", "🛡️ Void Sentinel"],
-    elites: ["💎 Void Champion"],
-    boss: "👑 Void Overlord",
-    drops: ["Astral Gem", "Phoenix Feather", "Void Essence", "Dimension Shard"],
-    setName: "Abyssal Set"
-  },
-  8: {
-    name: "Dragon's Domain",
-    mobs: ["⚔️ Dragon Guardian", "🛡️ Dragon Sentinel"],
-    elites: ["💎 Dragon Champion"],
-    boss: "👑 Dragon Overlord",
-    drops: ["Sunstone", "Moonstone", "Dragon Scale", "Dragon Heart"],
-    setName: "Dragonborn Set"
-  },
-  9: {
-    name: "Eternal Citadel",
-    mobs: ["⚔️ Eternal Guardian", "🛡️ Eternal Sentinel"],
-    elites: ["💎 Eternal Champion"],
-    boss: "👑 Eternal Overlord",
-    drops: ["Essence of Eternity", "Time Crystal", "Eternal Flame", "Ancient Rune"],
-    setName: "Eternal Set"
-  },
-  10: {
-    name: "Throne of Gods",
-    mobs: ["⚔️ Divine Guardian", "🛡️ Divine Sentinel"],
-    elites: ["💎 Divine Champion"],
-    boss: "👑 Divine Overlord",
-    drops: ["God Essence", "Primordial Stone", "Divine Tear", "Creation Spark"],
-    setName: "Divine Set"
-  }
-};
+const API_BASE = import.meta.env.VITE_API_URL || 'https://apz-server.onrender.com';
 
-// ============================================================
-// HELPER: Safe string conversion
-// ============================================================
-const safeString = (value, fallback = '') => {
-  if (value === null || value === undefined) return fallback;
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number') return String(value);
-  if (typeof value === 'object') {
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return fallback;
-    }
-  }
-  return String(value);
-};
-
-const safeNumber = (value, fallback = 0) => {
-  if (typeof value === 'number' && !isNaN(value)) return value;
-  const parsed = parseFloat(value);
-  return isNaN(parsed) ? fallback : parsed;
-};
-
-const TowerPanel = ({ 
-  character, 
-  onCharacterUpdate, 
-  updateLocalCharacter,  // NEW: For real-time HP/MP updates
-  addLog: parentAddLog,   // NEW: Use parent's log function
-  onTowerStateChange,
-  savedState,             // NEW: Restore state when switching tabs
-  onSaveState             // NEW: Save state when leaving tab
-}) => {
-  const [towers, setTowers] = useState([]);
-  const [selectedTower, setSelectedTower] = useState(null);
-  const [floors, setFloors] = useState([]);
-  const [selectedFloor, setSelectedFloor] = useState(1);
-  const [gameState, setGameState] = useState('tower_select');
-  const [currentEnemy, setCurrentEnemy] = useState(null);
-  const [storyText, setStoryText] = useState('');
-  const [choices, setChoices] = useState([]);
-  const [scenarioId, setScenarioId] = useState(null);
+const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog, onTowerStateChange, savedState, onSaveState }) => {
+  // ============ STATE ============
+  const [view, setView] = useState('select'); // select, map, combat, event
+  const [floorMap, setFloorMap] = useState(null);
+  const [tower, setTower] = useState(null);
+  const [combat, setCombat] = useState(null);
   const [combatLog, setCombatLog] = useState([]);
-  const [rewards, setRewards] = useState(null);
-  const [floorRequirements, setFloorRequirements] = useState(null);
-  const [treasureAfter, setTreasureAfter] = useState(null);
+  const [selectedTarget, setSelectedTarget] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [lockoutTime, setLockoutTime] = useState(null);
-  const [eventProgress, setEventProgress] = useState(null);
-  const [playerBuffs, setPlayerBuffs] = useState([]);
-  const [enemyDebuffs, setEnemyDebuffs] = useState([]);
-  const logRef = useRef(null);
+  const [eventData, setEventData] = useState(null);
+  const [message, setMessage] = useState(null);
+  const combatLogRef = useRef(null);
 
-  useEffect(() => {
-    if (savedState) {
-      if (savedState.gameState) setGameState(savedState.gameState);
-      if (savedState.selectedTower) setSelectedTower(savedState.selectedTower);
-      if (savedState.currentEnemy) setCurrentEnemy(savedState.currentEnemy);
-      if (savedState.storyText) setStoryText(savedState.storyText);
-      if (savedState.choices) setChoices(savedState.choices);
-      if (savedState.combatLog) setCombatLog(savedState.combatLog);
-      if (savedState.rewards) setRewards(savedState.rewards);
-      if (savedState.playerBuffs) setPlayerBuffs(savedState.playerBuffs);
-      if (savedState.enemyDebuffs) setEnemyDebuffs(savedState.enemyDebuffs);
-    }
-  }, []); // Only run on mount
-
-  // FIX #3: Save state when component unmounts or state changes
-  useEffect(() => {
-    // Don't save if we're in tower_select (nothing to preserve)
-    if (gameState !== 'tower_select' && onSaveState) {
-      onSaveState({
-        gameState,
-        selectedTower,
-        currentEnemy,
-        storyText,
-        choices,
-        combatLog,
-        rewards,
-        playerBuffs,
-        enemyDebuffs
-      });
-    }
-  }, [gameState, selectedTower, currentEnemy, storyText, choices, combatLog, rewards, playerBuffs, enemyDebuffs, onSaveState]);
-
-  // FIX #3: Check if already in tower on mount
-  useEffect(() => {
-    if (character?.isInTower && gameState === 'tower_select') {
-      // Player is in tower but UI shows tower_select - restore to in_tower state
-      setGameState('in_tower');
-      if (onTowerStateChange) onTowerStateChange(true);
-    }
-  }, [character?.isInTower]);
-
-  useEffect(() => { fetchTowers(); }, []);
-  useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [combatLog, storyText]);
-
-  const fetchTowers = async () => {
-    try {
-      const { data } = await towerAPI.getInfo();
-      setTowers(data.towers || []);
-      if (data.currentTower) {
-        const current = (data.towers || []).find(t => t.id === data.currentTower);
-        if (current) setSelectedTower(current);
+  // ============ API HELPERS ============
+  const apiCall = async (endpoint, method = 'GET', body = null) => {
+    const token = localStorage.getItem('token');
+    const options = {
+      method,
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       }
-    } catch (err) { console.error(err); }
+    };
+    if (body) options.body = JSON.stringify(body);
+    const response = await fetch(`${API_BASE}${endpoint}`, options);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'API Error');
+    }
+    return response.json();
   };
 
-  const fetchFloors = async (towerId) => {
+  // ============ LOAD MAP ============
+  const loadFloorMap = async () => {
+    setIsLoading(true);
     try {
-      const { data } = await towerAPI.getFloors(towerId);
-      setFloors(data.floors || []);
-      setSelectedFloor(data.currentFloor || 1);
-    } catch (err) { console.error(err); }
+      const data = await apiCall(`/api/exploration/map?towerId=${character.currentTower}&floor=${character.currentFloor}`);
+      setFloorMap(data.map);
+      setTower(data.tower);
+      setView('map');
+      onTowerStateChange?.(true);
+      addLog?.('info', `Entered ${data.tower.name} Floor ${data.floor}`);
+    } catch (err) {
+      addLog?.('error', err.message);
+    }
+    setIsLoading(false);
   };
 
-  const addLog = (type, message) => {
-    const safeMsg = safeString(message);
-    setCombatLog(prev => [...prev, { type, message: safeMsg }]);
-    // FIX #2: Also add to parent's game log
-    if (parentAddLog) {
-      parentAddLog(type, safeMsg);
-    }
-  };
-
-  // Check both min AND max level
-  const canEnterTower = (tower) => {
-    if (!tower || !tower.isUnlocked) return false;
-    const playerLevel = character?.level || 1;
-    const minLevel = tower.levelRange?.min || 1;
-    const maxLevel = tower.levelRange?.max || 999;
-    return playerLevel >= minLevel && playerLevel <= maxLevel;
-  };
-
-  const handleSelectTower = async (tower) => {
-    if (!tower || !tower.isUnlocked) {
-      addLog('error', 'Tower locked! Clear previous tower first.');
-      return;
-    }
-    
-    // FIX #2: Check max level
-    const playerLevel = character?.level || 1;
-    const maxLevel = tower.levelRange?.max || 999;
-    if (playerLevel > maxLevel) {
-      addLog('error', `Your level (${playerLevel}) exceeds this tower's max level (${maxLevel})!`);
-      return;
-    }
-    
-    setSelectedTower(tower);
-    await fetchFloors(tower.id);
-  };
-
-  const handleEnterTower = async () => {
-    if (!selectedTower) return;
-    
-    // FIX #2: Double check level requirement
-    const playerLevel = character?.level || 1;
-    const minLevel = selectedTower.levelRange?.min || 1;
-    const maxLevel = selectedTower.levelRange?.max || 999;
-    
-    if (playerLevel < minLevel) {
-      addLog('error', `Minimum level ${minLevel} required!`);
-      return;
-    }
-    if (playerLevel > maxLevel) {
-      addLog('error', `Your level (${playerLevel}) exceeds max level (${maxLevel})!`);
+  // ============ MOVE TO NODE ============
+  const moveToNode = async (nodeId) => {
+    if (character.energy < 5) {
+      addLog?.('error', 'Not enough energy!');
       return;
     }
     
     setIsLoading(true);
     try {
-      const { data } = await towerAPI.enter(selectedTower.id);
-      addLog('system', safeString(data.message));
-      if (selectedFloor > 1) {
-        await towerAPI.selectFloor(selectedTower.id, selectedFloor);
-      }
-      setGameState('in_tower');
-      setPlayerBuffs([]);
-      setEnemyDebuffs([]);
-      if (onTowerStateChange) onTowerStateChange(true);
-      onCharacterUpdate();
-    } catch (err) { addLog('error', err.response?.data?.error || 'Failed to enter tower'); }
-    setIsLoading(false);
-  };
-
-  const handleLeaveTower = async () => {
-    setIsLoading(true);
-    try {
-      await towerAPI.leave();
-      setGameState('tower_select');
-      setCombatLog([]);
-      setCurrentEnemy(null);
-      setStoryText('');
-      setChoices([]);
-      setRewards(null);
-      setPlayerBuffs([]);
-      setEnemyDebuffs([]);
-      if (onTowerStateChange) onTowerStateChange(false);
-      onCharacterUpdate();
-    } catch (err) { addLog('error', 'Failed to leave tower'); }
-    setIsLoading(false);
-  };
-
-  // FIX #3: Explore button - ensure proper API call and state transition
-  const handleExplore = async () => {
-    setIsLoading(true);
-    setCombatLog([]); // Clear previous log
-    try {
-      const { data } = await towerAPI.explore();
-      console.log('Explore response:', data); // Debug log
+      const data = await apiCall('/api/exploration/move', 'POST', { nodeId });
       
-      // Handle lockout
-      if (data.lockoutTime) {
-        setLockoutTime(data.lockoutTime);
-        addLog('info', safeString(data.message));
-        setIsLoading(false);
-        return;
-      }
-      
-      // Handle event progress
-      if (data.eventProgress) {
-        setEventProgress(data.eventProgress);
-      }
-      
-      // FIX #3: Handle exploration type response (multi-event system)
-      if (data.type === 'exploration' || data.scenarioId) {
-        setStoryText(safeString(data.story) || safeString(data.message) || 'You explore the tower...');
-        if (data.choices && Array.isArray(data.choices)) {
-          setChoices(data.choices);
-          setScenarioId(data.scenarioId);
-          setGameState('choosing_path');
-        }
-        onCharacterUpdate();
-        setIsLoading(false);
-        return;
-      }
-      
-      // Handle safe zone
-      if (data.type === 'safe_zone') {
-        setStoryText(safeString(data.story) || safeString(data.message));
-        setGameState('safe_zone');
-        onCharacterUpdate();
-        setIsLoading(false);
-        return;
-      }
-      
-      // Handle different event types
-      switch (data.eventType) {
-        case 'item':
-        case 'treasure':
-          const itemName = data.item?.name || 'something';
-          addLog('success', `Found ${itemName}!`);
-          setStoryText(safeString(data.message) || `You found ${itemName}!`);
-          setRewards({
-            exp: safeNumber(data.exp, 0),
-            gold: safeNumber(data.gold, 0),
-            items: data.item ? [data.item] : []
-          });
-          setGameState('victory');
-          break;
-          
-        case 'enemy':
-        case 'enemy_group':
-        case 'boss':
-        case 'elite':
-          const enemy = data.enemy || data.enemies?.[0];
-          if (enemy) {
-            const normalizedEnemy = {
-              id: enemy.id || safeString(enemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
-              hp: safeNumber(enemy.hp, 50),
-              maxHp: safeNumber(enemy.maxHp || enemy.hp, 50),
-              atk: safeNumber(enemy.atk || enemy.attack, 10),
-              def: safeNumber(enemy.def || enemy.defense, 5),
-              name: safeString(enemy.name, 'Unknown Enemy'),
-              icon: safeString(enemy.icon, '👹'),
-              element: safeString(enemy.element, 'none'),
-              isBoss: !!enemy.isBoss,
-              isElite: !!enemy.isElite,
-              expReward: safeNumber(enemy.expReward || enemy.exp, 20),
-              goldReward: safeNumber(enemy.goldReward || enemy.gold, 10)
-            };
-            setCurrentEnemy(normalizedEnemy);
-            addLog('combat', `${normalizedEnemy.name} appears!`);
-            setGameState('combat');
-          }
-          break;
-          
-        case 'trap':
-          setStoryText(safeString(data.message) || 'You took damage!');
-          addLog('enemy', safeString(data.message));
-          break;
-          
-        case 'rest':
-          setStoryText(safeString(data.message) || 'You feel refreshed!');
-          addLog('success', safeString(data.message) || 'Healed!');
-          break;
-          
-        case 'mystery':
-        case 'event':
-          setStoryText(safeString(data.message) || 'You found something!');
-          addLog('success', safeString(data.message) || 'Reward obtained!');
-          if (data.exp || data.gold) {
-            setRewards({ exp: safeNumber(data.exp, 0), gold: safeNumber(data.gold, 0), items: data.items || [] });
-            setGameState('victory');
-          }
-          break;
-          
-        case 'continue':
-          setStoryText(safeString(data.message) || 'You continue onward...');
-          addLog('info', safeString(data.message) || 'Progress made.');
-          break;
-          
-        case 'branch':
-          setStoryText(safeString(data.message) || 'You found treasure!');
-          if (data.choices && Array.isArray(data.choices)) {
-            setChoices(data.choices);
-            setScenarioId(data.scenarioId);
-            setGameState('choosing_path');
-          }
-          break;
-          
-        case 'nothing':
-          setStoryText(safeString(data.message) || 'Nothing happens...');
-          break;
-          
-        default:
-          // Default case - check if there are choices
-          if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
-            setStoryText(safeString(data.story) || safeString(data.message) || 'A choice awaits...');
-            setChoices(data.choices);
-            setScenarioId(data.scenarioId);
-            setGameState('choosing_path');
-          } else {
-            setStoryText(safeString(data.message) || 'Something happened...');
-          }
-      }
-      
-      onCharacterUpdate();
-    } catch (err) { 
-      console.error('Explore error:', err);
-      addLog('error', err.response?.data?.error || 'Exploration failed'); 
-    }
-    setIsLoading(false);
-  };
-
-  const handleAttack = async () => {
-    if (!currentEnemy) return;
-    setIsLoading(true);
-    try {
-      const enemyData = {
-        ...currentEnemy,
-        id: currentEnemy.id || safeString(currentEnemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
-        hp: safeNumber(currentEnemy.hp, 50),
-        maxHp: safeNumber(currentEnemy.maxHp || currentEnemy.hp, 50),
-        atk: safeNumber(currentEnemy.atk || currentEnemy.attack, 10),
-        def: safeNumber(currentEnemy.def || currentEnemy.defense, 5),
-        name: safeString(currentEnemy.name, 'Enemy'),
-        isBoss: !!currentEnemy.isBoss,
-        isElite: !!currentEnemy.isElite,
-        expReward: safeNumber(currentEnemy.expReward || currentEnemy.exp, 20),
-        goldReward: safeNumber(currentEnemy.goldReward || currentEnemy.gold, 10),
-        activeBuffs: enemyDebuffs || []
-      };
-      const { data } = await towerAPI.attack(enemyData, treasureAfter);
-      
-      // FIX #1: Immediately update local character for real-time HP/MP display
-      if (data.character && updateLocalCharacter) {
-        updateLocalCharacter({
-          stats: {
-            hp: data.character.hp,
-            mp: data.character.mp
-          }
-        });
-      }
-      
-      // Process combat log
-      if (data.combatLog && Array.isArray(data.combatLog)) {
-        data.combatLog.forEach(log => {
-          if (log && typeof log === 'object') {
-            setCombatLog(prev => [...prev, { 
-              type: safeString(log.actor, 'system'), 
-              message: safeString(log.message),
-              isCritical: !!log.isCritical,
-              element: safeString(log.element)
-            }]);
-          }
-        });
-      }
-      
-      // Update buffs from response
-      if (data.character?.activeBuffs && Array.isArray(data.character.activeBuffs)) {
-        setPlayerBuffs(data.character.activeBuffs);
-      }
-      if (data.enemy?.activeBuffs && Array.isArray(data.enemy.activeBuffs)) {
-        setEnemyDebuffs(data.enemy.activeBuffs);
-      }
-      
-      handleCombatResult(data);
-    } catch (err) { addLog('error', err.response?.data?.error || 'Attack failed'); }
-    setIsLoading(false);
-  };
-
-  const handleUseSkill = async (skillId) => {
-    if (!currentEnemy) return;
-    setIsLoading(true);
-    try {
-      const enemyData = {
-        ...currentEnemy,
-        id: currentEnemy.id || safeString(currentEnemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
-        hp: safeNumber(currentEnemy.hp, 50),
-        maxHp: safeNumber(currentEnemy.maxHp || currentEnemy.hp, 50),
-        atk: safeNumber(currentEnemy.atk || currentEnemy.attack, 10),
-        def: safeNumber(currentEnemy.def || currentEnemy.defense, 5),
-        name: safeString(currentEnemy.name, 'Enemy'),
-        isBoss: !!currentEnemy.isBoss,
-        isElite: !!currentEnemy.isElite,
-        expReward: safeNumber(currentEnemy.expReward || currentEnemy.exp, 20),
-        goldReward: safeNumber(currentEnemy.goldReward || currentEnemy.gold, 10),
-        activeBuffs: enemyDebuffs || []
-      };
-      const { data } = await towerAPI.useSkill(enemyData, skillId, treasureAfter);
-
-      // FIX #1: Immediately update local character for real-time HP/MP display
-      if (data.character && updateLocalCharacter) {
-        updateLocalCharacter({
-          stats: {
-            hp: data.character.hp,
-            mp: data.character.mp
-          }
-        });
-      }
-      
-      // Process combat log
-      if (data.combatLog && Array.isArray(data.combatLog)) {
-        data.combatLog.forEach(log => {
-          if (log && typeof log === 'object') {
-            setCombatLog(prev => [...prev, { 
-              type: safeString(log.actor, 'system'), 
-              message: safeString(log.message),
-              isCritical: !!log.isCritical,
-              element: safeString(log.element),
-              skillName: safeString(log.skillName)
-            }]);
-          }
-        });
-      }
-      
-      // Update buffs from response
-      if (data.character?.activeBuffs && Array.isArray(data.character.activeBuffs)) {
-        setPlayerBuffs(data.character.activeBuffs);
-      }
-      if (data.enemy?.activeBuffs && Array.isArray(data.enemy.activeBuffs)) {
-        setEnemyDebuffs(data.enemy.activeBuffs);
-      }
-      
-      handleCombatResult(data);
-    } catch (err) { addLog('error', err.response?.data?.error || 'Skill failed'); }
-    setIsLoading(false);
-  };
-
-  const handleCombatResult = (data) => {
-    if (data.enemy) {
-      setCurrentEnemy(prev => ({
+      // Update map
+      setFloorMap(prev => ({
         ...prev,
-        hp: safeNumber(data.enemy.hp, 0),
-        maxHp: safeNumber(data.enemy.maxHp || prev?.maxHp, 100)
+        currentNodeId: nodeId,
+        nodes: prev.nodes.map(n => n.id === nodeId ? { ...n, visited: true } : n)
       }));
+      
+      updateLocalCharacter?.({ energy: data.energy });
+      addLog?.('info', `Moved to ${NODE_ICONS[data.nodeType]} ${data.nodeType} node`);
+      
+      // Handle node type
+      if (['combat', 'elite', 'boss'].includes(data.nodeType)) {
+        await startCombat();
+      } else if (['treasure', 'rest', 'shrine'].includes(data.nodeType)) {
+        await handleInteraction();
+      } else if (data.nodeType === 'mystery') {
+        setEventData(data.node);
+        setView('event');
+      } else if (data.nodeType === 'merchant') {
+        setEventData({ ...data.node, merchant: true });
+        setView('event');
+      }
+    } catch (err) {
+      addLog?.('error', err.message);
     }
-    
-    // FIX #1: Immediately update local character HP/MP for real-time display
-    if (data.character && updateLocalCharacter) {
-      updateLocalCharacter({
+    setIsLoading(false);
+  };
+
+  // ============ START COMBAT ============
+  const startCombat = async () => {
+    try {
+      const data = await apiCall('/api/exploration/combat/start', 'POST');
+      setCombat(data.combat);
+      setCombatLog(data.combat.combatLog || []);
+      setSelectedTarget(0);
+      setView('combat');
+    } catch (err) {
+      addLog?.('error', err.message);
+    }
+  };
+
+  // ============ COMBAT ACTION ============
+  const doCombatAction = async (action, skillId = null) => {
+    setIsLoading(true);
+    try {
+      const data = await apiCall('/api/exploration/combat/action', 'POST', {
+        action,
+        skillId,
+        targetIndex: selectedTarget
+      });
+      
+      if (data.status === 'victory') {
+        setCombatLog(data.combatLog);
+        setMessage({ type: 'success', text: `Victory! +${data.rewards.exp} EXP, +${data.rewards.gold} Gold` });
+        addLog?.('success', `Victory! +${data.rewards.exp} EXP, +${data.rewards.gold} Gold`);
+        
+        // Mark node as cleared in map
+        setFloorMap(prev => ({
+          ...prev,
+          nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n)
+        }));
+        
+        if (data.floorComplete) {
+          addLog?.('success', 'Floor cleared! Advancing...');
+          setTimeout(() => {
+            setView('select');
+            setCombat(null);
+            onCharacterUpdate?.();
+          }, 2000);
+        } else {
+          setTimeout(() => {
+            setView('map');
+            setCombat(null);
+            onCharacterUpdate?.();
+          }, 1500);
+        }
+        
+        if (data.leveledUp) {
+          addLog?.('success', `Level up! Now level ${data.character.level}`);
+        }
+      } else if (data.status === 'defeat') {
+        setCombatLog(data.combatLog);
+        setMessage({ type: 'error', text: 'Defeated! Returning to town...' });
+        addLog?.('error', 'You have been defeated!');
+        
+        setTimeout(() => {
+          setView('select');
+          setCombat(null);
+          onTowerStateChange?.(false);
+          onCharacterUpdate?.();
+        }, 2000);
+      } else {
+        // Ongoing combat
+        setCombat(data.combat);
+        setCombatLog(data.combat.combatLog);
+        updateLocalCharacter?.({
+          stats: {
+            hp: data.character.hp,
+            mp: data.character.mp
+          }
+        });
+      }
+    } catch (err) {
+      addLog?.('error', err.message);
+    }
+    setIsLoading(false);
+  };
+
+  // ============ HANDLE INTERACTION ============
+  const handleInteraction = async (choice = null) => {
+    setIsLoading(true);
+    try {
+      const data = await apiCall('/api/exploration/interact', 'POST', { choice });
+      
+      setMessage({ type: 'success', text: data.message });
+      addLog?.('success', data.message);
+      
+      // Mark node as cleared
+      setFloorMap(prev => ({
+        ...prev,
+        nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n)
+      }));
+      
+      updateLocalCharacter?.({
         stats: {
           hp: data.character.hp,
           mp: data.character.mp
-        }
+        },
+        gold: data.character.gold
       });
-    }
       
-    if (data.status === 'victory') {
-      setStoryText(safeString(data.message, 'Victory!'));
-      setRewards({
-        exp: safeNumber(data.rewards?.exp, 0),
-        gold: safeNumber(data.rewards?.gold, 0),
-        treasureGold: safeNumber(data.rewards?.treasureGold, 0),
-        items: Array.isArray(data.rewards?.items) ? data.rewards.items : []
-      });
-      setCurrentEnemy(null);
-      setGameState('victory');
-      onCharacterUpdate();
-    } else if (data.status === 'defeat') {
-      setStoryText(safeString(data.message, 'You have been defeated...'));
-      setGameState('defeat');
-      onCharacterUpdate();
-    }
-  };
-
-  const handleFlee = async () => {
-    setIsLoading(true);
-    try {
-      const { data } = await towerAPI.flee();
-      addLog('info', safeString(data.message, 'You fled!'));
-      setCurrentEnemy(null);
-      setGameState('in_tower');
-      onCharacterUpdate();
-    } catch (err) { addLog('error', 'Failed to flee'); }
-    setIsLoading(false);
-  };
-
-  const handleUsePotion = async (type) => {
-    setIsLoading(true);
-    try {
-      const { data } = await towerAPI.usePotion(type);
-      addLog('success', safeString(data.message, 'Potion used!'));
-      onCharacterUpdate();
-    } catch (err) { addLog('error', err.response?.data?.error || 'No potions'); }
-    setIsLoading(false);
-  };
-
-  const handleChoosePath = async (choice) => {
-    setIsLoading(true);
-    try {
-      const { data } = await towerAPI.choosePath(choice, scenarioId);
-      console.log('Choose path response:', data); // Debug log
-      
-      // Handle next event in chain
-      if (data.nextEvent) {
-        setStoryText(safeString(data.nextEvent.story) || safeString(data.message));
-        setChoices(data.nextEvent.choices || []);
-        setScenarioId(data.nextEvent.scenarioId);
-        setEventProgress(data.eventProgress);
-        if (data.damage) addLog('enemy', `Took ${data.damage} damage!`);
-        if (data.heal) addLog('success', `Healed ${data.heal} HP!`);
-        onCharacterUpdate();
-        setIsLoading(false);
-        return;
-      }
-      
-      // Handle combat result
-      if (data.type === 'combat' || data.enemy) {
-        const enemy = data.enemy;
-        if (enemy) {
-          setCurrentEnemy({
-            id: enemy.id || safeString(enemy.name, 'enemy').toLowerCase().replace(/\s+/g, '_'),
-            hp: safeNumber(enemy.hp, 50),
-            maxHp: safeNumber(enemy.maxHp || enemy.hp, 50),
-            atk: safeNumber(enemy.atk || enemy.attack, 10),
-            def: safeNumber(enemy.def || enemy.defense, 5),
-            name: safeString(enemy.name, 'Enemy'),
-            icon: safeString(enemy.icon, '👹'),
-            element: safeString(enemy.element, 'none'),
-            isBoss: !!enemy.isBoss,
-            isElite: !!enemy.isElite,
-            expReward: safeNumber(enemy.expReward, 20),
-            goldReward: safeNumber(enemy.goldReward, 10)
-          });
-          if (data.treasureAfter) setTreasureAfter(data.treasureAfter);
-          setGameState('combat');
-          addLog('combat', `${enemy.name} appears!`);
-        }
-      } else if (data.rewards || data.exp || data.gold || (data.items && data.items.length > 0)) {
-        setStoryText(safeString(data.message, 'You found treasure!'));
-        setRewards({
-          exp: safeNumber(data.exp, 0),
-          gold: safeNumber(data.gold, 0),
-          items: Array.isArray(data.items) ? data.items : []
-        });
-        setChoices([]);
-        setEventProgress(null);
-        setGameState('victory');
-      } else {
-        setStoryText(safeString(data.message, 'You continue onward...'));
-        setChoices([]);
-        setEventProgress(null);
-        setGameState('in_tower');
-      }
-      
-      onCharacterUpdate();
-    } catch (err) { 
-      console.error('Choose path error:', err);
-      addLog('error', err.response?.data?.error || 'Failed'); 
+      setTimeout(() => {
+        setView('map');
+        setEventData(null);
+        setMessage(null);
+      }, 1500);
+    } catch (err) {
+      addLog?.('error', err.message);
     }
     setIsLoading(false);
   };
 
-  const handleCheckDoorkeeper = async () => {
-    setIsLoading(true);
+  // ============ LEAVE TOWER ============
+  const leaveTower = async () => {
     try {
-      const { data } = await towerAPI.getFloorRequirements();
-      setFloorRequirements(data);
-      setStoryText(safeString(data.message));
-      setGameState('doorkeeper');
-    } catch (err) { addLog('error', 'Failed to check requirements'); }
-    setIsLoading(false);
+      await apiCall('/api/exploration/leave', 'POST');
+      setView('select');
+      setFloorMap(null);
+      onTowerStateChange?.(false);
+      addLog?.('info', 'Left the tower');
+      onCharacterUpdate?.();
+    } catch (err) {
+      addLog?.('error', err.message);
+    }
   };
 
-  const handleAdvance = async () => {
-    setIsLoading(true);
-    try {
-      const { data } = await towerAPI.advance();
-      addLog('success', safeString(data.message));
-      setGameState('in_tower');
-      onCharacterUpdate();
-    } catch (err) { addLog('error', err.response?.data?.error || 'Cannot advance'); }
-    setIsLoading(false);
-  };
-
-  // Helpers
-  const getUnlockedSkills = () => {
-    return character?.skills?.filter(s => s.unlocked) || [];
-  };
-
-  const getSkillMpCost = (skillId) => {
-    return SKILL_DATA[skillId]?.mpCost || 10;
-  };
-
-  const getSkillElement = (skillId) => {
-    return SKILL_DATA[skillId]?.element || 'none';
-  };
+  // Scroll combat log
+  useEffect(() => {
+    if (combatLogRef.current) {
+      combatLogRef.current.scrollTop = combatLogRef.current.scrollHeight;
+    }
+  }, [combatLog]);
 
   // ============================================================
-  // BUFF/DEBUFF DISPLAY COMPONENT
+  // RENDER: TOWER SELECT
   // ============================================================
-  
-  const BuffDisplay = ({ buffs, isEnemy = false }) => {
-    if (!buffs || !Array.isArray(buffs) || buffs.length === 0) return null;
-    
+  if (view === 'select') {
     return (
-      <div className="flex flex-wrap gap-1 justify-center mt-1">
-        {buffs.map((buff, idx) => {
-          if (!buff || typeof buff !== 'object') return null;
-          
-          // Safely extract values
-          const buffName = safeString(buff.name, 'Buff');
-          const buffValue = safeNumber(buff.value, 0);
-          const buffDuration = safeNumber(buff.duration, 0);
-          const buffIcon = safeString(buff.icon, '✨');
-          const buffType = safeString(buff.type, '');
-          
-          // Format value display
-          let valueDisplay = '';
-          if (buffValue !== 0) {
-            const prefix = buffValue > 0 && buffType !== 'dot' ? '+' : '';
-            const suffix = buffType === 'dot' ? '/t' : '%';
-            valueDisplay = `${prefix}${buffValue}${suffix}`;
-          }
-          
-          return (
-            <div
-              key={idx}
-              className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
-                isEnemy ? 'bg-red-900/50' : 'bg-blue-900/50'
-              }`}
-              title={`${buffName}: ${buffValue} (${buffDuration}t)`}
-            >
-              <span>{buffIcon}</span>
-              {valueDisplay && <span className={buff.color || 'text-white'}>{valueDisplay}</span>}
-              <span className="text-gray-400">({buffDuration}t)</span>
+      <div className="space-y-4">
+        <div className="text-center mb-6">
+          <h2 className="font-display text-xl text-purple-400 mb-2">Tower Selection</h2>
+          <p className="text-gray-400 text-sm">Current: Tower {character.currentTower} - Floor {character.currentFloor}</p>
+        </div>
+        
+        <div className="bg-void-800/50 rounded-xl p-4 neon-border">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-white font-semibold">Tower {character.currentTower}</h3>
+              <p className="text-gray-400 text-sm">Floor {character.currentFloor}/15</p>
             </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // ============================================================
-  // RENDER: Tower Select - FIX #4 & #5: Tower info + new styling
-  // ============================================================
-  
-  const renderTowerSelect = () => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-bold text-purple-400 flex items-center gap-2">
-        <span>🏰</span> Select Tower
-      </h3>
-      
-      <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-        {(towers || []).map(tower => {
-          const playerLevel = character?.level || 1;
-          const minLevel = tower.levelRange?.min || 1;
-          const maxLevel = tower.levelRange?.max || 999;
-          const levelOk = playerLevel >= minLevel && playerLevel <= maxLevel;
-          const canEnter = tower.isUnlocked && levelOk;
-          
-          return (
-            <button
-              key={tower.id}
-              onClick={() => handleSelectTower(tower)}
-              className={`p-3 rounded-lg text-left transition-all border ${
-                selectedTower?.id === tower.id
-                  ? 'bg-purple-900/50 border-purple-500 shadow-lg shadow-purple-500/20'
-                  : canEnter
-                    ? 'bg-void-800/50 hover:bg-void-700/50 border-purple-500/30 hover:border-purple-500/50'
-                    : 'bg-void-900/50 opacity-50 cursor-not-allowed border-gray-700/30'
-              }`}
-            >
-              <div className="font-bold text-sm text-purple-300">{safeString(tower.name, 'Tower')}</div>
-              <div className="text-xs text-gray-400">
-                Lv.{safeNumber(tower.levelRange?.min, '?')}-{safeNumber(tower.levelRange?.max, '?')}
-              </div>
-              {!tower.isUnlocked && <div className="text-xs text-yellow-500">🔒 Locked</div>}
-              {tower.isUnlocked && !levelOk && (
-                <div className="text-xs text-red-400">
-                  {playerLevel < minLevel ? `⬆️ Min Lv.${minLevel}` : `⬇️ Max Lv.${maxLevel}`}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-      
-      {/* FIX #4 & #5: Tower Details with Info Panel - Purple theme like Skills */}
-      {selectedTower && (
-        <div className="bg-void-800/50 rounded-xl p-4 space-y-4 border border-purple-500/30">
-          <h4 className="font-bold text-lg text-purple-300">{safeString(selectedTower.name, 'Tower')}</h4>
-          <p className="text-gray-400 text-sm">{safeString(selectedTower.description, 'A mysterious tower awaits...')}</p>
-          
-          {/* FIX #4: Tower Information Panel */}
-          {TOWER_INFO[selectedTower.id] && (
-            <div className="bg-void-900/50 rounded-lg p-3 space-y-3 border border-purple-500/20">
-              {/* Mobs */}
-              <div>
-                <div className="text-xs text-gray-500 mb-1 font-semibold">MONSTERS</div>
-                <div className="flex flex-wrap gap-1">
-                  {TOWER_INFO[selectedTower.id].mobs.map((mob, i) => (
-                    <span key={i} className="text-xs bg-red-900/30 text-red-300 px-2 py-0.5 rounded border border-red-500/20">
-                      {mob}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Elites */}
-              <div>
-                <div className="text-xs text-gray-500 mb-1 font-semibold">ELITES</div>
-                <div className="flex flex-wrap gap-1">
-                  {TOWER_INFO[selectedTower.id].elites.map((elite, i) => (
-                    <span key={i} className="text-xs bg-orange-900/30 text-orange-300 px-2 py-0.5 rounded border border-orange-500/20">
-                      {elite}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Boss */}
-              <div>
-                <div className="text-xs text-gray-500 mb-1 font-semibold">BOSS (Floor 15)</div>
-                <span className="text-sm bg-purple-900/30 text-purple-300 px-2 py-1 rounded border border-purple-500/20">
-                  {TOWER_INFO[selectedTower.id].boss}
-                </span>
-              </div>
-              
-              {/* Drops */}
-              <div>
-                <div className="text-xs text-gray-500 mb-1 font-semibold">POTENTIAL DROPS</div>
-                <div className="flex flex-wrap gap-1">
-                  {TOWER_INFO[selectedTower.id].drops.map((drop, i) => (
-                    <span key={i} className="text-xs bg-blue-900/30 text-blue-300 px-2 py-0.5 rounded border border-blue-500/20">
-                      {drop}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Set Info */}
-              <div className="text-xs text-yellow-400">
-                🏆 Set Equipment: {TOWER_INFO[selectedTower.id].setName}
-              </div>
+            <div className="text-right">
+              <p className="text-amber-400">⚡ {character.energy}/100</p>
+              <p className="text-gray-500 text-xs">5 energy per node</p>
             </div>
-          )}
-          
-          {/* Floor Selection */}
-          <div className="flex items-center gap-3">
-            <label className="text-sm text-gray-400">Start Floor:</label>
-            <select 
-              value={selectedFloor}
-              onChange={(e) => setSelectedFloor(Number(e.target.value))}
-              className="bg-void-700 border border-purple-500/30 rounded px-3 py-1.5 text-sm text-purple-300 focus:border-purple-500 focus:outline-none"
-            >
-              {Array.from({ length: Math.min(character?.towerProgress?.['tower' + selectedTower.id] || 1, 15) }, (_, i) => (
-                <option key={i+1} value={i+1}>Floor {i+1}</option>
-              ))}
-            </select>
           </div>
           
-          {/* FIX #2: Show level requirement warning */}
-          {(() => {
-            const playerLevel = character?.level || 1;
-            const minLevel = selectedTower.levelRange?.min || 1;
-            const maxLevel = selectedTower.levelRange?.max || 999;
-            
-            if (playerLevel < minLevel) {
-              return (
-                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-2 text-center">
-                  <span className="text-red-400 text-sm">⚠️ Minimum level {minLevel} required! (You are Lv.{playerLevel})</span>
-                </div>
-              );
-            }
-            if (playerLevel > maxLevel) {
-              return (
-                <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-2 text-center">
-                  <span className="text-yellow-400 text-sm">⚠️ Your level ({playerLevel}) exceeds max level ({maxLevel})!</span>
-                </div>
-              );
-            }
-            return null;
-          })()}
+          <div className="h-2 bg-void-900 rounded-full mb-4">
+            <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${(character.currentFloor / 15) * 100}%` }}></div>
+          </div>
           
-          {/* FIX #5: Purple gradient button like Skills panel */}
-          <button 
-            onClick={handleEnterTower}
-            disabled={isLoading || !canEnterTower(selectedTower)}
-            className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-700 disabled:opacity-50 rounded-lg font-bold transition-all border border-purple-500/30"
-          >
-            {isLoading ? '⏳ Entering...' : '⚔️ Enter Tower'}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
-  // ============================================================
-  // RENDER: In Tower - FIX #5: Purple styling
-  // ============================================================
-  
-  const renderInTower = () => (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-bold text-purple-400">
-          🏰 {safeString(selectedTower?.name, 'Tower')} - Floor {safeNumber(character?.currentFloor, 1)}
-        </h3>
-        <div className="text-sm text-gray-400">
-          HP: <span className="text-green-400">{safeNumber(character?.stats?.hp, 0)}</span>/{safeNumber(character?.stats?.maxHp, 0)}
-        </div>
-      </div>
-      
-      {/* Player Buffs Display */}
-      {playerBuffs.length > 0 && (
-        <div className="bg-purple-900/20 rounded-lg p-2 border border-purple-500/20">
-          <div className="text-xs text-purple-400 mb-1">Your Buffs:</div>
-          <BuffDisplay buffs={playerBuffs} />
-        </div>
-      )}
-      
-      <div className="bg-void-900/50 rounded-lg p-4 text-center border border-purple-500/20">
-        <p className="text-gray-300">The tower awaits exploration...</p>
-        <p className="text-xs text-gray-500 mt-2">Energy: {character?.energy || 0}/100</p>
-      </div>
-      
-      {/* FIX #5: Purple gradient buttons */}
-      <div className="grid grid-cols-2 gap-3">
-        <button 
-          onClick={handleExplore} 
-          disabled={isLoading}
-          className="py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:opacity-50 rounded-lg font-bold transition-all border border-purple-500/30"
-        >
-          {isLoading ? '⏳...' : '🔍 Explore'}
-        </button>
-        <button 
-          onClick={handleCheckDoorkeeper} 
-          disabled={isLoading} 
-          className="py-3 bg-purple-700/50 hover:bg-purple-600/50 rounded-lg font-bold border border-purple-500/30"
-        >
-          ⛩️ Doorkeeper
-        </button>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => handleUsePotion('hp')} disabled={isLoading} className="py-2 bg-red-900/50 hover:bg-red-800/50 rounded border border-red-500/30">
-          ❤️ HP Potion
-        </button>
-        <button onClick={() => handleUsePotion('mp')} disabled={isLoading} className="py-2 bg-blue-900/50 hover:bg-blue-800/50 rounded border border-blue-500/30">
-          💙 MP Potion
-        </button>
-      </div>
-      
-      <button onClick={handleLeaveTower} disabled={isLoading} className="w-full py-2 bg-void-700/50 hover:bg-void-600/50 rounded border border-gray-500/30">
-        🚪 Leave Tower
-      </button>
-    </div>
-  );
-
-  // ============================================================
-  // RENDER: Choosing Path - FIX #5: Purple styling
-  // ============================================================
-  
-  const renderChoosingPath = () => (
-    <div className="space-y-4">
-      {eventProgress && (
-        <div className="flex items-center justify-center gap-2 text-sm">
-          {Array.from({ length: eventProgress.total || 0 }, (_, i) => (
-            <div 
-              key={i}
-              className={`w-3 h-3 rounded-full ${
-                i < (eventProgress.current || 0)
-                  ? 'bg-purple-500' 
-                  : i === (eventProgress.current || 0) - 1 
-                    ? 'bg-purple-400 ring-2 ring-purple-300' 
-                    : 'bg-gray-600'
-              }`}
-            />
-          ))}
-        </div>
-      )}
-      
-      <div className="bg-void-900/50 rounded-lg p-4 border border-purple-500/20">
-        <p className="text-gray-300 whitespace-pre-line">{safeString(storyText, 'A choice awaits...')}</p>
-      </div>
-      
-      <div className="space-y-2">
-        {(choices || []).map((choice, idx) => (
           <button
-            key={idx}
-            onClick={() => handleChoosePath(choice)}
-            disabled={isLoading}
-            className="w-full py-3 px-4 bg-void-700/50 hover:bg-purple-900/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg text-left capitalize transition-all hover:translate-x-1"
+            onClick={loadFloorMap}
+            disabled={isLoading || character.energy < 5 || character.stats.hp <= 0}
+            className="w-full btn-primary py-3 disabled:opacity-50"
           >
-            {choice === 'left' ? '← ' : choice === 'right' ? '→ ' : 
-             choice === 'crown' ? '👑 ' : choice === 'skull' ? '💀 ' : choice === 'sword' ? '🗡️ ' : '• '}
-            {safeString(choice, 'Choice').replace(/_/g, ' ')}
+            {isLoading ? 'Loading...' : character.stats.hp <= 0 ? 'Need to heal first' : '⚔️ Enter Tower'}
           </button>
-        ))}
+        </div>
+        
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-void-800/30 p-2 rounded text-center">
+            <span className="text-gray-500">HP</span>
+            <div className="text-green-400">{character.stats.hp}/{character.stats.maxHp}</div>
+          </div>
+          <div className="bg-void-800/30 p-2 rounded text-center">
+            <span className="text-gray-500">MP</span>
+            <div className="text-blue-400">{character.stats.mp}/{character.stats.maxMp}</div>
+          </div>
+        </div>
       </div>
-      
-      <button 
-        onClick={() => { setChoices([]); setGameState('in_tower'); }}
-        className="w-full py-2 bg-void-700/50 hover:bg-void-600/50 rounded border border-gray-500/30"
-      >
-        ← Back to Tower
-      </button>
-    </div>
-  );
+    );
+  }
 
   // ============================================================
-  // RENDER: Combat - FIX #5: Purple styling
+  // RENDER: NODE MAP
   // ============================================================
-  
-  const renderCombat = () => {
-    const unlockedSkills = getUnlockedSkills();
+  if (view === 'map' && floorMap) {
+    const currentNode = floorMap.nodes.find(n => n.id === floorMap.currentNodeId);
+    const accessibleNodes = currentNode?.connections || [];
+    
+    // Group nodes by row
+    const rows = {};
+    floorMap.nodes.forEach(node => {
+      if (!rows[node.row]) rows[node.row] = [];
+      rows[node.row].push(node);
+    });
+    const sortedRows = Object.keys(rows).sort((a, b) => b - a).map(k => rows[k]);
     
     return (
       <div className="space-y-4">
-        {/* Enemy Display */}
-        {currentEnemy && (
-          <div className="bg-void-900/50 rounded-lg p-4 text-center border border-red-500/20">
-            <div className="text-4xl mb-2">{safeString(currentEnemy.icon, '👹')}</div>
-            <h4 className="font-bold text-lg text-red-400">
-              {safeString(currentEnemy.name, 'Enemy')}
-              {currentEnemy.isBoss && <span className="ml-2 text-yellow-400">👑 BOSS</span>}
-              {currentEnemy.isElite && !currentEnemy.isBoss && <span className="ml-2 text-orange-400">⭐ ELITE</span>}
-            </h4>
-            {currentEnemy.element && currentEnemy.element !== 'none' && (
-              <div className="text-xs text-gray-400 mt-1">
-                {ELEMENT_ICONS[currentEnemy.element]} {currentEnemy.element}
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-lg text-purple-400">{tower?.name}</h2>
+            <p className="text-gray-400 text-sm">Floor {character.currentFloor}</p>
+          </div>
+          <button onClick={leaveTower} className="btn-secondary text-xs px-3 py-1">
+            🚪 Leave
+          </button>
+        </div>
+        
+        {/* Node Map */}
+        <div className="bg-void-800/50 rounded-xl p-4 neon-border overflow-x-auto">
+          <div className="min-w-[280px] space-y-3">
+            {sortedRows.map((row, rowIndex) => (
+              <div key={rowIndex} className="flex justify-center gap-3">
+                {row.map(node => {
+                  const isCurrent = node.id === floorMap.currentNodeId;
+                  const isAccessible = accessibleNodes.includes(node.id);
+                  const canMove = isAccessible && !node.cleared && !isCurrent;
+                  
+                  return (
+                    <button
+                      key={node.id}
+                      onClick={() => canMove && moveToNode(node.id)}
+                      disabled={!canMove || isLoading}
+                      className={`
+                        w-14 h-14 rounded-lg flex flex-col items-center justify-center transition-all
+                        ${isCurrent ? 'ring-2 ring-yellow-400 scale-110' : ''}
+                        ${node.cleared ? 'opacity-50' : ''}
+                        ${canMove ? 'hover:scale-105 cursor-pointer' : 'cursor-default'}
+                        ${node.visited ? NODE_COLORS[node.type] : 'bg-gray-700'}
+                        ${isAccessible && !node.cleared ? 'ring-1 ring-white/30' : ''}
+                      `}
+                    >
+                      <span className="text-xl">{node.visited ? NODE_ICONS[node.type] : '?'}</span>
+                      {node.cleared && <span className="text-xs">✓</span>}
+                    </button>
+                  );
+                })}
               </div>
-            )}
-            <div className="mt-2">
-              <div className="flex justify-between text-xs text-gray-400 mb-1">
-                <span>HP</span>
-                <span>{safeNumber(currentEnemy.hp, 0)}/{safeNumber(currentEnemy.maxHp, 100)}</span>
-              </div>
-              <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
-                  style={{ width: `${(safeNumber(currentEnemy.hp, 0) / safeNumber(currentEnemy.maxHp, 100)) * 100}%` }}
-                />
+            ))}
+          </div>
+          
+          {/* Legend */}
+          <div className="mt-4 pt-3 border-t border-gray-700/50">
+            <div className="flex flex-wrap justify-center gap-2 text-xs">
+              {Object.entries(NODE_ICONS).slice(1).map(([type, icon]) => (
+                <span key={type} className="text-gray-400">{icon} {type}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {/* Current Node Info */}
+        {currentNode && (
+          <div className="bg-void-800/30 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">{NODE_ICONS[currentNode.type]}</span>
+              <div>
+                <p className="text-white font-medium capitalize">{currentNode.type} Node</p>
+                <p className="text-gray-400 text-xs">
+                  {currentNode.cleared ? 'Cleared' : 'Not cleared'}
+                </p>
               </div>
             </div>
-            <BuffDisplay buffs={enemyDebuffs} isEnemy={true} />
+            
+            {!currentNode.cleared && ['combat', 'elite', 'boss'].includes(currentNode.type) && (
+              <button onClick={startCombat} className="w-full btn-primary py-2 mt-2">
+                ⚔️ Start Combat
+              </button>
+            )}
+            
+            {!currentNode.cleared && ['treasure', 'rest', 'shrine'].includes(currentNode.type) && (
+              <button onClick={() => handleInteraction()} className="w-full btn-secondary py-2 mt-2">
+                {NODE_ICONS[currentNode.type]} Interact
+              </button>
+            )}
+            
+            {!currentNode.cleared && currentNode.type === 'mystery' && (
+              <button onClick={() => { setEventData(currentNode); setView('event'); }} className="w-full btn-secondary py-2 mt-2">
+                ❓ Investigate
+              </button>
+            )}
           </div>
         )}
         
-        {/* Combat Log */}
-        <div 
-          ref={logRef}
-          className="bg-void-900/30 rounded-lg p-3 h-32 overflow-y-auto text-sm border border-purple-500/20"
-        >
-          {combatLog.map((log, i) => (
-            <div 
-              key={i} 
-              className={`mb-1 ${
-                log.type === 'player' ? 'text-blue-400' : 
-                log.type === 'enemy' ? 'text-red-400' : 
-                log.type === 'combat' ? 'text-yellow-400' :
-                log.type === 'success' ? 'text-green-400' :
-                log.type === 'error' ? 'text-red-500' :
-                'text-gray-400'
-              }`}
-            >
-              {log.isCritical && <span className="text-yellow-300">💥 CRIT! </span>}
-              {safeString(log.message)}
-            </div>
-          ))}
+        {/* Message */}
+        {message && (
+          <div className={`p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+            {message.text}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ============================================================
+  // RENDER: COMBAT
+  // ============================================================
+  if (view === 'combat' && combat) {
+    const aliveEnemies = combat.enemies.filter(e => e.hp > 0);
+    
+    return (
+      <div className="space-y-3">
+        {/* Combat Header */}
+        <div className="flex items-center justify-between bg-void-800/50 rounded-lg p-2">
+          <div>
+            <p className="text-purple-400 font-semibold text-sm">Wave {combat.wave}</p>
+            <p className="text-gray-400 text-xs">Turn {combat.turnCount}</p>
+          </div>
+          <div className="text-right text-xs">
+            <p className="text-green-400">HP: {character.stats.hp}/{character.stats.maxHp}</p>
+            <p className="text-blue-400">MP: {character.stats.mp}/{character.stats.maxMp}</p>
+          </div>
         </div>
         
-        {/* Player Status */}
-        <div className="bg-purple-900/20 rounded-lg p-2 border border-purple-500/20">
-          <div className="flex justify-between text-sm">
-            <span className="text-green-400">❤️ {safeNumber(character?.stats?.hp, 0)}/{safeNumber(character?.stats?.maxHp, 100)}</span>
-            <span className="text-blue-400">💎 {safeNumber(character?.stats?.mp, 0)}/{safeNumber(character?.stats?.maxMp, 50)}</span>
+        {/* Enemies */}
+        <div className="bg-void-800/50 rounded-xl p-3 neon-border">
+          <h3 className="text-gray-400 text-xs mb-2">ENEMIES</h3>
+          <div className="space-y-2">
+            {combat.enemies.map((enemy, idx) => (
+              <button
+                key={enemy.instanceId || idx}
+                onClick={() => enemy.hp > 0 && setSelectedTarget(idx)}
+                disabled={enemy.hp <= 0}
+                className={`w-full p-2 rounded-lg flex items-center gap-3 transition-all ${
+                  selectedTarget === idx && enemy.hp > 0 ? 'bg-red-600/30 ring-1 ring-red-500' : 'bg-void-900/50'
+                } ${enemy.hp <= 0 ? 'opacity-40' : 'hover:bg-void-900'}`}
+              >
+                <span className="text-2xl">{enemy.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm truncate">{enemy.name}</p>
+                  <div className="h-2 bg-void-900 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all ${enemy.hp <= 0 ? 'bg-gray-600' : enemy.hp / enemy.maxHp > 0.5 ? 'bg-green-500' : enemy.hp / enemy.maxHp > 0.25 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                      style={{ width: `${Math.max(0, (enemy.hp / enemy.maxHp) * 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400">{Math.max(0, enemy.hp)}/{enemy.maxHp}</span>
+              </button>
+            ))}
           </div>
-          <BuffDisplay buffs={playerBuffs} />
+        </div>
+        
+        {/* Combat Log */}
+        <div className="bg-void-800/30 rounded-lg p-2 h-24 overflow-hidden">
+          <div ref={combatLogRef} className="h-full overflow-y-auto text-xs space-y-1">
+            {combatLog.map((log, i) => (
+              <p key={i} className={`${
+                log.type === 'crit' ? 'text-yellow-400 font-bold' :
+                log.type === 'skill' ? 'text-purple-400' :
+                log.type === 'enemy' ? 'text-red-400' :
+                log.type === 'victory' ? 'text-green-400 font-bold' :
+                log.type === 'defeat' ? 'text-red-400 font-bold' :
+                'text-gray-400'
+              }`}>
+                {log.message}
+              </p>
+            ))}
+          </div>
         </div>
         
         {/* Actions */}
-        <div className="grid grid-cols-2 gap-2">
-          <button 
-            onClick={handleAttack} 
-            disabled={isLoading}
-            className="py-3 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 disabled:opacity-50 rounded-lg font-bold border border-red-500/30"
-          >
-            ⚔️ Attack
-          </button>
-          <button 
-            onClick={handleFlee} 
-            disabled={isLoading}
-            className="py-3 bg-void-700/50 hover:bg-void-600/50 rounded-lg font-bold border border-gray-500/30"
-          >
-            🏃 Flee
-          </button>
-        </div>
-        
-        {/* Skills */}
-        {unlockedSkills.length > 0 && (
+        {aliveEnemies.length > 0 && (
           <div className="space-y-2">
-            <div className="text-xs text-gray-500 font-semibold">SKILLS</div>
-            <div className="grid grid-cols-2 gap-2">
-              {unlockedSkills.slice(0, 4).map(skill => {
-                const skillInfo = SKILL_DATA[skill.skillId] || {};
-                const mpCost = getSkillMpCost(skill.skillId);
-                const element = getSkillElement(skill.skillId);
-                const canUse = (character?.stats?.mp || 0) >= mpCost;
-                
-                return (
+            {/* Basic Actions */}
+            <div className="grid grid-cols-3 gap-2">
+              <button 
+                onClick={() => doCombatAction('attack')} 
+                disabled={isLoading}
+                className="btn-primary py-2 text-sm disabled:opacity-50"
+              >
+                ⚔️ Attack
+              </button>
+              <button 
+                onClick={() => doCombatAction('defend')} 
+                disabled={isLoading}
+                className="btn-secondary py-2 text-sm disabled:opacity-50"
+              >
+                🛡️ Defend
+              </button>
+              <button 
+                onClick={leaveTower} 
+                disabled={isLoading}
+                className="btn-secondary py-2 text-sm text-red-400 disabled:opacity-50"
+              >
+                💨 Flee
+              </button>
+            </div>
+            
+            {/* Skills */}
+            <div className="bg-void-800/30 rounded-lg p-2">
+              <p className="text-gray-400 text-xs mb-2">SKILLS</p>
+              <div className="grid grid-cols-2 gap-1">
+                {(character.skills || []).slice(0, 8).map((skill, i) => (
                   <button
-                    key={skill.skillId}
-                    onClick={() => handleUseSkill(skill.skillId)}
-                    disabled={isLoading || !canUse}
-                    className={`p-2 rounded-lg text-left text-xs border transition-all ${
-                      canUse 
-                        ? 'bg-purple-900/30 hover:bg-purple-800/30 border-purple-500/30' 
-                        : 'bg-gray-800/30 opacity-50 cursor-not-allowed border-gray-700/30'
-                    }`}
+                    key={i}
+                    onClick={() => doCombatAction('skill', skill.skillId)}
+                    disabled={isLoading || character.stats.mp < 10}
+                    className="bg-void-900/50 hover:bg-void-900 p-2 rounded text-left text-xs disabled:opacity-50 transition-colors"
                   >
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium text-purple-300">
-                        {ELEMENT_ICONS[element]} {skillInfo.name || skill.skillId}
-                      </span>
-                      <span className="text-blue-400">{mpCost} MP</span>
-                    </div>
-                    <div className="text-gray-500 text-[10px] mt-0.5">{skillInfo.desc}</div>
+                    <span className="text-white">{skill.name}</span>
+                    <span className="text-blue-400 ml-1">({skill.mpCost || 10}MP)</span>
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
           </div>
         )}
         
-        {/* Potions */}
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => handleUsePotion('hp')} className="flex-1 py-1 bg-red-900/50 hover:bg-red-800/50 rounded text-sm border border-red-500/30">❤️ HP</button>
-          <button onClick={() => handleUsePotion('mp')} className="flex-1 py-1 bg-blue-900/50 hover:bg-blue-800/50 rounded text-sm border border-blue-500/30">💙 MP</button>
-        </div>
+        {/* Message */}
+        {message && (
+          <div className={`p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+            {message.text}
+          </div>
+        )}
       </div>
     );
-  };
+  }
 
   // ============================================================
-  // RENDER: Victory - FIX #5: Purple styling
+  // RENDER: EVENT (Mystery/Merchant)
   // ============================================================
-  
-  const renderVictory = () => (
-    <div className="space-y-4 text-center">
-      <div className="text-4xl">🎉</div>
-      <p className="text-gray-300 whitespace-pre-line">{safeString(storyText, 'Victory!')}</p>
-      {rewards && (
-        <div className="bg-void-800/50 p-4 rounded-lg border border-purple-500/20">
-          <h4 className="font-bold text-yellow-400 mb-2">Rewards</h4>
-          <p>+{safeNumber(rewards.exp, 0)} EXP | +{safeNumber(rewards.gold, 0)} Gold</p>
-          {rewards.treasureGold > 0 && <p className="text-yellow-300">💰 +{safeNumber(rewards.treasureGold, 0)} Treasure Gold</p>}
-          {rewards.items && Array.isArray(rewards.items) && rewards.items.length > 0 && (
-            <div className="mt-2">
-              {rewards.items.map((item, i) => (
-                <span key={i} className="inline-block bg-purple-900/30 px-2 py-1 rounded m-1 text-sm border border-purple-500/20">
-                  {safeString(item?.icon, '📦')} {safeString(item?.name, 'Item')} {safeNumber(item?.quantity, 1) > 1 && 'x' + safeNumber(item?.quantity, 1)}
-                </span>
-              ))}
+  if (view === 'event' && eventData) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-void-800/50 rounded-xl p-4 neon-border text-center">
+          <span className="text-4xl mb-3 block">{NODE_ICONS[eventData.type]}</span>
+          <h3 className="text-white font-semibold mb-2 capitalize">{eventData.type}</h3>
+          
+          {eventData.scenario && (
+            <>
+              <p className="text-gray-300 text-sm mb-4">{eventData.scenario.description}</p>
+              <div className="flex gap-2 justify-center">
+                {eventData.scenario.choices.map(choice => (
+                  <button
+                    key={choice}
+                    onClick={() => handleInteraction(choice)}
+                    disabled={isLoading}
+                    className="btn-primary px-4 py-2 capitalize disabled:opacity-50"
+                  >
+                    {choice}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          
+          {eventData.merchant && (
+            <div className="space-y-2">
+              <p className="text-gray-300 text-sm mb-4">A traveling merchant offers their wares.</p>
+              {/* TODO: Merchant shop UI */}
+              <button onClick={() => { setView('map'); setEventData(null); }} className="btn-secondary">
+                Leave Shop
+              </button>
             </div>
           )}
         </div>
-      )}
-      <button 
-        onClick={() => setGameState('in_tower')} 
-        className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-lg font-bold border border-purple-500/30"
-      >
-        Continue
-      </button>
-    </div>
-  );
-
-  // ============================================================
-  // RENDER: Defeat - FIX #5: Purple styling
-  // ============================================================
-  
-  const renderDefeat = () => (
-    <div className="space-y-4 text-center">
-      <div className="text-4xl">💀</div>
-      <h3 className="text-xl font-bold text-red-400">Defeated</h3>
-      <p className="text-gray-400">{safeString(storyText, 'You have been defeated...')}</p>
-      <button 
-        onClick={() => {
-          setGameState('tower_select');
-          if (onTowerStateChange) onTowerStateChange(false);
-          onCharacterUpdate();
-        }} 
-        className="px-6 py-2 bg-void-700/50 hover:bg-void-600/50 rounded-lg font-bold border border-gray-500/30"
-      >
-        Return
-      </button>
-    </div>
-  );
-
-  // ============================================================
-  // RENDER: Doorkeeper - FIX #5: Purple styling
-  // ============================================================
-  
-  const renderDoorkeeper = () => (
-    <div className="space-y-4">
-      <p className="text-gray-300 italic">{safeString(storyText, 'The doorkeeper awaits...')}</p>
-      {floorRequirements && (
-        <div className="bg-void-800/50 p-4 rounded-lg border border-purple-500/20">
-          <h4 className="font-bold text-yellow-400 mb-2">Requirements for Floor {safeNumber(floorRequirements.nextFloor, 1)}</h4>
-          {floorRequirements.requirements?.items && Array.isArray(floorRequirements.requirements.items) && floorRequirements.requirements.items.map((req, i) => {
-            const have = safeNumber(floorRequirements.playerItems?.[req.id], 0);
-            return (
-              <p key={i} className={have >= safeNumber(req.quantity, 0) ? 'text-green-400' : 'text-red-400'}>
-                {safeString(req.name, 'Item')}: {have}/{safeNumber(req.quantity, 0)}
-              </p>
-            );
-          })}
-          {safeNumber(floorRequirements.requirements?.gold, 0) > 0 && (
-            <p className={safeNumber(floorRequirements.playerGold, 0) >= safeNumber(floorRequirements.requirements.gold, 0) ? 'text-green-400' : 'text-red-400'}>
-              Gold: {safeNumber(floorRequirements.playerGold, 0)}/{safeNumber(floorRequirements.requirements.gold, 0)}
-            </p>
-          )}
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-3">
-        <button 
-          onClick={handleAdvance} 
-          disabled={isLoading || !floorRequirements?.canAdvance} 
-          className="py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-700 disabled:opacity-50 rounded font-bold border border-purple-500/30"
-        >
-          ⬆️ Advance
+        
+        <button onClick={() => { setView('map'); setEventData(null); }} className="w-full btn-secondary py-2">
+          ← Back to Map
         </button>
-        <button onClick={() => setGameState('in_tower')} className="py-2 bg-void-700/50 hover:bg-void-600/50 rounded border border-gray-500/30">
-          ← Back
-        </button>
+        
+        {message && (
+          <div className={`p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>
+            {message.text}
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  }
 
-  // ============================================================
-  // RENDER: Safe Zone - FIX #5: Purple styling
-  // ============================================================
-  
-  const renderSafeZone = () => (
-    <div className="space-y-4 text-center">
-      <div className="text-4xl">🏕️</div>
-      <h3 className="text-xl font-bold text-green-400">Safe Zone</h3>
-      <p className="text-gray-300">{safeString(storyText, 'A safe place to rest...')}</p>
-      <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => handleUsePotion('hp')} className="py-2 bg-red-900/50 hover:bg-red-800/50 rounded border border-red-500/30">
-          ❤️ HP Potion
-        </button>
-        <button onClick={() => handleUsePotion('mp')} className="py-2 bg-blue-900/50 hover:bg-blue-800/50 rounded border border-blue-500/30">
-          💙 MP Potion
-        </button>
-      </div>
-      <button 
-        onClick={() => setGameState('in_tower')} 
-        className="px-6 py-2 bg-void-700/50 hover:bg-void-600/50 rounded-lg border border-gray-500/30"
-      >
-        Continue
-      </button>
-    </div>
-  );
-
-  // ============================================================
-  // MAIN RENDER - FIX #5: Purple border wrapper
-  // ============================================================
-  
+  // Default loading
   return (
-    <div className="bg-void-800/30 rounded-xl p-4 border border-purple-500/20">
-      {gameState === 'tower_select' && renderTowerSelect()}
-      {gameState === 'in_tower' && renderInTower()}
-      {gameState === 'choosing_path' && renderChoosingPath()}
-      {gameState === 'combat' && renderCombat()}
-      {gameState === 'victory' && renderVictory()}
-      {gameState === 'defeat' && renderDefeat()}
-      {gameState === 'doorkeeper' && renderDoorkeeper()}
-      {gameState === 'safe_zone' && renderSafeZone()}
+    <div className="flex items-center justify-center h-64">
+      <p className="text-gray-400">Loading...</p>
     </div>
   );
 };
