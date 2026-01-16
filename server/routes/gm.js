@@ -464,7 +464,7 @@ router.post('/player/:id/add-gold', authenticate, requireGM, async (req, res) =>
 // POST /api/gm/player/:id/add-item
 router.post('/player/:id/add-item', authenticate, requireGM, async (req, res) => {
   try {
-    const { itemId, name, type, rarity, quantity, stats, slot, icon, classReq, levelReq, effect, subtype, stackable } = req.body;
+    const { itemId, name, type, rarity, quantity, stats, slot, icon, classReq, levelReq, effect, subtype, stackable, hiddenClass, baseClass, element } = req.body;
     const character = await Character.findOne({ userId: req.params.id });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
@@ -486,7 +486,11 @@ router.post('/player/:id/add-item', authenticate, requireGM, async (req, res) =>
       classReq: dbItem?.classReq || classReq,
       levelReq: dbItem?.levelReq || levelReq,
       effect: dbItem?.effect || effect,
-      stackable: dbItem?.stackable !== undefined ? dbItem.stackable : (stackable !== false && type !== 'equipment')
+      stackable: dbItem?.stackable !== undefined ? dbItem.stackable : (stackable !== false && type !== 'equipment'),
+      // Hidden class scroll specific fields
+      hiddenClass: dbItem?.hiddenClass || hiddenClass,
+      baseClass: dbItem?.baseClass || baseClass,
+      element: dbItem?.element || element
     };
     
     // Stack if possible
