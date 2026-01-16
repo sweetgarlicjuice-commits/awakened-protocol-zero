@@ -66,28 +66,10 @@ const floorMapSchema = new mongoose.Schema({
   startNodeId: { type: String },
   bossNodeId: { type: String },
   completed: { type: Boolean, default: false },
-  // Combat state (persisted between turns)
+  // Combat state (persisted between turns) - Use Mixed for flexibility
   activeCombat: {
-    nodeId: String,
-    wave: Number,
-    enemies: [{
-      id: String,
-      name: String,
-      icon: String,
-      hp: Number,
-      maxHp: Number,
-      atk: Number,
-      def: Number,
-      expReward: Number,
-      goldReward: { min: Number, max: Number },
-      isElite: Boolean,
-      isBoss: Boolean,
-      buffs: [{ type: String, duration: Number, value: Number }],
-      debuffs: [{ type: String, duration: Number, value: Number }]
-    }],
-    turnCount: Number,
-    combatLog: [{ actor: String, message: String, damage: Number, type: String }],
-    playerBuffs: [{ type: String, duration: Number, value: Number }]
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   },
   createdAt: { type: Date, default: Date.now },
   expiresAt: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) } // 24h expiry
