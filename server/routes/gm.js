@@ -15,10 +15,10 @@ function getEquipmentIcon(item) {
   if (item.icon) return item.icon;
   
   const slotIcons = {
-    weapon: '⚔️', head: '🧢', helmet: '🧢', body: '👕', chest: '👕',
+    weapon: '⚔️', mainHand: '⚔️', head: '🧢', helmet: '🧢', body: '👕', chest: '👕',
     armor: '👕', leg: '👖', legs: '👖', pants: '👖', shoes: '👢',
     boots: '👢', feet: '👢', ring: '💍', necklace: '📿', amulet: '📿',
-    accessory: '💍', offhand: '🛡️', shield: '🛡️'
+    accessory: '💍', offhand: '🛡️', shield: '🛡️', hands: '🧤', cape: '🧥'
   };
   
   return slotIcons[item.slot] || slotIcons[item.type] || '📦';
@@ -31,28 +31,56 @@ async function buildItemDatabase() {
   // Try to import equipment from index.js
   try {
     const equipmentModule = await import('../data/equipment/index.js');
-    const allEquipment = equipmentModule.allEquipment || equipmentModule.default || [];
     
-    if (Array.isArray(allEquipment)) {
+    // FIXED: EQUIPMENT is exported as an object, not an array
+    // Convert it to an array using Object.values()
+    const EQUIPMENT = equipmentModule.EQUIPMENT || {};
+    const allEquipment = Object.values(EQUIPMENT);
+    
+    if (Array.isArray(allEquipment) && allEquipment.length > 0) {
       allEquipment.forEach(item => {
         items.push({
           id: item.id,
           name: item.name,
           type: 'equipment',
-          subtype: item.type,
+          subtype: item.type || item.slot,
           slot: item.slot,
           rarity: item.rarity || 'common',
           icon: getEquipmentIcon(item),
           stats: item.stats || {},
           levelReq: item.levelReq,
           classReq: item.class,
+          tower: item.tower,
           description: item.description
         });
       });
       console.log(`[GM] Loaded ${allEquipment.length} equipment items from database`);
+    } else {
+      console.log('[GM] No equipment found in EQUIPMENT export');
+    }
+    
+    // Also load MATERIALS if available
+    const MATERIALS = equipmentModule.MATERIALS || {};
+    const allMaterials = Object.values(MATERIALS);
+    if (allMaterials.length > 0) {
+      allMaterials.forEach(mat => {
+        if (!items.find(i => i.id === mat.id)) {
+          items.push({
+            id: mat.id,
+            name: mat.name,
+            type: 'material',
+            subtype: 'drop',
+            rarity: mat.rarity || 'common',
+            icon: mat.icon || '📦',
+            tower: mat.tower,
+            stackable: true
+          });
+        }
+      });
+      console.log(`[GM] Loaded ${allMaterials.length} materials from database`);
     }
   } catch (err) {
-    console.log('[GM] Equipment index not found:', err.message);
+    console.log('[GM] Equipment index import error:', err.message);
   }
   
   // Try to import consumables
@@ -83,32 +111,35 @@ async function buildItemDatabase() {
   // Try to import special items (scrolls)
   try {
     const specialModule = await import('../data/equipment/special_items.js');
-    // Try multiple possible export names
-    const SPECIAL_ITEMS = specialModule.SPECIAL_ITEMS || 
-                          specialModule.hiddenClassScrolls || 
-                          specialModule.scrolls ||
-                          specialModule.default || [];
+    // FIXED: The export is HIDDEN_CLASS_SCROLLS, not SPECIAL_ITEMS
+    const HIDDEN_CLASS_SCROLLS = specialModule.HIDDEN_CLASS_SCROLLS || 
+                                  specialModule.SPECIAL_ITEMS || 
+                                  specialModule.hiddenClassScrolls || 
+                                  specialModule.scrolls ||
+                                  specialModule.default || [];
     
-    if (Array.isArray(SPECIAL_ITEMS)) {
-      SPECIAL_ITEMS.forEach(item => {
+    if (Array.isArray(HIDDEN_CLASS_SCROLLS)) {
+      HIDDEN_CLASS_SCROLLS.forEach(item => {
         items.push({
           id: item.id,
           name: item.name,
           type: item.type || 'special',
-          subtype: item.subtype,
+          subtype: item.subtype || 'scroll',
           rarity: item.rarity || 'legendary',
           icon: item.icon || '📜',
-          stackable: item.stackable !== false,
+          targetClass: item.targetClass,
+          baseClass: item.baseClass,
+          stackable: false,
           description: item.description
         });
       });
-      console.log(`[GM] Loaded ${SPECIAL_ITEMS.length} special items`);
+      console.log(`[GM] Loaded ${HIDDEN_CLASS_SCROLLS.length} special items (scrolls)`);
     }
   } catch (err) {
     console.log('[GM] Special items not found:', err.message);
   }
   
-  // Always add fallback materials
+  // Always add fallback materials (only if not already loaded)
   const materials = [
     // Tower 1 - Crimson Spire
     { id: 'bone_fragment', name: 'Bone Fragment', icon: '🦴', rarity: 'common' },
@@ -154,7 +185,7 @@ async function buildItemDatabase() {
     }
   });
   
-  // Always add fallback consumables
+  // Always add fallback consumables (only if not already loaded)
   const basicConsumables = [
     { id: 'health_potion_small', name: 'Small Health Potion', icon: '🧪', rarity: 'common', effect: { type: 'heal', value: 100 } },
     { id: 'health_potion_medium', name: 'Medium Health Potion', icon: '🧪', rarity: 'uncommon', effect: { type: 'heal', value: 300 } },
@@ -206,21 +237,36 @@ async function getItemDatabase() {
 // GET /api/gm/items/search - Search all items
 router.get('/items/search', authenticate, requireGM, async (req, res) => {
   try {
-    const { q } = req.query;
-    const items = await getItemDatabase();
+    const { q, type, rarity, tower } = req.query;
+    let items = await getItemDatabase();
     
-    if (!q || q.length < 1) {
-      return res.json({ items: items.slice(0, 20) });
+    // Filter by search query
+    if (q && q.trim()) {
+      const query = q.toLowerCase().trim();
+      items = items.filter(item => 
+        item.name.toLowerCase().includes(query) ||
+        item.id.toLowerCase().includes(query) ||
+        (item.description && item.description.toLowerCase().includes(query))
+      );
     }
     
-    const query = q.toLowerCase();
-    const results = items.filter(item => 
-      item.name.toLowerCase().includes(query) ||
-      item.id.toLowerCase().includes(query) ||
-      (item.type && item.type.toLowerCase().includes(query))
-    );
+    // Filter by type
+    if (type && type !== 'all') {
+      items = items.filter(item => item.type === type);
+    }
     
-    res.json({ items: results.slice(0, 20) });
+    // Filter by rarity
+    if (rarity && rarity !== 'all') {
+      items = items.filter(item => item.rarity === rarity);
+    }
+    
+    // Filter by tower
+    if (tower && tower !== 'all') {
+      const towerNum = parseInt(tower);
+      items = items.filter(item => item.tower === towerNum);
+    }
+    
+    res.json({ items: items.slice(0, 50) }); // Limit to 50 results
   } catch (error) {
     console.error('Item search error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -230,21 +276,31 @@ router.get('/items/search', authenticate, requireGM, async (req, res) => {
 // GET /api/gm/items/all - Get all items (paginated)
 router.get('/items/all', authenticate, requireGM, async (req, res) => {
   try {
-    const { page = 0, limit = 50, type } = req.query;
+    const { page = 1, limit = 50, type, rarity } = req.query;
     let items = await getItemDatabase();
     
-    if (type) {
+    // Filter by type
+    if (type && type !== 'all') {
       items = items.filter(item => item.type === type);
     }
     
-    const start = parseInt(page) * parseInt(limit);
-    const paginatedItems = items.slice(start, start + parseInt(limit));
+    // Filter by rarity
+    if (rarity && rarity !== 'all') {
+      items = items.filter(item => item.rarity === rarity);
+    }
     
-    res.json({ 
+    const total = items.length;
+    const startIndex = (page - 1) * limit;
+    const paginatedItems = items.slice(startIndex, startIndex + parseInt(limit));
+    
+    res.json({
       items: paginatedItems,
-      total: items.length,
-      page: parseInt(page),
-      totalPages: Math.ceil(items.length / parseInt(limit))
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
     });
   } catch (error) {
     console.error('Get all items error:', error);
@@ -256,7 +312,25 @@ router.get('/items/all', authenticate, requireGM, async (req, res) => {
 // PLAYER MANAGEMENT ROUTES
 // ============================================
 
-// GET /api/gm/player/:id
+// GET /api/gm/players - Get all players
+router.get('/players', authenticate, requireGM, async (req, res) => {
+  try {
+    const users = await User.find({ role: 'player' }).select('-password');
+    const playersWithCharacters = await Promise.all(users.map(async (user) => {
+      const character = await Character.findOne({ userId: user._id });
+      return {
+        user: user.toObject(),
+        character: character ? character.toObject() : null
+      };
+    }));
+    res.json({ players: playersWithCharacters });
+  } catch (error) {
+    console.error('Get players error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/gm/player/:id - Get player profile
 router.get('/player/:id', authenticate, requireGM, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
@@ -270,59 +344,68 @@ router.get('/player/:id', authenticate, requireGM, async (req, res) => {
   }
 });
 
-// POST /api/gm/player/:id/edit-stats
+// POST /api/gm/player/:id/edit-stats - Edit player stats
 router.post('/player/:id/edit-stats', authenticate, requireGM, async (req, res) => {
   try {
     const { stats } = req.body;
     const character = await Character.findOne({ userId: req.params.id });
-    
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    if (stats.str !== undefined) character.stats.str = Math.max(1, stats.str);
-    if (stats.agi !== undefined) character.stats.agi = Math.max(1, stats.agi);
-    if (stats.dex !== undefined) character.stats.dex = Math.max(1, stats.dex);
-    if (stats.int !== undefined) character.stats.int = Math.max(1, stats.int);
-    if (stats.vit !== undefined) character.stats.vit = Math.max(1, stats.vit);
-    
-    character.stats.maxHp = character.stats.vit * 10 + 50;
-    character.stats.maxMp = character.stats.int * 8 + 20;
-    character.stats.hp = character.stats.maxHp;
-    character.stats.mp = character.stats.maxMp;
+    // Update only provided stats
+    Object.keys(stats).forEach(key => {
+      if (character.stats.hasOwnProperty(key)) {
+        character.stats[key] = stats[key];
+      }
+    });
     
     await character.save();
-    res.json({ message: 'Stats updated successfully', character });
+    res.json({ message: 'Stats updated', stats: character.stats });
   } catch (error) {
     console.error('Edit stats error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/reset-stats
+// POST /api/gm/player/:id/reset-stats - Reset stats to base
 router.post('/player/:id/reset-stats', authenticate, requireGM, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.params.id });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    const CLASS_BASE_STATS = {
-      swordsman: { hp: 150, mp: 50, str: 15, agi: 8, dex: 8, int: 5, vit: 14 },
-      thief: { hp: 100, mp: 70, str: 8, agi: 15, dex: 12, int: 7, vit: 8 },
-      archer: { hp: 110, mp: 60, str: 10, agi: 12, dex: 15, int: 6, vit: 7 },
-      mage: { hp: 80, mp: 120, str: 5, agi: 7, dex: 8, int: 15, vit: 5 }
+    // Get base stats for class
+    const baseStats = {
+      swordsman: { str: 10, agi: 5, dex: 5, int: 3, vit: 8 },
+      thief: { str: 5, agi: 10, dex: 8, int: 3, vit: 5 },
+      archer: { str: 5, agi: 8, dex: 10, int: 3, vit: 5 },
+      mage: { str: 3, agi: 5, dex: 5, int: 10, vit: 5 }
     };
     
-    const baseStats = CLASS_BASE_STATS[character.baseClass];
-    character.stats = { ...baseStats, maxHp: baseStats.hp, maxMp: baseStats.mp };
+    const base = baseStats[character.class.toLowerCase()] || baseStats.swordsman;
+    
+    character.stats.str = base.str;
+    character.stats.agi = base.agi;
+    character.stats.dex = base.dex;
+    character.stats.int = base.int;
+    character.stats.vit = base.vit;
+    
+    // Recalculate derived stats
+    character.stats.maxHp = 100 + (character.stats.vit * 10) + ((character.level - 1) * 15);
+    character.stats.maxMp = 50 + (character.stats.int * 5) + ((character.level - 1) * 8);
+    character.stats.hp = character.stats.maxHp;
+    character.stats.mp = character.stats.maxMp;
+    
+    // Return stat points
     character.statPoints = (character.level - 1) * 5;
     
     await character.save();
-    res.json({ message: 'Stats reset successfully', character });
+    res.json({ message: 'Stats reset', character });
   } catch (error) {
     console.error('Reset stats error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/refresh-energy
+// POST /api/gm/player/:id/refresh-energy - Refresh energy to 100
 router.post('/player/:id/refresh-energy', authenticate, requireGM, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.params.id });
@@ -332,14 +415,14 @@ router.post('/player/:id/refresh-energy', authenticate, requireGM, async (req, r
     character.lastEnergyUpdate = new Date();
     await character.save();
     
-    res.json({ message: 'Energy refreshed to 100', energy: character.energy });
+    res.json({ message: 'Energy refreshed', energy: character.energy });
   } catch (error) {
     console.error('Refresh energy error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/add-gold
+// POST /api/gm/player/:id/add-gold - Add/remove gold
 router.post('/player/:id/add-gold', authenticate, requireGM, async (req, res) => {
   try {
     const { amount } = req.body;
@@ -349,72 +432,71 @@ router.post('/player/:id/add-gold', authenticate, requireGM, async (req, res) =>
     character.gold = Math.max(0, character.gold + amount);
     await character.save();
     
-    res.json({ message: `Gold ${amount >= 0 ? 'added' : 'removed'}: ${Math.abs(amount)}`, gold: character.gold });
+    res.json({ message: `Gold ${amount >= 0 ? 'added' : 'removed'}`, gold: character.gold });
   } catch (error) {
     console.error('Add gold error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/gm/player/:id/add-item
+// POST /api/gm/player/:id/add-item - Add item to inventory
 router.post('/player/:id/add-item', authenticate, requireGM, async (req, res) => {
   try {
-    const { itemId, name, type, rarity, quantity, stats, slot, icon, classReq, levelReq, effect, subtype, stackable } = req.body;
+    const { itemId, quantity = 1 } = req.body;
     const character = await Character.findOne({ userId: req.params.id });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    // Try to find item in database
     const items = await getItemDatabase();
-    const dbItem = items.find(i => i.id === itemId);
+    const item = items.find(i => i.id === itemId);
+    if (!item) return res.status(404).json({ error: 'Item not found in database' });
     
-    // Build item data
-    const itemData = {
-      itemId: itemId,
-      name: dbItem?.name || name,
-      type: dbItem?.type || type || 'item',
-      subtype: dbItem?.subtype || subtype,
-      rarity: dbItem?.rarity || rarity || 'common',
-      quantity: quantity || 1,
-      stats: dbItem?.stats || stats || {},
-      slot: dbItem?.slot || slot,
-      icon: dbItem?.icon || icon || '📦',
-      classReq: dbItem?.classReq || classReq,
-      levelReq: dbItem?.levelReq || levelReq,
-      effect: dbItem?.effect || effect,
-      stackable: dbItem?.stackable !== undefined ? dbItem.stackable : (stackable !== false && type !== 'equipment')
-    };
-    
-    // Stack if possible
-    if (itemData.stackable) {
+    // Check if stackable and already in inventory
+    if (item.stackable) {
       const existingIndex = character.inventory.findIndex(i => i.itemId === itemId);
       if (existingIndex >= 0) {
-        character.inventory[existingIndex].quantity += itemData.quantity;
+        character.inventory[existingIndex].quantity += quantity;
         await character.save();
-        return res.json({ message: `Added ${itemData.quantity}x ${itemData.name} (stacked)`, inventory: character.inventory });
+        return res.json({ message: `Added ${quantity}x ${item.name}`, inventory: character.inventory });
       }
     }
     
+    // Check inventory space
     if (character.inventory.length >= character.inventorySize) {
-      return res.status(400).json({ error: 'Inventory is full' });
+      return res.status(400).json({ error: 'Inventory full' });
     }
     
-    character.inventory.push(itemData);
+    // Add new item
+    character.inventory.push({
+      itemId: item.id,
+      name: item.name,
+      icon: item.icon,
+      type: item.type,
+      subtype: item.subtype,
+      slot: item.slot,
+      rarity: item.rarity,
+      quantity: quantity,
+      stackable: item.stackable || false,
+      stats: item.stats || {},
+      effect: item.effect,
+      levelReq: item.levelReq,
+      classReq: item.classReq
+    });
+    
     await character.save();
-    res.json({ message: `Added ${itemData.name} to inventory`, inventory: character.inventory });
+    res.json({ message: `Added ${quantity}x ${item.name}`, inventory: character.inventory });
   } catch (error) {
     console.error('Add item error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// DELETE /api/gm/player/:id/remove-item/:itemIndex
-router.delete('/player/:id/remove-item/:itemIndex', authenticate, requireGM, async (req, res) => {
+// DELETE /api/gm/player/:id/remove-item/:index
+router.delete('/player/:id/remove-item/:index', authenticate, requireGM, async (req, res) => {
   try {
-    const { itemIndex } = req.params;
     const character = await Character.findOne({ userId: req.params.id });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    const index = parseInt(itemIndex);
+    const index = parseInt(req.params.index);
     if (index < 0 || index >= character.inventory.length) {
       return res.status(400).json({ error: 'Invalid item index' });
     }
