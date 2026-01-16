@@ -576,21 +576,10 @@ characterSchema.statics.calculateDerivedStats = function(character) {
   const stats = character.stats || {};
   const equipment = character.equipment;
   
-  // Base formulas using class stats
-  const derived = {
-    pDmg: 5 + ((stats.str || 0) * 3),
-    mDmg: 5 + ((stats.int || 0) * 4),
-    pDef: ((stats.str || 0) * 1) + ((stats.vit || 0) * 2),
-    mDef: ((stats.vit || 0) * 1) + ((stats.int || 0) * 1),
-    critRate: 5 + ((stats.agi || 0) * 0.5),
-    critDmg: 150 + ((stats.dex || 0) * 1),
-    accuracy: 90 + ((stats.dex || 0) * 0.5),
-    evasion: (stats.agi || 0) * 0.3,
-    hpRegen: Math.floor((stats.vit || 0) * 1),
-    mpRegen: Math.floor((stats.int || 0) * 0.5),
-    fireRes: 0, waterRes: 0, lightningRes: 0, earthRes: 0,
-    natureRes: 0, iceRes: 0, darkRes: 0, holyRes: 0
-  };
+  // Equipment stat bonuses (accumulated from all slots)
+  let equipPAtk = 0, equipMAtk = 0, equipPDef = 0, equipMDef = 0;
+  let equipStr = 0, equipAgi = 0, equipDex = 0, equipInt = 0, equipVit = 0;
+  let equipCritRate = 0, equipCritDmg = 0, equipHp = 0, equipMp = 0;
   
   // Add equipment bonuses
   if (equipment) {
@@ -598,14 +587,47 @@ characterSchema.statics.calculateDerivedStats = function(character) {
     slots.forEach(slot => {
       const item = equipment[slot];
       if (item && item.stats) {
-        Object.keys(item.stats).forEach(stat => {
-          if (derived[stat] !== undefined) {
-            derived[stat] += item.stats[stat];
-          }
-        });
+        equipPAtk += item.stats.pAtk || 0;
+        equipMAtk += item.stats.mAtk || 0;
+        equipPDef += item.stats.pDef || 0;
+        equipMDef += item.stats.mDef || 0;
+        equipStr += item.stats.str || 0;
+        equipAgi += item.stats.agi || 0;
+        equipDex += item.stats.dex || 0;
+        equipInt += item.stats.int || 0;
+        equipVit += item.stats.vit || 0;
+        equipCritRate += item.stats.critRate || 0;
+        equipCritDmg += item.stats.critDmg || 0;
+        equipHp += item.stats.hp || 0;
+        equipMp += item.stats.mp || 0;
       }
     });
   }
+  
+  // Total stats = base + equipment
+  const totalStr = (stats.str || 0) + equipStr;
+  const totalAgi = (stats.agi || 0) + equipAgi;
+  const totalDex = (stats.dex || 0) + equipDex;
+  const totalInt = (stats.int || 0) + equipInt;
+  const totalVit = (stats.vit || 0) + equipVit;
+  
+  // Base formulas using total stats
+  const derived = {
+    pDmg: 5 + (totalStr * 3) + equipPAtk,
+    mDmg: 5 + (totalInt * 4) + equipMAtk,
+    pDef: totalStr + (totalVit * 2) + equipPDef,
+    mDef: totalVit + totalInt + equipMDef,
+    critRate: 5 + (totalAgi * 0.5) + equipCritRate,
+    critDmg: 150 + totalDex + equipCritDmg,
+    accuracy: 90 + (totalDex * 0.5),
+    evasion: totalAgi * 0.3,
+    hpRegen: Math.floor(totalVit * 1),
+    mpRegen: Math.floor(totalInt * 0.5),
+    bonusHp: equipHp,
+    bonusMp: equipMp,
+    fireRes: 0, waterRes: 0, lightningRes: 0, earthRes: 0,
+    natureRes: 0, iceRes: 0, darkRes: 0, holyRes: 0
+  };
   
   // Apply level bonus (+2% per level)
   const levelBonus = 1 + ((character.level || 1) - 1) * 0.02;
