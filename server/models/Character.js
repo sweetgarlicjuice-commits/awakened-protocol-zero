@@ -227,11 +227,13 @@ const inventoryItemSchema = new mongoose.Schema({
 });
 
 // PHASE 9.3 FIX: Added setId for set bonus tracking
+// PHASE 9.3.1 FIX: Added subtype for proper re-equip after unequip
 const equipmentSlotSchema = new mongoose.Schema({
   itemId: { type: String, default: null },
   name: { type: String, default: null },
   icon: { type: String, default: null },
   type: String,
+  subtype: { type: String, default: null },  // PHASE 9.3.1 FIX: Store subtype
   rarity: String,
   stats: mongoose.Schema.Types.Mixed,
   setId: { type: String, default: null }  // PHASE 9.3 FIX: Track set membership for set bonus calculation
