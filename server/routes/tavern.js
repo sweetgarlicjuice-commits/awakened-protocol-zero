@@ -1041,16 +1041,17 @@ router.post('/equip', authenticate, async function(req, res) {
     if (currentEquip && currentEquip.itemId) {
       // Build item data for returning to inventory
       var currentSubtype = currentEquip.subtype || characterSlotToSubtype(slot);
+      var currentDbItem = getItemById(currentEquip.itemId);
       var currentItemData = {
         id: currentEquip.itemId,
-        name: currentEquip.name,
-        icon: currentEquip.icon || '📦',
-        type: currentEquip.type || 'equipment',
+        name: currentDbItem ? currentDbItem.name : currentEquip.name,
+        icon: currentDbItem ? currentDbItem.icon : (currentEquip.icon || '📦'),
+        type: currentDbItem ? currentDbItem.type : (currentEquip.type || 'equipment'),
         subtype: currentSubtype,
         slot: currentSubtype,
-        rarity: currentEquip.rarity,
-        stats: currentEquip.stats,
-        setId: currentEquip.setId || null,
+        rarity: currentDbItem ? currentDbItem.rarity : currentEquip.rarity,
+        stats: currentDbItem ? currentDbItem.stats : currentEquip.stats,
+        setId: currentDbItem ? currentDbItem.setId : (currentEquip.setId || null),
         stackable: false
       };
       addItemToInventory(character, currentEquip.itemId, 1, currentItemData);
@@ -1089,7 +1090,7 @@ router.post('/equip', authenticate, async function(req, res) {
 });
 
 // POST /api/tavern/unequip - Unequip item
-// PHASE 9.3.2 FIX: Use characterSlotToSubtype function
+// PHASE 9.3.3 FIX: Always include subtype for re-equipping
 router.post('/unequip', authenticate, async function(req, res) {
   try {
     var slot = req.body.slot;
@@ -1101,18 +1102,24 @@ router.post('/unequip', authenticate, async function(req, res) {
       return res.status(400).json({ error: 'Nothing equipped in that slot' });
     }
 
-    // PHASE 9.3.2 FIX: Build item data with proper subtype for re-equipping
+    // PHASE 9.3.3 FIX: Determine subtype FIRST, then build item data
+    // Use equipped item's stored subtype, or derive from slot
     var subtype = currentEquip.subtype || characterSlotToSubtype(slot);
-    var itemData = getItemById(currentEquip.itemId) || {
+    
+    // Try to get DB item for additional data
+    var dbItem = getItemById(currentEquip.itemId);
+    
+    // Build item data - ALWAYS use our determined subtype, not DB's
+    var itemData = {
       id: currentEquip.itemId,
-      name: currentEquip.name,
-      icon: currentEquip.icon || '📦',
-      type: currentEquip.type || 'equipment',
-      subtype: subtype,
-      slot: subtype, // Also set slot for mapping
-      rarity: currentEquip.rarity,
-      stats: currentEquip.stats,
-      setId: currentEquip.setId || null,
+      name: dbItem ? dbItem.name : currentEquip.name,
+      icon: dbItem ? dbItem.icon : (currentEquip.icon || '📦'),
+      type: dbItem ? dbItem.type : (currentEquip.type || 'equipment'),
+      subtype: subtype, // CRITICAL: Always use our determined subtype
+      slot: subtype,    // Also set slot for addItemToInventory
+      rarity: dbItem ? dbItem.rarity : currentEquip.rarity,
+      stats: dbItem ? dbItem.stats : currentEquip.stats,
+      setId: dbItem ? dbItem.setId : (currentEquip.setId || null),
       stackable: false
     };
     
