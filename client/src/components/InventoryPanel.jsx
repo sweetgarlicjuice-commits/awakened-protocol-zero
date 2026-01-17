@@ -232,7 +232,7 @@ function getEquipSlotId(item) {
 
 var InventoryPanel = function(props) {
   var character = props.character;
-  var onCharacterUpdate = props.onCharacterUpdate;
+  var refreshCharacter = props.refreshCharacter;
   var addLog = props.addLog;
   
   var [activeTab, setActiveTab] = useState('inventory');
@@ -272,7 +272,7 @@ var InventoryPanel = function(props) {
     try {
       var response = await tavernAPI.useItem(itemId);
       addLog('success', response.data.message);
-      onCharacterUpdate();
+      await refreshCharacter();
     } catch (err) {
       addLog('error', err.response?.data?.error || 'Failed to use item');
     }
@@ -284,7 +284,7 @@ var InventoryPanel = function(props) {
     try {
       var response = await tavernAPI.equipItem(itemId);
       addLog('success', response.data.message);
-      onCharacterUpdate();
+      await refreshCharacter();
       setSelectedItem(null);
     } catch (err) {
       addLog('error', err.response?.data?.error || 'Failed to equip');
@@ -297,7 +297,7 @@ var InventoryPanel = function(props) {
     try {
       var response = await tavernAPI.unequipItem(slot);
       addLog('success', response.data.message);
-      onCharacterUpdate();
+      await refreshCharacter();
     } catch (err) {
       addLog('error', err.response?.data?.error || 'Failed to unequip');
     }
@@ -310,7 +310,7 @@ var InventoryPanel = function(props) {
     try {
       var response = await tavernAPI.discardItem(itemId, 1);
       addLog('info', response.data.message);
-      onCharacterUpdate();
+      await refreshCharacter();
       setSelectedItem(null);
     } catch (err) {
       addLog('error', err.response?.data?.error || 'Failed');
@@ -324,7 +324,7 @@ var InventoryPanel = function(props) {
     try {
       var response = await tavernAPI.splitStack(splitModal.itemId, splitQty);
       addLog('success', response.data.message);
-      onCharacterUpdate();
+      await refreshCharacter();
       setSplitModal(null);
     } catch (err) {
       addLog('error', err.response?.data?.error || 'Failed');
@@ -342,13 +342,13 @@ var InventoryPanel = function(props) {
       if (recipe.id === 'craft_memory_crystal') {
         var response = await tavernAPI.craftMemoryCrystal();
         addLog('success', response.data.message);
-        onCharacterUpdate();
+        await refreshCharacter();
         setCraftingMessage({ type: 'success', text: 'Crafted Memory Crystal!' });
       } else {
         // Generic craft API call
         var response = await tavernAPI.craftItem(recipe.id);
         addLog('success', response.data.message || 'Crafted ' + recipe.name + '!');
-        onCharacterUpdate();
+        await refreshCharacter();
         setCraftingMessage({ type: 'success', text: 'Crafted ' + recipe.name + '!' });
       }
     } catch (err) {
@@ -364,7 +364,7 @@ var InventoryPanel = function(props) {
     try {
       var response = await tavernAPI.craftMemoryCrystal();
       addLog('success', response.data.message);
-      onCharacterUpdate();
+      await refreshCharacter();
     } catch (err) {
       addLog('error', err.response?.data?.error || 'Failed');
     }
@@ -377,7 +377,7 @@ var InventoryPanel = function(props) {
     try {
       var response = await tavernAPI.useMemoryCrystal();
       addLog('success', response.data.message);
-      onCharacterUpdate();
+      await refreshCharacter();
     } catch (err) {
       addLog('error', err.response?.data?.error || 'Failed');
     }
