@@ -114,6 +114,7 @@ export const explorationAPI = {
 
 // ============================================
 // TAVERN API
+// PHASE 9.3.3 FIX: Corrected all endpoint paths to match backend routes
 // ============================================
 export const tavernAPI = {
   // Get shop inventory (player view)
@@ -122,40 +123,43 @@ export const tavernAPI = {
   // Get GM shop view
   getGMShop: () => api.get('/tavern/gm/shop'),
   
-  // Buy item from shop
-  buy: (itemId, quantity = 1) => api.post('/tavern/buy', { itemId, quantity }),
+  // Buy item from shop - FIXED: /tavern/shop/buy
+  buy: (itemId, quantity = 1) => api.post('/tavern/shop/buy', { itemId, quantity }),
   
-  // Sell item
-  sell: (itemId, quantity = 1) => api.post('/tavern/sell', { itemId, quantity }),
+  // Sell item - FIXED: /tavern/shop/sell
+  sell: (itemId, quantity = 1) => api.post('/tavern/shop/sell', { itemId, quantity }),
   
-  // Use consumable item
-  useItem: (itemId) => api.post('/tavern/use', { itemId }),
+  // Use consumable item - FIXED: /tavern/inventory/use
+  useItem: (itemId) => api.post('/tavern/inventory/use', { itemId }),
   
-  // Equip item
+  // Equip item (correct)
   equipItem: (itemId) => api.post('/tavern/equip', { itemId }),
   
-  // Unequip item from slot
+  // Unequip item from slot (correct)
   unequipItem: (slot) => api.post('/tavern/unequip', { slot }),
   
-  // Discard item
-  discardItem: (itemId, quantity = 1) => api.post('/tavern/discard', { itemId, quantity }),
+  // Discard item - FIXED: DELETE /tavern/inventory/:itemId with body
+  discardItem: (itemId, quantity = 1) => api.delete(`/tavern/inventory/${itemId}`, { data: { quantity } }),
   
-  // Split stack
-  splitStack: (itemId, quantity) => api.post('/tavern/split', { itemId, quantity }),
+  // Split stack - FIXED: /tavern/inventory/split
+  splitStack: (itemId, quantity) => api.post('/tavern/inventory/split', { itemId, quantity }),
   
-  // Combine stacks of same item
-  combineStacks: (itemId) => api.post('/tavern/combine', { itemId }),
+  // Combine stacks of same item - FIXED: /tavern/inventory/combine
+  combineStacks: (itemId) => api.post('/tavern/inventory/combine', { itemId }),
   
-  // Craft Memory Crystal
+  // Craft Memory Crystal (correct)
   craftMemoryCrystal: () => api.post('/tavern/craft/memory-crystal'),
   
-  // Use Memory Crystal (remove hidden class)
+  // Use Memory Crystal (remove hidden class) (correct)
   useMemoryCrystal: () => api.post('/tavern/use-memory-crystal'),
+  
+  // Use hidden class scroll
+  useScroll: (itemId) => api.post('/tavern/use-scroll', { itemId }),
   
   // Generic craft item
   craftItem: (recipeId) => api.post('/tavern/craft', { recipeId }),
   
-  // Search items (old endpoint - fallback)
+  // Search items
   searchItems: (query) => api.get(`/tavern/items/search?q=${encodeURIComponent(query)}`),
   
   // === GM/Admin Shop Management ===
@@ -169,16 +173,22 @@ export const tavernAPI = {
   // Remove from shop
   removeFromShop: (itemId) => api.delete(`/tavern/gm/shop/${itemId}`),
   
+  // Repopulate shop with consumables
+  repopulateShop: (clearExisting = false) => api.post('/tavern/gm/shop/repopulate', { clearExisting }),
+  
   // === Trading ===
   
   // Get trading listings
   getListings: () => api.get('/tavern/trading'),
   
-  // Create listing
-  createListing: (itemId, quantity, price) => api.post('/tavern/trading/list', { itemId, quantity, price }),
+  // Get my listings
+  getMyListings: () => api.get('/tavern/trading/my'),
   
-  // Buy from listing
-  buyListing: (listingId) => api.post('/tavern/trading/buy', { listingId }),
+  // Create listing - FIXED: pricePerUnit instead of price
+  createListing: (itemId, quantity, pricePerUnit) => api.post('/tavern/trading/list', { itemId, quantity, pricePerUnit }),
+  
+  // Buy from listing - FIXED: includes listingId in URL
+  buyListing: (listingId, quantity = null) => api.post(`/tavern/trading/buy/${listingId}`, { quantity }),
   
   // Cancel own listing
   cancelListing: (listingId) => api.delete(`/tavern/trading/${listingId}`),
@@ -231,7 +241,7 @@ export const gmAPI = {
   // Clear all inventory
   clearInventory: (id) => api.post(`/gm/player/${id}/clear-inventory`),
   
-  // === Item Database Search (NEW) ===
+  // === Item Database Search ===
   
   // Search all items in equipment database
   searchItems: (query) => api.get(`/gm/items/search?q=${encodeURIComponent(query)}`),
