@@ -60,67 +60,28 @@ var CRAFTING_RECIPES = [
     materials: [{ itemId: 'memory_crystal_fragment', name: 'Memory Crystal Fragment', quantity: 15 }], icon: '🔷', special: true },
 ];
 
-// Item descriptions by type/subtype
-var ITEM_DESCRIPTIONS = {
-  // Materials - Tower 1
-  bone_fragment: 'Common drop from undead. Used for basic crafting.',
-  cursed_cloth: 'Tattered cloth infused with dark energy.',
-  ghost_essence: 'Ethereal essence from defeated spirits. Used for crafting.',
-  dark_crystal: 'A crystal pulsing with shadow energy.',
-  death_mark: 'A sinister mark left by powerful undead.',
-  soul_shard: 'Fragment of a departed soul.',
-  death_knight_core: '💀 Core from a Death Knight. Craft: Bone Ring (5x), Cursed Amulet (8x)',
-  
-  // Materials - Tower 2
-  frost_crystal: '❄️ Frozen crystal shard. Craft: Frost Ring (10x), Glacial Pendant (15x)',
-  ice_shard: 'Sharp fragment of magical ice.',
-  frozen_heart: '💙 Rare drop from ice elementals. Used for crafting.',
-  permafrost_chunk: 'Never-melting ice from the citadel depths.',
-  
-  // Materials - Tower 3
-  shadow_essence: '🌑 Dark essence from shadow creatures. Craft: Shadow Band (12x), Void Pendant (20x)',
-  dark_crystal: '🖤 Crystal of pure darkness. Used for advanced crafting.',
-  nightmare_dust: 'Residue from dark dreams.',
-  void_fragment: 'A piece of the void itself.',
-  
-  // Materials - Tower 4
-  lightning_shard: '⚡ Charged crystal shard. Craft: Storm Ring (15x), Tempest Amulet (25x)',
-  storm_core: '🌩️ Core of a storm elemental. Used for crafting.',
-  thunder_essence: 'Bottled lightning energy.',
-  
-  // Materials - Tower 5
-  verdant_sap: '🌿 Living sap from ancient trees. Craft: Nature Ring (18x), Lifewood Pendant (30x)',
-  ancient_bark: '🌳 Bark from millennial trees. Used for crafting.',
-  poison_gland: 'Venomous gland from creatures.',
-  
-  // Special
-  memory_crystal_fragment: '💠 Combine 15 to craft Memory Crystal.',
-  memory_crystal: '🔷 Use to remove Hidden Class (returns scroll).',
-  
-  // Consumables
-  health_potion_small: 'Restores 100 HP when used.',
-  health_potion_medium: 'Restores 300 HP when used.',
-  health_potion_large: 'Restores 600 HP when used.',
-  mana_potion_small: 'Restores 50 MP when used.',
-  mana_potion_medium: 'Restores 150 MP when used.',
-  mana_potion_large: 'Restores 300 MP when used.',
-  antidote: 'Cures poison status effect.',
-  energy_drink: 'Restores 20 Energy.',
-};
+// ============================================================
+// PHASE 9.3.7: Unified Item Display System
+// Format:
+// - Consumable: [icon] Name | Description (effect)
+// - Equipment: [icon] Name | Requirements | Stats
+// - Material: [icon] Name | Description
+// ============================================================
 
 // Get icon based on item type/subtype
 function getItemIcon(item) {
   if (item.icon && item.icon !== '📦') return item.icon;
   
   // By slot for equipment
-  if (item.slot === 'weapon' || item.slot === 'leftHand') return '⚔️';
+  if (item.slot === 'weapon' || item.slot === 'mainHand') return '⚔️';
   if (item.slot === 'head') return '🧢';
   if (item.slot === 'body' || item.slot === 'chest') return '👕';
+  if (item.slot === 'hands' || item.slot === 'gloves') return '🧤';
   if (item.slot === 'leg' || item.slot === 'legs') return '👖';
-  if (item.slot === 'shoes' || item.slot === 'boots') return '👢';
+  if (item.slot === 'shoes' || item.slot === 'boots' || item.slot === 'feet') return '👢';
   if (item.slot === 'ring') return '💍';
   if (item.slot === 'necklace') return '📿';
-  if (item.slot === 'rightHand' || item.slot === 'offhand') return '🛡️';
+  if (item.slot === 'offhand' || item.slot === 'leftHand' || item.slot === 'cape') return '🛡️';
   
   // By subtype
   if (item.subtype === 'weapon') return '⚔️';
@@ -142,57 +103,141 @@ function getItemIcon(item) {
   return '📦';
 }
 
-// Get description for item
-function getItemDescription(item) {
-  // Check specific item ID first
-  if (ITEM_DESCRIPTIONS[item.itemId]) {
-    return ITEM_DESCRIPTIONS[item.itemId];
-  }
-  
-  // Check if item has description field
-  if (item.description) {
-    return item.description;
-  }
-  
-  // Generate description based on type
-  // PHASE 9.3.5 FIX: Also check weapon/armor types
-  if (item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory') {
-    var desc = '';
-    if (item.classReq) desc += 'Class: ' + item.classReq.charAt(0).toUpperCase() + item.classReq.slice(1) + '. ';
-    if (item.levelReq) desc += 'Lv.' + item.levelReq + '+ required. ';
-    if (item.stats) {
-      var statList = [];
-      var keys = Object.keys(item.stats);
-      for (var i = 0; i < keys.length; i++) {
-        statList.push(keys[i].toUpperCase() + '+' + item.stats[keys[i]]);
-      }
-      if (statList.length > 0) desc += 'Stats: ' + statList.join(', ');
-    }
-    return desc || 'Equippable item.';
-  }
-  
+// Get effect/use text for item
+function getItemEffect(item) {
+  // Consumables - show effect value
   if (item.type === 'consumable') {
     if (item.effect) {
-      if (item.effect.type === 'heal') return 'Restores ' + item.effect.value + ' HP.';
-      if (item.effect.type === 'mana') return 'Restores ' + item.effect.value + ' MP.';
-      if (item.effect.type === 'energy') return 'Restores ' + item.effect.value + ' Energy.';
+      if (item.effect.type === 'heal') return '+' + item.effect.value + ' HP';
+      if (item.effect.type === 'mana') return '+' + item.effect.value + ' MP';
+      if (item.effect.type === 'energy') return '+' + item.effect.value + ' Energy';
+      if (item.effect.type === 'buff') return item.effect.buffType || 'Buff';
     }
-    return 'Consumable item.';
+    // Fallback by name
+    var name = (item.name || '').toLowerCase();
+    if (name.includes('small health')) return '+50 HP';
+    if (name.includes('medium health')) return '+150 HP';
+    if (name.includes('large health')) return '+400 HP';
+    if (name.includes('mega health')) return '+1000 HP';
+    if (name.includes('small mana')) return '+30 MP';
+    if (name.includes('medium mana')) return '+80 MP';
+    if (name.includes('large mana')) return '+200 MP';
+    if (name.includes('mega mana')) return '+500 MP';
+    if (name.includes('antidote')) return 'Cure Poison';
+    if (name.includes('escape')) return 'Exit Tower';
+    if (name.includes('energy')) return '+20 Energy';
+    if (name.includes('strength')) return '+20% P.DMG';
+    if (name.includes('intelligence')) return '+20% M.DMG';
+    if (name.includes('iron skin')) return '+30% P.DEF';
+    if (name.includes('swift')) return '+25% Evasion';
+    if (name.includes('critical')) return '+15% Crit';
+    return 'Use';
   }
   
+  // Equipment - show stats summary
+  if (isEquipmentType(item) && item.stats) {
+    var statList = [];
+    var keys = Object.keys(item.stats);
+    for (var i = 0; i < keys.length; i++) {
+      statList.push(keys[i].toUpperCase() + '+' + item.stats[keys[i]]);
+    }
+    return statList.join(' ');
+  }
+  
+  // Materials
   if (item.type === 'material') {
-    return 'Crafting material. Can be sold or traded.';
+    return 'Material';
   }
   
+  // Scrolls
   if (item.type === 'scroll') {
-    return 'Hidden Class scroll. Use to unlock special abilities.';
+    return 'Hidden Class';
+  }
+  
+  // Special
+  if (item.type === 'special') {
+    if (item.itemId === 'memory_crystal') return 'Remove Class';
+    if (item.itemId === 'memory_crystal_fragment') return 'Combine 15';
+    return 'Special';
   }
   
   return '';
 }
 
+// Get description text for item
+function getItemDescription(item) {
+  // Consumables - brief use description
+  if (item.type === 'consumable') {
+    if (item.effect) {
+      if (item.effect.type === 'heal') return 'Restores ' + item.effect.value + ' HP';
+      if (item.effect.type === 'mana') return 'Restores ' + item.effect.value + ' MP';
+      if (item.effect.type === 'energy') return 'Restores ' + item.effect.value + ' Energy';
+    }
+    var name = (item.name || '').toLowerCase();
+    if (name.includes('antidote')) return 'Cures poison status';
+    if (name.includes('escape')) return 'Escape tower instantly';
+    if (name.includes('strength')) return '+20% Physical DMG for 5 turns';
+    if (name.includes('intelligence')) return '+20% Magic DMG for 5 turns';
+    if (name.includes('iron skin')) return '+30% Physical DEF for 5 turns';
+    if (name.includes('swift')) return '+25% Evasion for 5 turns';
+    if (name.includes('critical')) return '+15% Crit Rate for 5 turns';
+    return 'Consumable item';
+  }
+  
+  // Materials
+  if (item.type === 'material') {
+    var itemId = item.itemId || '';
+    if (itemId.includes('death_knight')) return 'Rare core for crafting';
+    if (itemId.includes('frost_crystal')) return 'Ice crystal for crafting';
+    if (itemId.includes('frozen_heart')) return 'Rare ice elemental drop';
+    if (itemId.includes('shadow_essence')) return 'Dark essence for crafting';
+    if (itemId.includes('lightning_shard')) return 'Charged crystal shard';
+    if (itemId.includes('verdant_sap')) return 'Nature sap for crafting';
+    if (itemId.includes('memory_crystal')) return 'Combine 15 for Memory Crystal';
+    return 'Crafting material';
+  }
+  
+  // Scrolls
+  if (item.type === 'scroll') {
+    return 'Use to unlock hidden class';
+  }
+  
+  // Special
+  if (item.type === 'special') {
+    if (item.itemId === 'memory_crystal') return 'Remove hidden class (returns scroll)';
+    return 'Special item';
+  }
+  
+  return item.description || '';
+}
+
+// Get requirements text for equipment
+function getItemRequirements(item, character) {
+  if (!isEquipmentType(item)) return null;
+  
+  var reqs = [];
+  
+  if (item.levelReq) {
+    var meetsLevel = !character || character.level >= item.levelReq;
+    reqs.push({
+      text: 'Lv.' + item.levelReq,
+      met: meetsLevel
+    });
+  }
+  
+  if (item.classReq || item.class) {
+    var reqClass = item.classReq || item.class;
+    var meetsClass = !character || reqClass.toLowerCase() === character.baseClass.toLowerCase();
+    reqs.push({
+      text: reqClass.charAt(0).toUpperCase() + reqClass.slice(1),
+      met: meetsClass
+    });
+  }
+  
+  return reqs.length > 0 ? reqs : null;
+}
+
 // Map slot names to equipment slot IDs
-// PHASE 9.3.3 FIX: Corrected weapon→rightHand mapping
 function getEquipSlotId(item) {
   if (!item.slot && !item.subtype) return null;
   var slotValue = item.slot || item.subtype;
@@ -231,11 +276,119 @@ function getEquipSlotId(item) {
   return slotMap[slotValue] || slotMap[slotValue.toLowerCase()] || slotValue;
 }
 
-// PHASE 9.3.5 FIX: Helper function to check if item is equipment type
+// Helper function to check if item is equipment type
 function isEquipmentType(item) {
   return item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
 }
 
+// ============================================================
+// ItemDisplay Component - Unified item rendering
+// ============================================================
+function ItemDisplay(props) {
+  var item = props.item;
+  var character = props.character;
+  var showQuantity = props.showQuantity !== false;
+  var compact = props.compact || false;
+  var onClick = props.onClick;
+  var isSelected = props.isSelected;
+  var rightContent = props.rightContent;
+  
+  var icon = getItemIcon(item);
+  var effect = getItemEffect(item);
+  var description = getItemDescription(item);
+  var requirements = getItemRequirements(item, character);
+  var isEquip = isEquipmentType(item);
+  
+  var getRarityColor = function(rarity) {
+    var colors = {
+      common: 'text-gray-300',
+      uncommon: 'text-green-400',
+      rare: 'text-blue-400',
+      epic: 'text-purple-400',
+      legendary: 'text-amber-400'
+    };
+    return colors[rarity] || 'text-gray-300';
+  };
+  
+  var getRarityBorder = function(rarity) {
+    var colors = {
+      common: 'border-gray-600',
+      uncommon: 'border-green-500/50',
+      rare: 'border-blue-500/50',
+      epic: 'border-purple-500/50',
+      legendary: 'border-amber-500/50'
+    };
+    return colors[rarity] || 'border-gray-600';
+  };
+  
+  var getRarityBg = function(rarity) {
+    var colors = {
+      common: 'bg-gray-800/50',
+      uncommon: 'bg-green-900/20',
+      rare: 'bg-blue-900/20',
+      epic: 'bg-purple-900/20',
+      legendary: 'bg-amber-900/20'
+    };
+    return colors[rarity] || 'bg-gray-800/50';
+  };
+
+  return (
+    <div 
+      onClick={onClick}
+      className={'p-3 rounded-lg border transition ' + getRarityBorder(item.rarity) + ' ' + getRarityBg(item.rarity) + ' ' + (onClick ? 'cursor-pointer hover:bg-void-700' : '') + ' ' + (isSelected ? 'ring-2 ring-purple-500' : '')}
+    >
+      <div className="flex items-start gap-3">
+        {/* Icon */}
+        <span className="text-2xl mt-0.5">{icon}</span>
+        
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {/* Top Row: Name + Quantity */}
+          <div className="flex items-center gap-2">
+            <span className={getRarityColor(item.rarity) + ' font-medium truncate'}>{item.name}</span>
+            {showQuantity && item.quantity > 1 && (
+              <span className="text-gray-500 text-sm">x{item.quantity}</span>
+            )}
+          </div>
+          
+          {/* Middle Row: Requirements (Equipment only) */}
+          {isEquip && requirements && (
+            <div className="flex flex-wrap gap-2 mt-1">
+              {requirements.map(function(req, idx) {
+                return (
+                  <span key={idx} className={'text-xs px-1.5 py-0.5 rounded ' + (req.met ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400')}>
+                    {req.text} {req.met ? '✓' : '✗'}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          
+          {/* Bottom Row: Description/Effect */}
+          <div className="mt-1">
+            {effect && (
+              <span className="text-green-400 text-xs">({effect})</span>
+            )}
+            {!compact && description && (
+              <p className="text-gray-500 text-xs mt-0.5">{description}</p>
+            )}
+          </div>
+        </div>
+        
+        {/* Right Content (price, buttons, etc) */}
+        {rightContent && (
+          <div className="flex-shrink-0">
+            {rightContent}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Main InventoryPanel Component
+// ============================================================
 var InventoryPanel = function(props) {
   var character = props.character;
   var refreshCharacter = props.refreshCharacter;
@@ -253,7 +406,6 @@ var InventoryPanel = function(props) {
   var inventory = character.inventory || [];
   
   // Apply filter
-  // PHASE 9.3.3 FIX: Equipment filter also includes weapon/armor types from DB
   var filteredInventory = inventory.filter(function(item) {
     if (filter === 'all') return true;
     if (filter === 'material') return item.type === 'material';
@@ -344,14 +496,12 @@ var InventoryPanel = function(props) {
     setCraftingMessage(null);
     
     try {
-      // Special case for memory crystal
       if (recipe.id === 'craft_memory_crystal') {
         var response = await tavernAPI.craftMemoryCrystal();
         addLog('success', response.data.message);
         await refreshCharacter();
         setCraftingMessage({ type: 'success', text: 'Crafted Memory Crystal!' });
       } else {
-        // Generic craft API call
         var response = await tavernAPI.craftItem(recipe.id);
         addLog('success', response.data.message || 'Crafted ' + recipe.name + '!');
         await refreshCharacter();
@@ -392,102 +542,33 @@ var InventoryPanel = function(props) {
 
   var isUsable = function(item) { return item.type === 'consumable'; };
   
-  // Check if item can be equipped (has slot/subtype and is equipment/weapon/armor type)
-  // PHASE 9.3.5 FIX: Use helper function for equipment type check
   var isEquippable = function(item) { 
     var hasSlot = item.slot || item.subtype;
     return isEquipmentType(item) && hasSlot;
   };
-  
-  // Check equipment requirements and return status
-  // PHASE 9.3.5 FIX: Use helper function for equipment type check
+
+  // Check if character meets equipment requirements
   var getEquipStatus = function(item) {
-    if (!isEquipmentType(item)) return { canEquip: false, reason: 'Not equipment' };
+    var result = { canEquip: true, reason: '' };
     
-    var reasons = [];
-    var canEquip = true;
-    
-    // Check level requirement
     if (item.levelReq && character.level < item.levelReq) {
-      canEquip = false;
-      reasons.push('Requires Lv.' + item.levelReq + ' (You: Lv.' + character.level + ')');
+      result.canEquip = false;
+      result.reason = 'Level ' + item.levelReq + ' required';
+      return result;
     }
     
-    // Check class requirement
     if (item.classReq || item.class) {
       var reqClass = (item.classReq || item.class).toLowerCase();
-      var playerClass = character.baseClass.toLowerCase();
-      if (reqClass !== playerClass && reqClass !== 'all' && reqClass !== 'any') {
-        canEquip = false;
-        reasons.push('Requires ' + reqClass.charAt(0).toUpperCase() + reqClass.slice(1) + ' class');
+      if (reqClass !== character.baseClass.toLowerCase()) {
+        result.canEquip = false;
+        result.reason = (item.classReq || item.class) + ' class required';
+        return result;
       }
     }
     
-    // Check if has valid slot - use name-based detection as fallback
-    // PHASE 9.3.5 FIX: Don't block equip if slot/subtype missing - backend can detect from name
-    var hasSlot = item.slot || item.subtype || canDetectSlotFromName(item.name);
-    if (!hasSlot) {
-      canEquip = false;
-      reasons.push('Missing equipment slot');
-    }
-    
-    return {
-      canEquip: canEquip,
-      reason: reasons.length > 0 ? reasons.join(', ') : null
-    };
+    return result;
   };
-  
-  // Helper: Check if slot can be detected from item name (mirrors backend logic)
-  var canDetectSlotFromName = function(itemName) {
-    if (!itemName) return false;
-    var lowerName = itemName.toLowerCase();
-    
-    // Weapons
-    if (lowerName.includes('sword') || lowerName.includes('blade') || lowerName.includes('dagger') || 
-        lowerName.includes('axe') || lowerName.includes('mace') || lowerName.includes('staff') || 
-        lowerName.includes('wand') || lowerName.includes('bow') || lowerName.includes('crossbow') ||
-        lowerName.includes('spear') || lowerName.includes('hammer') || lowerName.includes('scythe')) {
-      return true;
-    }
-    // Head
-    if (lowerName.includes('helm') || lowerName.includes('hood') || lowerName.includes('crown') || 
-        lowerName.includes('cap') || lowerName.includes('hat') || lowerName.includes('circlet') || 
-        lowerName.includes('mask') || lowerName.includes('coif')) {
-      return true;
-    }
-    // Body
-    if (lowerName.includes('armor') || lowerName.includes('chest') || lowerName.includes('robe') || 
-        lowerName.includes('tunic') || lowerName.includes('vest') || lowerName.includes('plate') ||
-        lowerName.includes('mail') || lowerName.includes('garb') || lowerName.includes('shirt')) {
-      return true;
-    }
-    // Hands
-    if (lowerName.includes('gauntlet') || lowerName.includes('glove') || lowerName.includes('bracer') ||
-        lowerName.includes('vambrace') || lowerName.includes('grip') || lowerName.includes('wrap')) {
-      return true;
-    }
-    // Feet
-    if (lowerName.includes('boot') || lowerName.includes('greave') || lowerName.includes('shoe') ||
-        lowerName.includes('tread') || lowerName.includes('sabaton') || lowerName.includes('slipper')) {
-      return true;
-    }
-    // Cape/Shield
-    if (lowerName.includes('cape') || lowerName.includes('cloak') || lowerName.includes('shroud') ||
-        lowerName.includes('mantle') || lowerName.includes('shield')) {
-      return true;
-    }
-    // Ring
-    if (lowerName.includes('ring') || lowerName.includes('band') || lowerName.includes('signet')) {
-      return true;
-    }
-    // Necklace
-    if (lowerName.includes('necklace') || lowerName.includes('pendant') || lowerName.includes('amulet') ||
-        lowerName.includes('chain') || lowerName.includes('collar') || lowerName.includes('choker')) {
-      return true;
-    }
-    return false;
-  };
-  
+
   var canSplit = function(item) { return item.stackable && item.quantity > 1; };
 
   var getRarityColor = function(rarity) {
@@ -499,28 +580,6 @@ var InventoryPanel = function(props) {
       legendary: 'text-amber-400'
     };
     return colors[rarity] || 'text-gray-300';
-  };
-
-  var getRarityBorder = function(rarity) {
-    var colors = {
-      common: 'border-gray-600',
-      uncommon: 'border-green-500/50',
-      rare: 'border-blue-500/50',
-      epic: 'border-purple-500/50',
-      legendary: 'border-amber-500/50'
-    };
-    return colors[rarity] || 'border-gray-600';
-  };
-
-  var getRarityBg = function(rarity) {
-    var colors = {
-      common: 'bg-gray-800/50',
-      uncommon: 'bg-green-900/20',
-      rare: 'bg-blue-900/20',
-      epic: 'bg-purple-900/20',
-      legendary: 'bg-amber-900/20'
-    };
-    return colors[rarity] || 'bg-gray-800/50';
   };
 
   // Count memory crystal fragments
@@ -562,7 +621,6 @@ var InventoryPanel = function(props) {
   };
 
   // Calculate item counts by type
-  // PHASE 9.3.5 FIX: Use helper function for equipment type check
   var counts = {
     material: 0,
     consumable: 0,
@@ -611,19 +669,19 @@ var InventoryPanel = function(props) {
             </button>
             <button onClick={function() { handleFilterChange('material'); }}
               className={'px-3 py-1 rounded text-xs ' + (filter === 'material' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
-              🪨 Material ({counts.material})
+              🪨 ({counts.material})
             </button>
             <button onClick={function() { handleFilterChange('consumable'); }}
               className={'px-3 py-1 rounded text-xs ' + (filter === 'consumable' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
-              🧪 Consumable ({counts.consumable})
+              🧪 ({counts.consumable})
             </button>
             <button onClick={function() { handleFilterChange('equipment'); }}
               className={'px-3 py-1 rounded text-xs ' + (filter === 'equipment' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
-              ⚔️ Equipment ({counts.equipment})
+              ⚔️ ({counts.equipment})
             </button>
             <button onClick={function() { handleFilterChange('scroll'); }}
               className={'px-3 py-1 rounded text-xs ' + (filter === 'scroll' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
-              📜 Special ({counts.scroll})
+              📜 ({counts.scroll})
             </button>
           </div>
 
@@ -631,99 +689,40 @@ var InventoryPanel = function(props) {
           <div className="space-y-2 mb-4">
             {paginatedItems.map(function(item, idx) {
               var isSelected = selectedItem && selectedItem.itemId === item.itemId;
-              // PHASE 9.3.5 FIX: Use helper function for equipment type check
               var equipStatus = isEquipmentType(item) ? getEquipStatus(item) : null;
               
               return (
-                <div key={idx} 
-                  onClick={function() { setSelectedItem(isSelected ? null : item); }}
-                  className={'p-3 rounded-lg cursor-pointer transition border ' + getRarityBorder(item.rarity) + ' ' + getRarityBg(item.rarity) + ' ' + (isSelected ? 'ring-2 ring-purple-500' : 'hover:bg-void-700')}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl">{getItemIcon(item)}</span>
-                      <div>
-                        <span className={getRarityColor(item.rarity) + ' font-medium'}>{item.name}</span>
-                        <span className="text-gray-500 text-sm ml-2">x{item.quantity}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isEquipmentType(item) && equipStatus && !equipStatus.canEquip && (
-                        <span className="text-xs text-red-400">⚠️</span>
-                      )}
-                      <span className="text-xs text-gray-500">{item.type}</span>
-                    </div>
-                  </div>
+                <div key={idx}>
+                  <ItemDisplay 
+                    item={item}
+                    character={character}
+                    isSelected={isSelected}
+                    onClick={function() { setSelectedItem(isSelected ? null : item); }}
+                  />
                   
-                  {/* Expanded Details */}
+                  {/* Expanded Action Buttons */}
                   {isSelected && (
-                    <div className="mt-3 pt-3 border-t border-gray-700">
-                      <p className="text-gray-400 text-sm mb-2">{getItemDescription(item)}</p>
-                      
-                      {/* Stats for equipment */}
-                      {item.stats && Object.keys(item.stats).length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {Object.keys(item.stats).map(function(stat) {
-                            return (
-                              <span key={stat} className="px-2 py-1 bg-void-900 rounded text-xs text-green-400">
-                                {stat.toUpperCase()} +{item.stats[stat]}
-                              </span>
-                            );
-                          })}
-                        </div>
+                    <div className="mt-2 ml-11 flex gap-2 flex-wrap">
+                      {isUsable(item) && (
+                        <button onClick={function(e) { e.stopPropagation(); handleUseItem(item.itemId); }} disabled={isLoading}
+                          className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-xs">Use</button>
                       )}
-                      
-                      {/* Equipment Requirements - PHASE 9.3.5 FIX: Use helper function */}
-                      {isEquipmentType(item) && (
-                        <div className="mb-2 space-y-1">
-                          {item.levelReq && (
-                            <p className={'text-xs ' + (character.level >= item.levelReq ? 'text-green-400' : 'text-red-400')}>
-                              📊 Level Required: {item.levelReq} {character.level >= item.levelReq ? '✓' : '(You: Lv.' + character.level + ')'}
-                            </p>
-                          )}
-                          {(item.classReq || item.class) && (
-                            <p className={'text-xs ' + ((item.classReq || item.class).toLowerCase() === character.baseClass.toLowerCase() ? 'text-green-400' : 'text-red-400')}>
-                              👤 Class Required: {(item.classReq || item.class).charAt(0).toUpperCase() + (item.classReq || item.class).slice(1)}
-                              {(item.classReq || item.class).toLowerCase() !== character.baseClass.toLowerCase() && ' (You: ' + character.baseClass + ')'}
-                            </p>
-                          )}
-                          {item.slot && (
-                            <p className="text-xs text-gray-400">
-                              📍 Slot: {item.slot.charAt(0).toUpperCase() + item.slot.slice(1)}
-                            </p>
-                          )}
-                        </div>
+                      {isEquippable(item) && (
+                        <button 
+                          onClick={function(e) { e.stopPropagation(); handleEquipItem(item.itemId); }} 
+                          disabled={isLoading || (equipStatus && !equipStatus.canEquip)}
+                          className={'px-3 py-1 rounded text-xs ' + (equipStatus && equipStatus.canEquip ? 'bg-blue-600 hover:bg-blue-500' : 'bg-gray-600 cursor-not-allowed opacity-50')}
+                          title={equipStatus && !equipStatus.canEquip ? equipStatus.reason : 'Equip this item'}
+                        >
+                          {equipStatus && equipStatus.canEquip ? 'Equip' : '🔒 Equip'}
+                        </button>
                       )}
-                      
-                      {/* Equip status warning */}
-                      {equipStatus && !equipStatus.canEquip && (
-                        <div className="mb-2 p-2 bg-red-900/30 border border-red-500/30 rounded">
-                          <p className="text-xs text-red-400">⚠️ Cannot equip: {equipStatus.reason}</p>
-                        </div>
+                      {canSplit(item) && (
+                        <button onClick={function(e) { e.stopPropagation(); setSplitModal(item); setSplitQty(1); }} disabled={isLoading}
+                          className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs">Split</button>
                       )}
-                      
-                      {/* Action buttons */}
-                      <div className="flex gap-2 flex-wrap">
-                        {isUsable(item) && (
-                          <button onClick={function(e) { e.stopPropagation(); handleUseItem(item.itemId); }} disabled={isLoading}
-                            className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-xs">Use</button>
-                        )}
-                        {isEquippable(item) && (
-                          <button 
-                            onClick={function(e) { e.stopPropagation(); handleEquipItem(item.itemId); }} 
-                            disabled={isLoading || (equipStatus && !equipStatus.canEquip)}
-                            className={'px-3 py-1 rounded text-xs ' + (equipStatus && equipStatus.canEquip ? 'bg-blue-600 hover:bg-blue-500' : 'bg-gray-600 cursor-not-allowed opacity-50')}
-                            title={equipStatus && !equipStatus.canEquip ? equipStatus.reason : 'Equip this item'}
-                          >
-                            {equipStatus && equipStatus.canEquip ? 'Equip' : '🔒 Equip'}
-                          </button>
-                        )}
-                        {canSplit(item) && (
-                          <button onClick={function(e) { e.stopPropagation(); setSplitModal(item); setSplitQty(1); }} disabled={isLoading}
-                            className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs">Split</button>
-                        )}
-                        <button onClick={function(e) { e.stopPropagation(); handleDiscardItem(item.itemId); }} disabled={isLoading}
-                          className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-xs">🗑️ Discard</button>
-                      </div>
+                      <button onClick={function(e) { e.stopPropagation(); handleDiscardItem(item.itemId); }} disabled={isLoading}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-xs">🗑️</button>
                     </div>
                   )}
                 </div>
@@ -759,10 +758,10 @@ var InventoryPanel = function(props) {
                 <div key={slot.id} className={'p-3 rounded-lg border ' + (equippedItem ? 'border-purple-500/50 bg-purple-900/20' : 'border-gray-700 bg-void-900/50')}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">{equippedItem ? (equippedItem.icon || slot.icon) : slot.icon}</span>
+                      <span className="text-lg">{equippedItem ? getItemIcon(equippedItem) : slot.icon}</span>
                       <div>
                         <p className="text-xs text-gray-500">{slot.name}</p>
-                        <p className={'text-sm ' + (equippedItem ? 'text-white' : 'text-gray-600')}>
+                        <p className={'text-sm truncate max-w-[100px] ' + (equippedItem ? 'text-white' : 'text-gray-600')}>
                           {equippedItem ? equippedItem.name : 'Empty'}
                         </p>
                       </div>
@@ -773,14 +772,8 @@ var InventoryPanel = function(props) {
                     )}
                   </div>
                   {equippedItem && equippedItem.stats && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {Object.keys(equippedItem.stats).map(function(stat) {
-                        return (
-                          <span key={stat} className="px-1 py-0.5 bg-void-800 rounded text-xs text-green-400">
-                            {stat.toUpperCase()} +{equippedItem.stats[stat]}
-                          </span>
-                        );
-                      })}
+                    <div className="mt-2">
+                      <p className="text-green-400 text-xs">({getItemEffect(equippedItem)})</p>
                     </div>
                   )}
                 </div>
@@ -839,17 +832,17 @@ var InventoryPanel = function(props) {
               <span className="text-3xl">🔷</span>
               <div>
                 <h4 className="text-white font-bold">Memory Crystal</h4>
-                <p className="text-gray-400 text-sm">Use to remove Hidden Class (returns scroll)</p>
+                <p className="text-gray-400 text-sm">(Remove Class)</p>
               </div>
             </div>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-gray-400">Requires: 15x 💠 Memory Crystal Fragment</span>
+              <span className="text-gray-400 text-sm">15x 💠 Fragment</span>
               <span className={'text-sm ' + (fragments >= 15 ? 'text-green-400' : 'text-red-400')}>
-                Have: {fragments}/15
+                {fragments}/15
               </span>
             </div>
             <button onClick={handleCraftMemoryCrystal} disabled={isLoading || fragments < 15}
-              className="w-full btn-primary disabled:opacity-50">Craft Memory Crystal</button>
+              className="w-full btn-primary disabled:opacity-50">Craft</button>
           </div>
 
           {/* Use Memory Crystal */}
@@ -862,9 +855,9 @@ var InventoryPanel = function(props) {
                   <p className="text-gray-400 text-sm">Current: {character.hiddenClass}</p>
                 </div>
               </div>
-              <p className="text-yellow-400 text-sm mb-3">⚠️ You will lose all hidden class skills but get the scroll back!</p>
+              <p className="text-yellow-400 text-sm mb-3">⚠️ Returns scroll to inventory</p>
               <button onClick={handleUseMemoryCrystal} disabled={isLoading}
-                className="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded">Use Memory Crystal</button>
+                className="w-full bg-purple-600 hover:bg-purple-500 py-2 rounded">Use Crystal</button>
             </div>
           )}
 
@@ -881,26 +874,22 @@ var InventoryPanel = function(props) {
                       <span className={getRarityColor(recipe.result.rarity) + ' font-medium'}>{recipe.name}</span>
                     </div>
                     <span className={'text-xs ' + (canCraft ? 'text-green-400' : 'text-red-400')}>
-                      {canCraft ? '✓ Can Craft' : '✗ Missing Materials'}
+                      {canCraft ? '✓' : '✗'}
                     </span>
                   </div>
                   
-                  {/* Result preview */}
+                  {/* Result preview - stats only */}
                   {recipe.result.stats && (
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {Object.keys(recipe.result.stats).map(function(stat) {
-                        return (
-                          <span key={stat} className="px-2 py-0.5 bg-void-800 rounded text-xs text-green-400">
-                            {stat.toUpperCase()} +{recipe.result.stats[stat]}
-                          </span>
-                        );
-                      })}
-                    </div>
+                    <p className="text-green-400 text-xs mb-2">
+                      ({Object.keys(recipe.result.stats).map(function(stat) {
+                        return stat.toUpperCase() + '+' + recipe.result.stats[stat];
+                      }).join(' ')})
+                    </p>
                   )}
                   
                   {/* Materials */}
                   <div className="text-xs text-gray-400 mb-2">
-                    Materials: {recipe.materials.map(function(mat, i) {
+                    {recipe.materials.map(function(mat, i) {
                       var have = getMaterialCount(mat.itemId);
                       return (
                         <span key={mat.itemId} className={have >= mat.quantity ? 'text-green-400' : 'text-red-400'}>
