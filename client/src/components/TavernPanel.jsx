@@ -27,7 +27,8 @@ const TavernPanel = ({ character, onCharacterUpdate, addLog }) => {
 
   const fetchTrading = async () => {
     try {
-      const { data } = await tavernAPI.getTradingListings();
+      // PHASE 9.3.5 FIX: Use correct API function name
+      const { data } = await tavernAPI.getListings();
       setTradingListings(data.listings);
     } catch (err) { console.error(err); }
   };
@@ -43,7 +44,8 @@ const TavernPanel = ({ character, onCharacterUpdate, addLog }) => {
     if (!buyModal) return;
     setIsLoading(true);
     try {
-      const { data } = await tavernAPI.buyFromShop(buyModal.itemId, quantity);
+      // PHASE 9.3.5 FIX: Use correct API function name (buy instead of buyFromShop)
+      const { data } = await tavernAPI.buy(buyModal.itemId, quantity);
       addLog('success', data.message);
       onCharacterUpdate();
       setBuyModal(null);
@@ -58,7 +60,8 @@ const TavernPanel = ({ character, onCharacterUpdate, addLog }) => {
     if (!sellModal) return;
     setIsLoading(true);
     try {
-      const { data } = await tavernAPI.sellToShop(sellModal.itemId, quantity);
+      // PHASE 9.3.5 FIX: Use correct API function name (sell instead of sellToShop)
+      const { data } = await tavernAPI.sell(sellModal.itemId, quantity);
       addLog('success', data.message);
       onCharacterUpdate();
       setSellModal(null);
@@ -73,7 +76,8 @@ const TavernPanel = ({ character, onCharacterUpdate, addLog }) => {
     if (!listModal) return;
     setIsLoading(true);
     try {
-      const { data } = await tavernAPI.listItem(listModal.itemId, listModal.quantity, listModal.price);
+      // PHASE 9.3.5 FIX: Use correct API function name (createListing instead of listItem)
+      const { data } = await tavernAPI.createListing(listModal.itemId, listModal.quantity, listModal.price);
       addLog('success', data.message);
       onCharacterUpdate();
       fetchMyListings();
@@ -87,7 +91,8 @@ const TavernPanel = ({ character, onCharacterUpdate, addLog }) => {
   const handleBuyFromPlayer = async (listing) => {
     setIsLoading(true);
     try {
-      const { data } = await tavernAPI.buyFromPlayer(listing._id, listing.quantity);
+      // PHASE 9.3.5 FIX: Use correct API function name (buyListing instead of buyFromPlayer)
+      const { data } = await tavernAPI.buyListing(listing._id, listing.quantity);
       addLog('success', data.message);
       onCharacterUpdate();
       fetchTrading();
@@ -176,7 +181,7 @@ const TavernPanel = ({ character, onCharacterUpdate, addLog }) => {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-yellow-400">{listing.totalPrice}g</span>
-                      <button onClick={() => handleCancelListing(listing._id)}
+                      <button onClick={() => handleCancelListing(listing._id)} disabled={isLoading}
                         className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-sm">Cancel</button>
                     </div>
                   </div>
@@ -188,7 +193,7 @@ const TavernPanel = ({ character, onCharacterUpdate, addLog }) => {
           {/* All Listings */}
           <div className="bg-void-800/50 rounded-xl p-4 neon-border">
             <h3 className="font-display text-lg text-amber-400 mb-3">🤝 Trading Stall</h3>
-            <div className="space-y-2 max-h-60 overflow-auto">
+            <div className="space-y-2 max-h-80 overflow-auto">
               {tradingListings.filter(l => l.sellerId !== character.userId).map(listing => (
                 <div key={listing._id} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
                   <div className="flex items-center gap-3">
@@ -196,13 +201,13 @@ const TavernPanel = ({ character, onCharacterUpdate, addLog }) => {
                     <div>
                       <span className="text-white">{listing.itemName}</span>
                       <span className="text-gray-400 text-sm ml-2">x{listing.quantity}</span>
-                      <div className="text-xs text-gray-500">by {listing.characterName}</div>
+                      <p className="text-xs text-gray-500">Seller: {listing.characterName || listing.sellerName}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <div className="text-yellow-400">{listing.totalPrice}g</div>
-                      <div className="text-xs text-gray-500">{listing.pricePerUnit}g each</div>
+                      <p className="text-yellow-400">{listing.totalPrice}g</p>
+                      <p className="text-xs text-gray-500">{listing.pricePerUnit}g each</p>
                     </div>
                     <button onClick={() => handleBuyFromPlayer(listing)} disabled={isLoading || character.gold < listing.totalPrice}
                       className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-sm disabled:opacity-50">Buy</button>
