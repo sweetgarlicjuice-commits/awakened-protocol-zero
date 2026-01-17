@@ -865,20 +865,41 @@ router.post('/equip', authenticate, async function(req, res) {
         return res.status(400).json({ error: 'Item cannot be equipped' });
       }
       // Use inventory data for dynamic equipment
+      // PHASE 9.3.1 FIX: Complete slot mapping for all equipment subtypes
+      var slotFromSubtype = function(subtype) {
+        var mapping = {
+          'weapon': 'rightHand',
+          'mainHand': 'rightHand',
+          'shield': 'leftHand',
+          'cape': 'leftHand',
+          'armor': 'body',
+          'body': 'body',
+          'head': 'head',
+          'helmet': 'head',
+          'hands': 'leg',
+          'gloves': 'leg',
+          'gauntlets': 'leg',
+          'feet': 'shoes',
+          'boots': 'shoes',
+          'ring': 'ring',
+          'necklace': 'necklace',
+          'pendant': 'necklace',
+          'accessory': 'ring'
+        };
+        return mapping[subtype] || mapping[subtype.toLowerCase()] || 'body';
+      };
+      
       itemData = {
         id: invItem.itemId,
         name: invItem.name,
         icon: invItem.icon || '📦',
         type: invItem.type,
         subtype: invItem.subtype,
-        slot: invItem.subtype === 'weapon' ? 'leftHand' : 
-              invItem.subtype === 'shield' ? 'rightHand' :
-              invItem.subtype === 'armor' ? 'body' :
-              invItem.subtype || 'body',
+        slot: slotFromSubtype(invItem.subtype || 'body'),
         rarity: invItem.rarity,
         stats: invItem.stats || {},
         classReq: invItem.classReq,
-        setId: invItem.setId || null,  // PHASE 9.3 FIX: Include setId
+        setId: invItem.setId || null,
         equippable: true
       };
     }
@@ -894,29 +915,46 @@ router.post('/equip', authenticate, async function(req, res) {
     // Unequip current item in slot (if any)
     var currentEquip = character.equipment[slot];
     if (currentEquip && currentEquip.itemId) {
-      // Add current to inventory
+      // Add current to inventory - PHASE 9.3.1 FIX: Include subtype
+      // Derive subtype from slot if not stored
+      var deriveSubtype = function(slotName) {
+        var mapping = {
+          'rightHand': 'weapon',
+          'leftHand': 'cape',
+          'body': 'armor',
+          'head': 'head',
+          'leg': 'hands',
+          'shoes': 'feet',
+          'ring': 'ring',
+          'necklace': 'necklace'
+        };
+        return mapping[slotName] || 'equipment';
+      };
+      
       var currentItemData = getItemById(currentEquip.itemId) || {
         id: currentEquip.itemId,
         name: currentEquip.name,
         icon: currentEquip.icon || '📦',
-        type: currentEquip.type,
+        type: currentEquip.type || 'equipment',
+        subtype: currentEquip.subtype || deriveSubtype(slot),
         rarity: currentEquip.rarity,
         stats: currentEquip.stats,
-        setId: currentEquip.setId || null,  // PHASE 9.3 FIX: Preserve setId
+        setId: currentEquip.setId || null,
         stackable: false
       };
       addItemToInventory(character, currentEquip.itemId, 1, currentItemData);
     }
 
-    // Equip new item
+    // Equip new item - PHASE 9.3.1 FIX: Store subtype for proper unequip
     character.equipment[slot] = {
       itemId: itemData.id || itemId,
       name: itemData.name,
       icon: itemData.icon,
       type: itemData.type,
+      subtype: itemData.subtype,  // PHASE 9.3.1 FIX: Store subtype!
       rarity: itemData.rarity,
       stats: itemData.stats,
-      setId: itemData.setId || null  // PHASE 9.3 FIX: Include setId for set bonus tracking!
+      setId: itemData.setId || null
     };
 
     // Remove from inventory
@@ -951,15 +989,31 @@ router.post('/unequip', authenticate, async function(req, res) {
       return res.status(400).json({ error: 'Nothing equipped in that slot' });
     }
 
-    // Add to inventory
+    // Add to inventory - PHASE 9.3.1 FIX: Preserve subtype for re-equipping
+    // Derive subtype from slot if not stored
+    var deriveSubtypeFromSlot = function(slotName) {
+      var mapping = {
+        'rightHand': 'weapon',
+        'leftHand': 'cape',
+        'body': 'armor',
+        'head': 'head',
+        'leg': 'hands',
+        'shoes': 'feet',
+        'ring': 'ring',
+        'necklace': 'necklace'
+      };
+      return mapping[slotName] || 'equipment';
+    };
+    
     var itemData = getItemById(currentEquip.itemId) || {
       id: currentEquip.itemId,
       name: currentEquip.name,
       icon: currentEquip.icon || '📦',
-      type: currentEquip.type,
+      type: currentEquip.type || 'equipment',
+      subtype: currentEquip.subtype || deriveSubtypeFromSlot(slot),
       rarity: currentEquip.rarity,
       stats: currentEquip.stats,
-      setId: currentEquip.setId || null,  // PHASE 9.3 FIX: Preserve setId
+      setId: currentEquip.setId || null,
       stackable: false
     };
     var result = addItemToInventory(character, currentEquip.itemId, 1, itemData);
@@ -973,9 +1027,10 @@ router.post('/unequip', authenticate, async function(req, res) {
       itemId: null,
       name: null,
       type: null,
+      subtype: null,  // PHASE 9.3.1 FIX: Clear subtype too
       rarity: null,
       stats: null,
-      setId: null  // PHASE 9.3 FIX: Clear setId too
+      setId: null
     };
 
     await character.save();
