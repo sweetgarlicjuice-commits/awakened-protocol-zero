@@ -436,16 +436,13 @@ async function populateShopWithConsumables(shop) {
 }
 
 // GET /api/tavern/shop - Get shop items
+// PHASE 9.3.5 FIX: Removed auto-populate - GM has full control over shop contents
+// Use POST /api/tavern/gm/shop/repopulate to restore default items
 router.get('/shop', authenticate, async function(req, res) {
   try {
     var shop = await TavernShop.findOne();
     if (!shop) {
       shop = await TavernShop.initializeShop();
-    }
-    
-    // Auto-populate with consumables if shop is empty or missing items
-    if (shop.items.length < 10) {
-      shop = await populateShopWithConsumables(shop);
     }
     
     res.json({ items: shop.items.filter(function(i) { return i.isActive; }) });
