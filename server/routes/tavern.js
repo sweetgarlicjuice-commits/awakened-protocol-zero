@@ -84,6 +84,155 @@ function getAllItems() {
   return items;
 }
 
+// ============================================================
+// PHASE 9.3.2 FIX: COMPREHENSIVE SLOT MAPPING SYSTEM
+// ============================================================
+
+/**
+ * Maps equipment database slot names to character schema slot names
+ * Equipment DB uses: mainHand, head, body, hands, feet, cape, ring, necklace
+ * Character schema uses: rightHand, head, body, leg, shoes, leftHand, ring, necklace
+ */
+function mapDbSlotToCharacterSlot(dbSlot) {
+  if (!dbSlot) return null;
+  var mapping = {
+    'mainHand': 'rightHand',
+    'mainhand': 'rightHand',
+    'weapon': 'rightHand',
+    'offHand': 'leftHand',
+    'offhand': 'leftHand',
+    'shield': 'leftHand',
+    'cape': 'leftHand',
+    'head': 'head',
+    'helmet': 'head',
+    'body': 'body',
+    'armor': 'body',
+    'chest': 'body',
+    'hands': 'leg',
+    'gloves': 'leg',
+    'gauntlets': 'leg',
+    'feet': 'shoes',
+    'boots': 'shoes',
+    'ring': 'ring',
+    'necklace': 'necklace',
+    'pendant': 'necklace',
+    'accessory': 'ring'
+  };
+  return mapping[dbSlot] || mapping[dbSlot.toLowerCase()] || null;
+}
+
+/**
+ * Maps character schema slot names back to a subtype for inventory storage
+ */
+function characterSlotToSubtype(charSlot) {
+  var mapping = {
+    'rightHand': 'mainHand',
+    'leftHand': 'cape',
+    'head': 'head',
+    'body': 'body',
+    'leg': 'hands',
+    'shoes': 'feet',
+    'ring': 'ring',
+    'necklace': 'necklace'
+  };
+  return mapping[charSlot] || 'equipment';
+}
+
+/**
+ * Determines the character slot from item name (fallback when no slot/subtype)
+ */
+function getSlotFromItemName(itemName) {
+  if (!itemName) return null;
+  var lowerName = itemName.toLowerCase();
+  
+  // Weapons
+  if (lowerName.includes('sword') || lowerName.includes('blade') || lowerName.includes('dagger') || 
+      lowerName.includes('axe') || lowerName.includes('mace') || lowerName.includes('staff') || 
+      lowerName.includes('wand') || lowerName.includes('bow') || lowerName.includes('crossbow') ||
+      lowerName.includes('spear') || lowerName.includes('hammer') || lowerName.includes('scythe')) {
+    return { slot: 'rightHand', subtype: 'mainHand' };
+  }
+  
+  // Head
+  if (lowerName.includes('helm') || lowerName.includes('hood') || 
+      lowerName.includes('crown') || lowerName.includes('cap') || lowerName.includes('hat') ||
+      lowerName.includes('circlet') || lowerName.includes('mask') || lowerName.includes('coif')) {
+    return { slot: 'head', subtype: 'head' };
+  }
+  
+  // Body
+  if (lowerName.includes('armor') || lowerName.includes('chest') || lowerName.includes('robe') || 
+      lowerName.includes('tunic') || lowerName.includes('vest') || lowerName.includes('plate') ||
+      lowerName.includes('mail') || lowerName.includes('garb') || lowerName.includes('shirt')) {
+    return { slot: 'body', subtype: 'body' };
+  }
+  
+  // Hands/Gloves (maps to leg slot in character schema)
+  if (lowerName.includes('gauntlet') || lowerName.includes('glove') || lowerName.includes('bracer') ||
+      lowerName.includes('vambrace') || lowerName.includes('grip') || lowerName.includes('wrap')) {
+    return { slot: 'leg', subtype: 'hands' };
+  }
+  
+  // Feet/Boots (maps to shoes slot)
+  if (lowerName.includes('boot') || lowerName.includes('greave') || lowerName.includes('shoe') ||
+      lowerName.includes('tread') || lowerName.includes('sabaton') || lowerName.includes('slipper')) {
+    return { slot: 'shoes', subtype: 'feet' };
+  }
+  
+  // Cape/Cloak (maps to leftHand slot)
+  if (lowerName.includes('cape') || lowerName.includes('cloak') || lowerName.includes('shroud') ||
+      lowerName.includes('mantle') || lowerName.includes('shield')) {
+    return { slot: 'leftHand', subtype: 'cape' };
+  }
+  
+  // Ring
+  if (lowerName.includes('ring') || lowerName.includes('band') || lowerName.includes('signet')) {
+    return { slot: 'ring', subtype: 'ring' };
+  }
+  
+  // Necklace
+  if (lowerName.includes('necklace') || lowerName.includes('pendant') || lowerName.includes('amulet') ||
+      lowerName.includes('chain') || lowerName.includes('collar') || lowerName.includes('choker')) {
+    return { slot: 'necklace', subtype: 'necklace' };
+  }
+  
+  return null;
+}
+
+/**
+ * MAIN FUNCTION: Determines the character slot for any item
+ * Checks: 1) DB slot mapping, 2) subtype mapping, 3) item name fallback
+ */
+function determineCharacterSlot(itemData, invItem) {
+  // Priority 1: If item has slot from database, map it
+  if (itemData && itemData.slot) {
+    var mappedSlot = mapDbSlotToCharacterSlot(itemData.slot);
+    if (mappedSlot) {
+      return { slot: mappedSlot, subtype: itemData.slot };
+    }
+  }
+  
+  // Priority 2: If inventory item has subtype, map it
+  if (invItem && invItem.subtype) {
+    var subtypeSlot = mapDbSlotToCharacterSlot(invItem.subtype);
+    if (subtypeSlot) {
+      return { slot: subtypeSlot, subtype: invItem.subtype };
+    }
+  }
+  
+  // Priority 3: Try item name detection
+  var itemName = (itemData && itemData.name) || (invItem && invItem.name);
+  if (itemName) {
+    var nameResult = getSlotFromItemName(itemName);
+    if (nameResult) {
+      return nameResult;
+    }
+  }
+  
+  // Default fallback
+  return { slot: 'body', subtype: 'body' };
+}
+
 // ============ INVENTORY HELPERS ============
 
 // Add item to inventory with stacking
@@ -108,18 +257,21 @@ function addItemToInventory(character, itemId, quantity, itemData) {
     return { success: false, error: 'Inventory full' };
   }
 
-  // PHASE 9.3 FIX: Include setId for set bonus tracking
+  // PHASE 9.3.2 FIX: Use item.slot (from DB) as subtype if subtype not set
+  // This ensures equipment can be re-equipped after unequip
+  var subtype = item.subtype || item.slot || null;
+
   character.inventory.push({
     itemId: item.id || itemId,
     name: item.name,
     icon: item.icon || '📦',
     type: item.type,
-    subtype: item.subtype,
+    subtype: subtype,
     rarity: item.rarity || 'common',
     quantity: quantity,
     stackable: item.stackable || false,
     stats: item.stats || {},
-    setId: item.setId || null  // PHASE 9.3 FIX: Include setId!
+    setId: item.setId || null
   });
 
   return { success: true, stacked: false };
@@ -844,6 +996,7 @@ router.delete('/inventory/:itemId', authenticate, async function(req, res) {
 // ============ EQUIPMENT ROUTES ============
 
 // POST /api/tavern/equip - Equip item
+// PHASE 9.3.2 FIX: Complete rewrite with proper slot determination
 router.post('/equip', authenticate, async function(req, res) {
   try {
     var itemId = req.body.itemId;
@@ -857,86 +1010,44 @@ router.post('/equip', authenticate, async function(req, res) {
     }
     var invItem = character.inventory[invIndex];
 
-    // Get item data from DB or inventory
-    var itemData = getItemDataFromInventoryOrDB(itemId, invItem);
-    if (!itemData || !itemData.equippable) {
-      // Check if inventory item is equippable (for dynamic equipment)
-      if (invItem.type !== 'equipment') {
-        return res.status(400).json({ error: 'Item cannot be equipped' });
-      }
-      // Use inventory data for dynamic equipment
-      // PHASE 9.3.1 FIX: Complete slot mapping for all equipment subtypes
-      var slotFromSubtype = function(subtype) {
-        var mapping = {
-          'weapon': 'rightHand',
-          'mainHand': 'rightHand',
-          'shield': 'leftHand',
-          'cape': 'leftHand',
-          'armor': 'body',
-          'body': 'body',
-          'head': 'head',
-          'helmet': 'head',
-          'hands': 'leg',
-          'gloves': 'leg',
-          'gauntlets': 'leg',
-          'feet': 'shoes',
-          'boots': 'shoes',
-          'ring': 'ring',
-          'necklace': 'necklace',
-          'pendant': 'necklace',
-          'accessory': 'ring'
-        };
-        return mapping[subtype] || mapping[subtype.toLowerCase()] || 'body';
-      };
-      
-      itemData = {
-        id: invItem.itemId,
-        name: invItem.name,
-        icon: invItem.icon || '📦',
-        type: invItem.type,
-        subtype: invItem.subtype,
-        slot: slotFromSubtype(invItem.subtype || 'body'),
-        rarity: invItem.rarity,
-        stats: invItem.stats || {},
-        classReq: invItem.classReq,
-        setId: invItem.setId || null,
-        equippable: true
-      };
+    // Get item data from DB (has slot field) or inventory
+    var itemData = getItemById(itemId);
+    
+    // Check if item can be equipped
+    var isEquippable = (itemData && (itemData.type === 'weapon' || itemData.type === 'armor' || itemData.type === 'accessory' || itemData.slot)) ||
+                       (invItem.type === 'equipment' || invItem.type === 'weapon' || invItem.type === 'armor' || invItem.type === 'accessory');
+    
+    if (!isEquippable) {
+      return res.status(400).json({ error: 'Item cannot be equipped' });
     }
 
     // Check class requirement
-    if (itemData.classReq && itemData.classReq !== character.baseClass) {
-      return res.status(400).json({ error: 'Wrong class for this item' });
+    var classReq = (itemData && itemData.class) || invItem.classReq;
+    if (classReq && classReq !== 'any' && classReq !== character.baseClass) {
+      return res.status(400).json({ error: 'Wrong class for this item. Requires: ' + classReq });
     }
 
-    var slot = itemData.slot;
-    if (!slot) return res.status(400).json({ error: 'Invalid equipment slot' });
+    // PHASE 9.3.2 FIX: Use comprehensive slot determination
+    var slotInfo = determineCharacterSlot(itemData, invItem);
+    var slot = slotInfo.slot;
+    var subtype = slotInfo.subtype;
+    
+    if (!slot) {
+      return res.status(400).json({ error: 'Cannot determine equipment slot for this item' });
+    }
 
     // Unequip current item in slot (if any)
     var currentEquip = character.equipment[slot];
     if (currentEquip && currentEquip.itemId) {
-      // Add current to inventory - PHASE 9.3.1 FIX: Include subtype
-      // Derive subtype from slot if not stored
-      var deriveSubtype = function(slotName) {
-        var mapping = {
-          'rightHand': 'weapon',
-          'leftHand': 'cape',
-          'body': 'armor',
-          'head': 'head',
-          'leg': 'hands',
-          'shoes': 'feet',
-          'ring': 'ring',
-          'necklace': 'necklace'
-        };
-        return mapping[slotName] || 'equipment';
-      };
-      
-      var currentItemData = getItemById(currentEquip.itemId) || {
+      // Build item data for returning to inventory
+      var currentSubtype = currentEquip.subtype || characterSlotToSubtype(slot);
+      var currentItemData = {
         id: currentEquip.itemId,
         name: currentEquip.name,
         icon: currentEquip.icon || '📦',
         type: currentEquip.type || 'equipment',
-        subtype: currentEquip.subtype || deriveSubtype(slot),
+        subtype: currentSubtype,
+        slot: currentSubtype,
         rarity: currentEquip.rarity,
         stats: currentEquip.stats,
         setId: currentEquip.setId || null,
@@ -945,16 +1056,16 @@ router.post('/equip', authenticate, async function(req, res) {
       addItemToInventory(character, currentEquip.itemId, 1, currentItemData);
     }
 
-    // Equip new item - PHASE 9.3.1 FIX: Store subtype for proper unequip
+    // Equip new item
     character.equipment[slot] = {
-      itemId: itemData.id || itemId,
-      name: itemData.name,
-      icon: itemData.icon,
-      type: itemData.type,
-      subtype: itemData.subtype,  // PHASE 9.3.1 FIX: Store subtype!
-      rarity: itemData.rarity,
-      stats: itemData.stats,
-      setId: itemData.setId || null
+      itemId: (itemData && itemData.id) || itemId,
+      name: (itemData && itemData.name) || invItem.name,
+      icon: (itemData && itemData.icon) || invItem.icon || '📦',
+      type: (itemData && itemData.type) || invItem.type,
+      subtype: subtype,
+      rarity: (itemData && itemData.rarity) || invItem.rarity,
+      stats: (itemData && itemData.stats) || invItem.stats || {},
+      setId: (itemData && itemData.setId) || invItem.setId || null
     };
 
     // Remove from inventory
@@ -967,7 +1078,7 @@ router.post('/equip', authenticate, async function(req, res) {
     await character.save();
 
     res.json({
-      message: 'Equipped ' + itemData.name,
+      message: 'Equipped ' + ((itemData && itemData.name) || invItem.name),
       equipment: character.equipment,
       inventory: character.inventory
     });
@@ -978,6 +1089,7 @@ router.post('/equip', authenticate, async function(req, res) {
 });
 
 // POST /api/tavern/unequip - Unequip item
+// PHASE 9.3.2 FIX: Use characterSlotToSubtype function
 router.post('/unequip', authenticate, async function(req, res) {
   try {
     var slot = req.body.slot;
@@ -989,33 +1101,21 @@ router.post('/unequip', authenticate, async function(req, res) {
       return res.status(400).json({ error: 'Nothing equipped in that slot' });
     }
 
-    // Add to inventory - PHASE 9.3.1 FIX: Preserve subtype for re-equipping
-    // Derive subtype from slot if not stored
-    var deriveSubtypeFromSlot = function(slotName) {
-      var mapping = {
-        'rightHand': 'weapon',
-        'leftHand': 'cape',
-        'body': 'armor',
-        'head': 'head',
-        'leg': 'hands',
-        'shoes': 'feet',
-        'ring': 'ring',
-        'necklace': 'necklace'
-      };
-      return mapping[slotName] || 'equipment';
-    };
-    
+    // PHASE 9.3.2 FIX: Build item data with proper subtype for re-equipping
+    var subtype = currentEquip.subtype || characterSlotToSubtype(slot);
     var itemData = getItemById(currentEquip.itemId) || {
       id: currentEquip.itemId,
       name: currentEquip.name,
       icon: currentEquip.icon || '📦',
       type: currentEquip.type || 'equipment',
-      subtype: currentEquip.subtype || deriveSubtypeFromSlot(slot),
+      subtype: subtype,
+      slot: subtype, // Also set slot for mapping
       rarity: currentEquip.rarity,
       stats: currentEquip.stats,
       setId: currentEquip.setId || null,
       stackable: false
     };
+    
     var result = addItemToInventory(character, currentEquip.itemId, 1, itemData);
 
     if (!result.success) {
