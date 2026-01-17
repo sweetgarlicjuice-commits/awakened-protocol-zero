@@ -115,86 +115,101 @@ const SKILL_DATABASE = {
   thunderstorm: { name: 'Thunderstorm', mpCost: 45, damage: 0.8, hits: 4, element: 'lightning', desc: '4-hit lightning storm.' },
   
   // ==================== PYRO ARCHER (Archer) ====================
-  flameArrow: { name: 'Flame Arrow', mpCost: 12, damage: 1.8, element: 'fire', desc: 'Fire arrow + burn.', effect: 'burn' },
-  explosiveShot: { name: 'Explosive Shot', mpCost: 20, damage: 2.5, element: 'fire', desc: 'Exploding arrow. High DMG.' },
-  infernoQuiver: { name: 'Inferno Quiver', mpCost: 18, damage: 0, element: 'fire', desc: '+30% fire DMG for 3 turns.', effect: '+30% fire' },
-  phoenixArrow: { name: 'Phoenix Arrow', mpCost: 42, damage: 3.8, element: 'fire', desc: 'Ultimate fire arrow + burn.', effect: 'burn' },
+  fireArrow: { name: 'Fire Arrow', mpCost: 12, damage: 1.6, element: 'fire', desc: 'Flaming arrow. Burns.', effect: 'burn' },
+  explosiveShot: { name: 'Explosive Shot', mpCost: 20, damage: 1.8, element: 'fire', desc: 'Exploding arrow. AoE damage.' },
+  igniteTrap: { name: 'Ignite Trap', mpCost: 15, damage: 0.5, element: 'fire', desc: 'Fire trap. Burns for 4 turns.', effect: 'burn' },
+  phoenixArrow: { name: 'Phoenix Arrow', mpCost: 42, damage: 3.2, element: 'fire', desc: 'Massive fire arrow. High DMG + burn.' },
   
   // ==================== FROST SNIPER (Archer) ====================
-  iceArrow: { name: 'Ice Arrow', mpCost: 12, damage: 1.6, element: 'ice', desc: 'Freezing arrow. -20% ATK.', effect: '-20% ATK' },
-  piercingCold: { name: 'Piercing Cold', mpCost: 18, damage: 2.2, element: 'ice', desc: 'Ice shot that ignores 25% DEF.', effect: 'armor pierce' },
-  frozenPrecision: { name: 'Frozen Precision', mpCost: 15, damage: 0, element: 'ice', desc: '+40% crit DMG for 3 turns.', effect: '+40% crit DMG' },
-  avalancheShot: { name: 'Avalanche Shot', mpCost: 40, damage: 3.2, element: 'ice', desc: 'Massive ice attack + freeze.', effect: 'freeze' },
+  iceArrow: { name: 'Ice Arrow', mpCost: 12, damage: 1.5, element: 'ice', desc: 'Freezing arrow. Slows enemy.', effect: 'slow' },
+  frozenAim: { name: 'Frozen Aim', mpCost: 18, damage: 0, element: 'ice', desc: '+40% crit, +50% crit DMG for 2 turns.', effect: '+40% crit' },
+  piercingCold: { name: 'Piercing Cold', mpCost: 22, damage: 2.2, element: 'ice', desc: 'Armor-piercing ice shot.', effect: 'armor pierce' },
+  absoluteZero: { name: 'Absolute Zero', mpCost: 45, damage: 2.8, element: 'ice', desc: 'Ultimate ice attack. 50% freeze.', effect: 'freeze' },
   
   // ==================== NATURE WARDEN (Archer) ====================
-  vineArrow: { name: 'Vine Arrow', mpCost: 10, damage: 1.4, element: 'nature', desc: 'Nature arrow. -15% evasion.', effect: '-15% evasion' },
-  natureBounty: { name: "Nature's Bounty", mpCost: 18, damage: 0, element: 'nature', desc: 'Heal 25% HP + regen.', effect: 'heal' },
-  thornBarrage: { name: 'Thorn Barrage', mpCost: 22, damage: 0.6, hits: 4, element: 'nature', desc: '4 thorn shots.' },
-  gaiaWrath: { name: "Gaia's Wrath", mpCost: 38, damage: 3.0, element: 'nature', desc: 'Nature explosion + heal 20%.', effect: 'heal' },
+  thornArrow: { name: 'Thorn Arrow', mpCost: 10, damage: 1.4, element: 'nature', desc: 'Thorny arrow. DoT.', effect: 'thorn' },
+  naturesBlessing: { name: "Nature's Blessing", mpCost: 20, damage: 0, element: 'nature', desc: 'Heal 25% HP, +20% DEF.', effect: 'heal' },
+  vineSnare: { name: 'Vine Snare', mpCost: 15, damage: 0.8, element: 'nature', desc: 'Root enemy. -30% evasion.', effect: 'root' },
+  wildHunt: { name: 'Wild Hunt', mpCost: 40, damage: 0.7, hits: 5, element: 'nature', desc: '5 nature arrows.' },
   
   // ==================== VOID HUNTER (Archer) ====================
-  voidArrow: { name: 'Void Arrow', mpCost: 14, damage: 1.8, element: 'dark', desc: 'Dark arrow. Ignores 20% DEF.' },
-  dimensionalRift: { name: 'Dimensional Rift', mpCost: 20, damage: 2.0, element: 'dark', desc: 'Create rift. -25% DEF.', effect: '-25% DEF' },
-  voidSight: { name: 'Void Sight', mpCost: 16, damage: 0, element: 'dark', desc: '+100% accuracy, see stealth.', effect: '+100% acc' },
-  oblivionShot: { name: 'Oblivion Shot', mpCost: 45, damage: 4.0, element: 'dark', desc: 'Ultimate void arrow.' },
+  voidArrow: { name: 'Void Arrow', mpCost: 15, damage: 1.8, element: 'dark', desc: 'Dark arrow. Ignores 40% DEF.', effect: 'armor pierce' },
+  nullField: { name: 'Null Field', mpCost: 20, damage: 0, element: 'dark', desc: 'Nullify enemy buffs.', effect: 'dispel' },
+  darkVolley: { name: 'Dark Volley', mpCost: 28, damage: 0.6, hits: 4, element: 'dark', desc: '4 void arrows.' },
+  oblivionShot: { name: 'Oblivion Shot', mpCost: 45, damage: 3.5, element: 'dark', desc: 'Ultimate void attack. Massive DMG.' },
   
   // ==================== FROST WEAVER (Mage) ====================
-  frostBolt: { name: 'Frost Bolt', mpCost: 12, damage: 1.6, element: 'ice', desc: 'Ice bolt. -20% ATK.', effect: '-20% ATK' },
-  blizzard: { name: 'Blizzard', mpCost: 28, damage: 0.8, hits: 3, element: 'ice', desc: '3-hit ice storm. 30% freeze.', effect: 'freeze' },
-  iceArmor: { name: 'Ice Armor', mpCost: 20, damage: 0, element: 'ice', desc: '+50 DEF, reflect 20% DMG.', effect: '+50 DEF' },
-  absoluteZero: { name: 'Absolute Zero', mpCost: 50, damage: 4.0, element: 'ice', desc: 'Ultimate ice. 2-turn freeze.', effect: 'freeze' },
+  frostBolt: { name: 'Frost Bolt', mpCost: 12, damage: 1.5, element: 'ice', desc: 'Ice bolt. Slows enemy.', effect: 'slow' },
+  blizzard: { name: 'Blizzard', mpCost: 30, damage: 1.2, element: 'ice', desc: 'AoE ice storm. Slows all.', effect: 'slow' },
+  iceArmor: { name: 'Ice Armor', mpCost: 20, damage: 0, element: 'ice', desc: '+40% P.DEF, reflect 10% DMG.', effect: '+40% P.DEF' },
+  glacialSpike: { name: 'Glacial Spike', mpCost: 45, damage: 3.0, element: 'ice', desc: 'Massive ice spike. 40% freeze.', effect: 'freeze' },
   
   // ==================== PYROMANCER (Mage) ====================
-  flameBurst: { name: 'Flame Burst', mpCost: 12, damage: 1.8, element: 'fire', desc: 'Fire explosion + burn.', effect: 'burn' },
-  meteorShower: { name: 'Meteor Shower', mpCost: 30, damage: 0.9, hits: 3, element: 'fire', desc: '3 meteors + burn.', effect: 'burn' },
-  combustion: { name: 'Combustion', mpCost: 18, damage: 0, element: 'fire', desc: '+40% fire DMG for 3 turns.', effect: '+40% fire' },
-  inferno: { name: 'Inferno', mpCost: 48, damage: 4.2, element: 'fire', desc: 'Ultimate fire + strong burn.', effect: 'burn' },
+  flameBurst: { name: 'Flame Burst', mpCost: 14, damage: 1.8, element: 'fire', desc: 'Fire explosion. Burns.', effect: 'burn' },
+  combustion: { name: 'Combustion', mpCost: 22, damage: 2.2, element: 'fire', desc: 'Spontaneous combustion. High DMG.' },
+  inferno: { name: 'Inferno', mpCost: 35, damage: 1.5, element: 'fire', desc: 'AoE fire wave. Burns all.', effect: 'burn' },
+  hellfire: { name: 'Hellfire', mpCost: 50, damage: 3.8, element: 'fire', desc: 'Ultimate fire magic. Massive DMG.' },
   
   // ==================== STORMCALLER (Mage) ====================
-  lightningBolt: { name: 'Lightning Bolt', mpCost: 14, damage: 1.8, element: 'lightning', desc: 'Lightning strike. High accuracy.' },
-  staticField: { name: 'Static Field', mpCost: 18, damage: 1.2, element: 'lightning', desc: 'AoE shock. -20% accuracy.', effect: '-20% acc' },
-  stormShield: { name: 'Storm Shield', mpCost: 20, damage: 0, element: 'lightning', desc: 'Shield + 25% reflect.', effect: 'shield' },
-  tempest: { name: 'Tempest', mpCost: 45, damage: 1.0, hits: 4, element: 'lightning', desc: '4-hit ultimate storm.' },
+  shock: { name: 'Shock', mpCost: 10, damage: 1.4, element: 'lightning', desc: 'Electric shock.', effect: 'shock' },
+  lightningBolt: { name: 'Lightning Bolt', mpCost: 18, damage: 2.0, element: 'lightning', desc: 'Powerful lightning strike.' },
+  thunderChain: { name: 'Thunder Chain', mpCost: 28, damage: 0.8, hits: 4, element: 'lightning', desc: '4-chain lightning.' },
+  tempest: { name: 'Tempest', mpCost: 48, damage: 1.4, element: 'lightning', desc: 'AoE lightning storm. Massive DMG.' },
   
   // ==================== NECROMANCER (Mage) ====================
-  darkBolt: { name: 'Dark Bolt', mpCost: 12, damage: 1.6, element: 'dark', desc: 'Dark attack + lifesteal.', effect: 'lifesteal' },
-  curseOfWeakness: { name: 'Curse of Weakness', mpCost: 16, damage: 0.8, element: 'dark', desc: '-30% ATK and DEF.', effect: 'weaken' },
-  lifeLeech: { name: 'Life Leech', mpCost: 22, damage: 1.8, element: 'dark', desc: 'Drain HP. Heal 40% DMG.', effect: 'lifesteal' },
-  deathCoil: { name: 'Death Coil', mpCost: 42, damage: 3.8, element: 'dark', desc: 'Ultimate dark + massive heal.', effect: 'lifesteal' },
+  darkBolt: { name: 'Dark Bolt', mpCost: 12, damage: 1.5, element: 'dark', desc: 'Dark magic bolt.', effect: 'drain' },
+  lifeSteal: { name: 'Life Steal', mpCost: 18, damage: 1.2, element: 'dark', desc: 'Drain HP = 50% DMG.', effect: 'lifesteal' },
+  curseOfDeath: { name: 'Curse of Death', mpCost: 25, damage: 0, element: 'dark', desc: '-30% ATK, -30% DEF.', effect: 'curse' },
+  deathCoil: { name: 'Death Coil', mpCost: 45, damage: 3.2, element: 'dark', desc: 'Ultimate dark magic. Heal 30% DMG.' },
   
   // ==================== ARCANIST (Mage) ====================
-  arcaneMissile: { name: 'Arcane Missile', mpCost: 10, damage: 0.6, hits: 3, element: 'none', desc: '3 magic missiles.' },
-  spellAmplify: { name: 'Spell Amplify', mpCost: 18, damage: 0, element: 'none', desc: '+50% M.DMG for 3 turns.', effect: '+50% M.DMG' },
-  manaSurge: { name: 'Mana Surge', mpCost: 15, damage: 0, element: 'none', desc: 'Restore 30% max MP.', effect: 'MP restore' },
-  arcaneBarrage: { name: 'Arcane Barrage', mpCost: 40, damage: 0.7, hits: 6, element: 'none', desc: '6 powerful missiles.' }
+  arcaneMissile: { name: 'Arcane Missile', mpCost: 10, damage: 0.5, hits: 3, element: 'holy', desc: '3 arcane missiles.' },
+  manaSurge: { name: 'Mana Surge', mpCost: 0, damage: 0, element: 'holy', desc: 'Restore 30% MP.', effect: 'mana restore' },
+  arcaneBarrier: { name: 'Arcane Barrier', mpCost: 22, damage: 0, element: 'holy', desc: 'Shield = 150% M.DEF.', effect: 'shield' },
+  arcaneNova: { name: 'Arcane Nova', mpCost: 50, damage: 1.2, hits: 4, element: 'holy', desc: '4-hit arcane explosion.' }
 };
 
-// Element icons for skills
-const ELEMENT_ICONS = {
-  fire: '🔥',
-  ice: '❄️',
-  lightning: '⚡',
-  earth: '🌍',
-  nature: '🌿',
-  dark: '🌑',
-  holy: '✨',
-  none: ''
+// Component for skill cards - reusable
+const SkillCard = ({ skill, skillData }) => {
+  if (!skillData) return null;
+  
+  return (
+    <div className="p-3 bg-void-800/50 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-colors">
+      <div className="flex justify-between items-start mb-1">
+        <span className="font-medium text-purple-300">{skillData.name}</span>
+        <span className="text-xs text-blue-400">{skillData.mpCost} MP</span>
+      </div>
+      <p className="text-xs text-gray-400 mb-1">{skillData.desc}</p>
+      <div className="flex gap-2 text-xs">
+        {skillData.damage > 0 && (
+          <span className="text-red-400">
+            {skillData.hits ? `${Math.round(skillData.damage * 100)}% x${skillData.hits}` : `${Math.round(skillData.damage * 100)}%`}
+          </span>
+        )}
+        {skillData.effect && <span className="text-green-400">{skillData.effect}</span>}
+        {skillData.element !== 'none' && (
+          <span className="text-amber-400 capitalize">{skillData.element}</span>
+        )}
+      </div>
+    </div>
+  );
 };
 
 const StatBar = ({ label, current, max, color, icon }) => {
   const percentage = Math.round((current / max) * 100);
+  const barColor = label === 'HP' 
+    ? 'from-green-500 to-green-400' 
+    : 'from-blue-500 to-blue-400';
   
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-sm">
-        <span className="text-gray-400 flex items-center gap-1">
-          {icon} {label}
-        </span>
+        <span className="text-gray-400">{icon} {label}</span>
         <span className={color}>{current} / {max}</span>
       </div>
       <div className="h-3 bg-void-900 rounded-full overflow-hidden">
         <div 
-          className={'h-full ' + (color === 'text-green-400' ? 'bg-green-500' : 'bg-blue-500') + ' stat-bar transition-all duration-500'}
+          className={`h-full bg-gradient-to-r ${barColor} stat-bar transition-all duration-500`} 
           style={{ width: percentage + '%' }}
         ></div>
       </div>
@@ -231,22 +246,109 @@ const ExpBar = ({ exp, expToLevel, level }) => {
 };
 
 // ============================================================
-// PHASE 7: Derived Stats Calculator
+// PHASE 9.3 FIX: Get equipment stats from character.equipment
 // ============================================================
-const calculateDerivedStats = (stats, level = 1) => {
+const getEquipmentStatsFromCharacter = (equipment) => {
+  const stats = {
+    pAtk: 0, mAtk: 0, pDef: 0, mDef: 0,
+    hp: 0, mp: 0,
+    str: 0, agi: 0, dex: 0, int: 0, vit: 0,
+    critRate: 0, critDmg: 0
+  };
+  
+  if (!equipment) return stats;
+  
+  const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
+  
+  slots.forEach(slot => {
+    const equippedItem = equipment[slot];
+    if (equippedItem && equippedItem.stats) {
+      Object.keys(equippedItem.stats).forEach(statKey => {
+        if (stats.hasOwnProperty(statKey)) {
+          stats[statKey] += equippedItem.stats[statKey] || 0;
+        }
+      });
+    }
+  });
+  
+  return stats;
+};
+
+// ============================================================
+// PHASE 9.3 FIX: Calculate set bonuses from equipped items
+// ============================================================
+const calculateSetBonusesFromEquipment = (equipment) => {
+  // This is a simplified version - the backend has the full set database
+  // For display purposes, we show what sets are active based on setId
+  const setBonuses = {};
+  const setCount = {};
+  
+  if (!equipment) return { bonuses: {}, activeSets: [] };
+  
+  const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
+  
+  // Count items per set
+  slots.forEach(slot => {
+    const item = equipment[slot];
+    if (item && item.setId) {
+      if (!setCount[item.setId]) {
+        setCount[item.setId] = { count: 0, name: item.setId };
+      }
+      setCount[item.setId].count++;
+    }
+  });
+  
+  // Build active sets list for display
+  const activeSets = Object.entries(setCount)
+    .filter(([_, data]) => data.count >= 2)
+    .map(([setId, data]) => ({
+      id: setId,
+      pieces: data.count,
+      // Note: actual bonus values come from the server during combat
+      // This is just for UI indication
+    }));
+  
+  return { activeSets };
+};
+
+// ============================================================
+// PHASE 9.3 FIX: Derived Stats Calculator WITH EQUIPMENT
+// ============================================================
+const calculateDerivedStats = (stats, level = 1, equipment = null) => {
   if (!stats) return null;
   
+  // Get equipment bonuses
+  const equipBonus = getEquipmentStatsFromCharacter(equipment);
+  
+  // Total stats = base + equipment stat bonuses (str, agi, etc.)
+  const totalStr = (stats.str || 0) + (equipBonus.str || 0);
+  const totalAgi = (stats.agi || 0) + (equipBonus.agi || 0);
+  const totalDex = (stats.dex || 0) + (equipBonus.dex || 0);
+  const totalInt = (stats.int || 0) + (equipBonus.int || 0);
+  const totalVit = (stats.vit || 0) + (equipBonus.vit || 0);
+  
   const derived = {
-    pDmg: 5 + (stats.str || 0) * 3,
-    mDmg: 5 + (stats.int || 0) * 4,
-    pDef: (stats.str || 0) * 1 + (stats.vit || 0) * 2,
-    mDef: (stats.vit || 0) * 1 + (stats.int || 0) * 1,
-    critRate: 5 + (stats.agi || 0) * 0.5,
-    critDmg: 150 + (stats.dex || 0) * 1,
-    accuracy: 90 + (stats.dex || 0) * 0.5,
-    evasion: (stats.agi || 0) * 0.3,
-    hpRegen: Math.floor((stats.vit || 0) * 1),
-    mpRegen: Math.floor((stats.int || 0) * 0.5)
+    // Physical damage: base formula + equipment pAtk
+    pDmg: 5 + totalStr * 3 + (equipBonus.pAtk || 0),
+    // Magical damage: base formula + equipment mAtk
+    mDmg: 5 + totalInt * 4 + (equipBonus.mAtk || 0),
+    // Physical defense: base formula + equipment pDef
+    pDef: totalStr * 1 + totalVit * 2 + (equipBonus.pDef || 0),
+    // Magical defense: base formula + equipment mDef
+    mDef: totalVit * 1 + totalInt * 1 + (equipBonus.mDef || 0),
+    // Crit rate: base + equipment critRate
+    critRate: 5 + totalAgi * 0.5 + (equipBonus.critRate || 0),
+    // Crit damage: base + equipment critDmg
+    critDmg: 150 + totalDex * 1 + (equipBonus.critDmg || 0),
+    accuracy: 90 + totalDex * 0.5,
+    evasion: totalAgi * 0.3,
+    hpRegen: Math.floor(totalVit * 1),
+    mpRegen: Math.floor(totalInt * 0.5),
+    // Bonus HP/MP from equipment
+    bonusHp: equipBonus.hp || 0,
+    bonusMp: equipBonus.mp || 0,
+    // Equipment totals for display
+    equipmentBonus: equipBonus
   };
   
   // Level bonus (+2% per level)
@@ -287,8 +389,11 @@ const GamePage = () => {
   ]);
   const navigate = useNavigate();
 
-  // Calculate derived stats for display
-  const derivedStats = character ? calculateDerivedStats(character.stats, character.level) : null;
+  // FIXED: Calculate derived stats WITH EQUIPMENT
+  const derivedStats = character ? calculateDerivedStats(character.stats, character.level, character.equipment) : null;
+  
+  // Get set bonus info for display
+  const setInfo = character ? calculateSetBonusesFromEquipment(character.equipment) : { activeSets: [] };
 
   useEffect(() => {
     const interval = setInterval(() => refreshCharacter(), 60000);
@@ -395,316 +500,357 @@ const GamePage = () => {
           </div>
 
           <div className="space-y-3 mb-6">
-            <StatBar label="HP" current={character.stats.hp} max={character.stats.maxHp} color="text-green-400" icon="❤️"/>
-            <StatBar label="MP" current={character.stats.mp} max={character.stats.maxMp} color="text-blue-400" icon="💎"/>
+            <StatBar label="HP" current={character.stats.hp} max={character.stats.maxHp + (derivedStats?.bonusHp || 0)} color="text-green-400" icon="❤️"/>
+            <StatBar label="MP" current={character.stats.mp} max={character.stats.maxMp + (derivedStats?.bonusMp || 0)} color="text-blue-400" icon="💎"/>
           </div>
 
           <div className="mb-6">
-            <EnergyBar energy={character.energy} />
-            <p className="text-xs text-gray-600 mt-1">+25 energy per hour</p>
+            <EnergyBar energy={character.energy}/>
           </div>
 
-          <div className="space-y-2">
-            {/* Rest button - disabled when in tower */}
-            <button 
-              onClick={handleRest} 
-              disabled={isResting || character.stats.hp >= character.stats.maxHp || isInTower} 
-              className={`w-full btn-secondary text-sm py-2 disabled:opacity-50 ${isInTower ? 'cursor-not-allowed' : ''}`}
-              title={isInTower ? 'Cannot rest while inside tower' : ''}
-            >
-              {isResting ? 'Resting...' : `🛏️ Rest (${restCost}g)`}
-            </button>
-            {isInTower && (
-              <p className="text-xs text-red-400 text-center">⚠️ Leave tower to rest</p>
-            )}
+          <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-4">
+            <span className="text-amber-400 flex items-center gap-2">
+              <span>💰</span>
+              <span className="font-bold">{character.gold.toLocaleString()}</span>
+            </span>
+            <span className="text-gray-500 text-xs">Gold</span>
           </div>
 
-          {/* Collapsible Activity Log - Latest at top */}
-          <div className="mt-4">
-            <button 
-              onClick={() => setShowActivityLog(!showActivityLog)} 
-              className="w-full flex items-center justify-between text-gray-400 text-sm py-2 px-3 bg-void-900/50 rounded-lg hover:bg-void-900 transition-colors"
-            >
-              <span>📜 Activity Log</span>
-              <span className="text-xs">{showActivityLog ? '▼' : '▶'}</span>
-            </button>
-            {showActivityLog && (
-              <div className="mt-2 h-32 bg-void-900/50 rounded-lg p-2 overflow-y-auto">
-                <div className="font-mono text-xs space-y-1">
-                  {[...gameLog].reverse().slice(0, 20).map((log, i) => (
-                    <div key={i} className={log.type === 'system' ? 'text-purple-400' : log.type === 'success' ? 'text-green-400' : log.type === 'error' ? 'text-red-400' : log.type === 'combat' ? 'text-amber-400' : 'text-gray-400'}>
-                      <span className="text-gray-600 mr-1">[{log.timestamp.toLocaleTimeString()}]</span>
-                      {log.message}
-                    </div>
-                  ))}
+          {/* QUICK STATS WITH EQUIPMENT */}
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="p-2 bg-void-800/30 rounded border border-red-500/10 text-center">
+              <div className="text-lg font-bold text-red-400">{derivedStats?.pDmg || 0}</div>
+              <div className="text-[10px] text-gray-500">⚔️ P.DMG</div>
+            </div>
+            <div className="p-2 bg-void-800/30 rounded border border-purple-500/10 text-center">
+              <div className="text-lg font-bold text-purple-400">{derivedStats?.mDmg || 0}</div>
+              <div className="text-[10px] text-gray-500">✨ M.DMG</div>
+            </div>
+            <div className="p-2 bg-void-800/30 rounded border border-gray-500/10 text-center">
+              <div className="text-lg font-bold text-gray-300">{derivedStats?.pDef || 0}</div>
+              <div className="text-[10px] text-gray-500">🛡️ P.DEF</div>
+            </div>
+            <div className="p-2 bg-void-800/30 rounded border border-indigo-500/10 text-center">
+              <div className="text-lg font-bold text-indigo-400">{derivedStats?.mDef || 0}</div>
+              <div className="text-[10px] text-gray-500">🔰 M.DEF</div>
+            </div>
+          </div>
+          
+          {/* ACTIVE SET BONUSES INDICATOR */}
+          {setInfo.activeSets.length > 0 && (
+            <div className="mb-4 p-2 bg-green-500/10 rounded border border-green-500/20">
+              <div className="text-xs text-green-400 font-semibold mb-1">🎯 Active Sets</div>
+              {setInfo.activeSets.map((set, idx) => (
+                <div key={idx} className="text-xs text-green-300">
+                  {set.id} ({set.pieces}pc)
                 </div>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
+
+          <button 
+            onClick={() => setShowCombatStats(true)}
+            className="w-full mb-2 py-2 text-sm bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-purple-300 transition-colors"
+          >
+            ⚔️ View Combat Stats
+          </button>
+
+          <button 
+            onClick={handleRest}
+            disabled={isResting || character.gold < restCost || isInTower}
+            className="w-full py-2 text-sm bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 rounded-lg text-green-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isInTower ? '🏰 In Tower...' : isResting ? 'Resting...' : `🛏️ Rest (${restCost}g)`}
+          </button>
         </aside>
 
-        <main className="flex-1 flex flex-col">
-          <nav className="bg-void-800/30 border-b border-purple-500/10">
-            <div className="flex">
-              {/* Tab order: Status, Tower, Items, Tavern */}
-              {[
-                { id: 'status', label: '📊 Status', icon: '📊', disabledInTower: false },
-                { id: 'tower', label: '🗼 Tower', icon: '🗼', disabledInTower: false },
-                { id: 'inventory', label: '🎒 Items', icon: '🎒', disabledInTower: false },
-                { id: 'tavern', label: '🍺 Tavern', icon: '🍺', disabledInTower: true }
-              ].map(tab => {
-                const isDisabled = isInTower && tab.disabledInTower;
-                return (
-                  <button 
-                    key={tab.id} 
-                    onClick={() => !isDisabled && setActiveTab(tab.id)} 
-                    disabled={isDisabled}
-                    className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-                      activeTab === tab.id 
-                        ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-500/5' 
-                        : isDisabled
-                          ? 'text-gray-600 cursor-not-allowed opacity-50'
-                          : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                    title={isDisabled ? 'Cannot access while in tower' : ''}
-                  >
-                    <span className="hidden sm:inline">{tab.label}</span>
-                    <span className="sm:hidden">{tab.icon}</span>
-                    {isDisabled && <span className="ml-1 text-xs">🔒</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
+        <main className="flex-1 p-4">
+          <div className="flex border-b border-purple-500/20 mb-4 overflow-x-auto">
+            {[
+              { id: 'status', label: '👤 Status', icon: '👤' },
+              { id: 'tower', label: '🏰 Tower', icon: '🏰' },
+              { id: 'inventory', label: '🎒 Items', icon: '🎒' },
+              { id: 'tavern', label: '🍺 Tavern', icon: '🍺' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'text-purple-400 border-b-2 border-purple-400'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-          <div className="flex-1 p-4 md:p-6 overflow-auto">
-            {/* STATUS TAB with Sub-tabs */}
-            {activeTab === 'status' && (
-              <div className="max-w-4xl mx-auto space-y-4">
-                {/* Sub-tab Navigation */}
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setStatusSubTab('info')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                      statusSubTab === 'info' 
-                        ? 'bg-purple-600 text-white' 
-                        : 'bg-void-800/50 text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    👤 Hunter Info
-                  </button>
-                  <button 
-                    onClick={() => setStatusSubTab('combat')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                      statusSubTab === 'combat' 
-                        ? 'bg-purple-600 text-white' 
-                        : 'bg-void-800/50 text-gray-400 hover:text-white'
-                    }`}
-                  >
-                    ⚔️ Combat Info
-                  </button>
-                </div>
+          {activeTab === 'status' && (
+            <div className="space-y-4">
+              {/* Sub-tabs for Status */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  onClick={() => setStatusSubTab('info')}
+                  className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                    statusSubTab === 'info' 
+                      ? 'bg-purple-600/30 text-purple-300 border border-purple-500/30' 
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  👤 Hunter Info
+                </button>
+                <button
+                  onClick={() => setStatusSubTab('combat')}
+                  className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                    statusSubTab === 'combat' 
+                      ? 'bg-purple-600/30 text-purple-300 border border-purple-500/30' 
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  ⚔️ Combat Info
+                </button>
+              </div>
 
-                {/* Hunter Info Sub-tab (Hunter Status + Statistics) */}
-                {statusSubTab === 'info' && (
-                  <div className="space-y-6">
-                    {/* Hunter Status Card */}
-                    <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                      <h3 className="font-display text-lg text-purple-400 mb-4">HUNTER STATUS</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                          <div className="flex justify-between py-2 border-b border-gray-700/30">
-                            <span className="text-gray-400">Name</span>
-                            <span className="text-white">{character.name}</span>
-                          </div>
-                          <div className="flex justify-between py-2 border-b border-gray-700/30">
-                            <span className="text-gray-400">Class</span>
-                            <span className={CLASS_COLORS[character.baseClass]}>
-                              {CLASS_ICONS[character.baseClass]} {character.baseClass.charAt(0).toUpperCase() + character.baseClass.slice(1)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between py-2 border-b border-gray-700/30">
-                            <span className="text-gray-400">Hidden Class</span>
-                            <span className={character.hiddenClass !== 'none' ? 'text-purple-400' : 'text-gray-600'}>
-                              {character.hiddenClass !== 'none' 
-                                ? `${HIDDEN_CLASS_ICONS[character.hiddenClass] || ''} ${character.hiddenClass}` 
-                                : 'Not Unlocked'}
-                            </span>
-                          </div>
-                          <div className="flex justify-between py-2 border-b border-gray-700/30">
-                            <span className="text-gray-400">Level</span>
-                            <span className="text-amber-400">{character.level}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-4">
-                          <div className="flex justify-between py-2 border-b border-gray-700/30">
-                            <span className="text-gray-400">Current Tower</span>
-                            <span className="text-white">{character.currentTower}</span>
-                          </div>
-                          <div className="flex justify-between py-2 border-b border-gray-700/30">
-                            <span className="text-gray-400">Current Floor</span>
-                            <span className="text-white">{character.currentFloor}</span>
-                          </div>
-                          <div className="flex justify-between py-2 border-b border-gray-700/30">
-                            <span className="text-gray-400">Gold</span>
-                            <span className="text-amber-400">💰 {character.gold}</span>
-                          </div>
-                          <div className="flex justify-between py-2 border-b border-gray-700/30">
-                            <span className="text-gray-400">Memory Crystals</span>
-                            <span className="text-cyan-400">💎 {character.memoryCrystals}</span>
-                          </div>
-                        </div>
-                      </div>
+              {statusSubTab === 'info' && (
+                <>
+                  {/* Base Stats */}
+                  <div className="game-panel p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-display text-lg text-purple-400">Base Stats</h3>
+                      {character.statPoints > 0 && (
+                        <button
+                          onClick={() => setShowStatModal(true)}
+                          className="px-3 py-1 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/30 rounded text-purple-300 text-sm transition-colors"
+                        >
+                          +{character.statPoints} Points
+                        </button>
+                      )}
                     </div>
-
-                    {/* Statistics Card */}
-                    <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                      <h3 className="font-display text-lg text-purple-400 mb-4">📈 STATISTICS</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="text-center p-3 bg-void-900/50 rounded-lg">
-                          <div className="text-2xl font-bold text-red-400">{character.statistics?.totalKills || 0}</div>
-                          <div className="text-xs text-gray-500">Total Kills</div>
-                        </div>
-                        <div className="text-center p-3 bg-void-900/50 rounded-lg">
-                          <div className="text-2xl font-bold text-purple-400">{character.statistics?.bossKills || 0}</div>
-                          <div className="text-xs text-gray-500">Boss Kills</div>
-                        </div>
-                        <div className="text-center p-3 bg-void-900/50 rounded-lg">
-                          <div className="text-2xl font-bold text-blue-400">{character.statistics?.floorsCleared || 0}</div>
-                          <div className="text-xs text-gray-500">Floors Cleared</div>
-                        </div>
-                        <div className="text-center p-3 bg-void-900/50 rounded-lg">
-                          <div className="text-2xl font-bold text-amber-400">{character.statistics?.scrollsFound || 0}</div>
-                          <div className="text-xs text-gray-500">Scrolls Found</div>
-                        </div>
-                      </div>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[
+                        { key: 'str', label: 'STR', icon: '💪', color: 'text-red-400' },
+                        { key: 'agi', label: 'AGI', icon: '⚡', color: 'text-yellow-400' },
+                        { key: 'dex', label: 'DEX', icon: '🎯', color: 'text-green-400' },
+                        { key: 'int', label: 'INT', icon: '🔮', color: 'text-blue-400' },
+                        { key: 'vit', label: 'VIT', icon: '❤️', color: 'text-pink-400' }
+                      ].map(stat => {
+                        const equipBonus = derivedStats?.equipmentBonus?.[stat.key] || 0;
+                        return (
+                          <div key={stat.key} className="text-center p-2 bg-void-800/30 rounded-lg">
+                            <div className="text-xl mb-1">{stat.icon}</div>
+                            <div className={`text-lg font-bold ${stat.color}`}>
+                              {character.stats[stat.key]}
+                              {equipBonus > 0 && (
+                                <span className="text-green-400 text-sm"> +{equipBonus}</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500">{stat.label}</div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                )}
 
-                {/* Combat Info Sub-tab (Stats + Combat Stats + Skills) */}
-                {statusSubTab === 'combat' && (
-                  <div className="space-y-6">
-                    {/* Stats + Combat Stats Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Base Stats */}
-                      <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-display text-lg text-purple-400">📊 STATS</h3>
-                          {character.statPoints > 0 && (
-                            <button onClick={() => setShowStatModal(true)} className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs">
-                              +{character.statPoints} Points
-                            </button>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">STR</span><span className="text-red-400 font-bold">{character.stats.str}</span></div>
-                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">AGI</span><span className="text-indigo-400 font-bold">{character.stats.agi}</span></div>
-                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">DEX</span><span className="text-green-400 font-bold">{character.stats.dex}</span></div>
-                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">INT</span><span className="text-purple-400 font-bold">{character.stats.int}</span></div>
-                          <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">VIT</span><span className="text-amber-400 font-bold">{character.stats.vit}</span></div>
-                        </div>
-                      </div>
-
-                      {/* Combat Stats */}
-                      <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                        <h3 className="font-display text-lg text-purple-400 mb-4">⚔️ COMBAT STATS</h3>
-                        {derivedStats && (
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">P.ATK</span><span className="text-orange-400">{derivedStats.pDmg}</span></div>
-                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">M.ATK</span><span className="text-cyan-400">{derivedStats.mDmg}</span></div>
-                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">P.DEF</span><span className="text-amber-400">{derivedStats.pDef}</span></div>
-                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">Crit Rate</span><span className="text-yellow-400">{derivedStats.critRate.toFixed(1)}%</span></div>
-                            <div className="flex justify-between p-2 bg-void-900/50 rounded"><span className="text-gray-400">Crit DMG</span><span className="text-red-400">{derivedStats.critDmg}%</span></div>
+                  {/* Equipment Preview */}
+                  <div className="game-panel p-4">
+                    <h3 className="font-display text-lg text-purple-400 mb-3">Equipment</h3>
+                    <div className="grid grid-cols-4 gap-2">
+                      {['head', 'body', 'leftHand', 'rightHand', 'leg', 'shoes', 'ring', 'necklace'].map(slot => {
+                        const item = character.equipment?.[slot];
+                        const slotIcons = {
+                          head: '⛑️', body: '🛡️', leftHand: '🧥', rightHand: '⚔️',
+                          leg: '🧤', shoes: '👢', ring: '💍', necklace: '📿'
+                        };
+                        const slotLabels = {
+                          head: 'Head', body: 'Body', leftHand: 'Cape', rightHand: 'Weapon',
+                          leg: 'Hands', shoes: 'Feet', ring: 'Ring', necklace: 'Neck'
+                        };
+                        return (
+                          <div 
+                            key={slot} 
+                            className={`p-2 rounded-lg text-center ${
+                              item?.itemId 
+                                ? 'bg-purple-600/20 border border-purple-500/30' 
+                                : 'bg-void-800/30 border border-gray-700/30'
+                            }`}
+                            title={item?.name || 'Empty'}
+                          >
+                            <div className="text-xl">{item?.icon || slotIcons[slot]}</div>
+                            <div className="text-[10px] text-gray-500">{slotLabels[slot]}</div>
+                            {item?.name && (
+                              <div className="text-[9px] text-purple-300 truncate">{item.name}</div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })}
                     </div>
+                  </div>
 
-                    {/* Skills Section */}
-                    <div className="bg-void-800/50 rounded-xl p-6 neon-border">
-                      <h3 className="font-display text-lg text-purple-400 mb-4">⚡ SKILLS ({character.skills?.length || 0})</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {character.skills?.map((skill, index) => {
-                          const skillData = SKILL_DATABASE[skill.skillId] || {};
-                          const elementIcon = ELEMENT_ICONS[skillData.element] || '';
-                          let dmgText = '';
-                          if (skillData.damage > 0) {
-                            const dmgPercent = Math.round(skillData.damage * 100);
-                            const dmgType = ['fire', 'ice', 'lightning', 'dark', 'holy', 'nature'].includes(skillData.element) ? 'MDmg' : 'PDmg';
-                            dmgText = skillData.hits > 1 ? `${skillData.hits}x${dmgPercent}% ${dmgType}` : `${dmgPercent}% ${dmgType}`;
-                          }
-                          return (
-                            <div key={index} className="p-4 rounded-lg border bg-void-900/50 border-purple-500/30">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-white">{elementIcon} {skillData.name || skill.name}</h4>
-                                <span className="text-xs px-2 py-1 rounded bg-blue-600/30 text-blue-400">{skillData.mpCost}MP</span>
-                              </div>
-                              <p className="text-sm text-gray-400 mb-2">{skillData.desc}</p>
-                              <div className="flex flex-wrap gap-2">
-                                {dmgText && <span className={`text-xs px-2 py-0.5 rounded ${['fire','ice','lightning','dark','holy','nature'].includes(skillData.element) ? 'bg-cyan-500/20 text-cyan-400' : 'bg-orange-500/20 text-orange-400'}`}>{dmgText}</span>}
-                                {skillData.effect && <span className="text-xs px-2 py-0.5 bg-purple-500/20 rounded text-purple-400">{skillData.effect}</span>}
-                              </div>
-                            </div>
-                          );
-                        })}
+                  {/* Skills Section */}
+                  <div className="game-panel p-4">
+                    <h3 className="font-display text-lg text-purple-400 mb-3">Skills</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-96 overflow-y-auto">
+                      {(character.skills || []).map((skill, idx) => {
+                        const skillData = SKILL_DATABASE[skill.skillId];
+                        return skillData ? (
+                          <SkillCard key={idx} skill={skill} skillData={skillData} />
+                        ) : (
+                          <div key={idx} className="p-3 bg-void-800/50 rounded-lg border border-gray-700/30">
+                            <span className="text-gray-400">{skill.name || skill.skillId}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {statusSubTab === 'combat' && (
+                <div className="game-panel p-4">
+                  <h3 className="font-display text-lg text-purple-400 mb-4">Combat Statistics</h3>
+                  
+                  {derivedStats && (
+                    <div className="space-y-4">
+                      {/* Offensive */}
+                      <div>
+                        <h4 className="text-sm text-gray-500 mb-2 font-semibold">OFFENSIVE</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="p-3 bg-void-900/50 rounded-lg border border-red-500/20">
+                            <div className="text-2xl font-bold text-red-400">{derivedStats.pDmg}</div>
+                            <div className="text-xs text-gray-500">⚔️ Physical DMG</div>
+                          </div>
+                          <div className="p-3 bg-void-900/50 rounded-lg border border-purple-500/20">
+                            <div className="text-2xl font-bold text-purple-400">{derivedStats.mDmg}</div>
+                            <div className="text-xs text-gray-500">✨ Magic DMG</div>
+                          </div>
+                          <div className="p-3 bg-void-900/50 rounded-lg border border-yellow-500/20">
+                            <div className="text-2xl font-bold text-yellow-400">{derivedStats.critRate.toFixed(1)}%</div>
+                            <div className="text-xs text-gray-500">🎯 Crit Rate</div>
+                          </div>
+                          <div className="p-3 bg-void-900/50 rounded-lg border border-orange-500/20">
+                            <div className="text-2xl font-bold text-orange-400">{derivedStats.critDmg}%</div>
+                            <div className="text-xs text-gray-500">💥 Crit DMG</div>
+                          </div>
+                        </div>
                       </div>
-                      {character.hiddenClass === 'none' && (
-                        <div className="mt-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                          <p className="text-purple-400 text-sm text-center">🔮 Unlock a Hidden Class to gain 4 additional powerful skills!</p>
+                      
+                      {/* Defensive */}
+                      <div>
+                        <h4 className="text-sm text-gray-500 mb-2 font-semibold">DEFENSIVE</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="p-3 bg-void-900/50 rounded-lg border border-gray-500/20">
+                            <div className="text-2xl font-bold text-gray-300">{derivedStats.pDef}</div>
+                            <div className="text-xs text-gray-500">🛡️ Physical DEF</div>
+                          </div>
+                          <div className="p-3 bg-void-900/50 rounded-lg border border-indigo-500/20">
+                            <div className="text-2xl font-bold text-indigo-400">{derivedStats.mDef}</div>
+                            <div className="text-xs text-gray-500">🔰 Magic DEF</div>
+                          </div>
+                          <div className="p-3 bg-void-900/50 rounded-lg border border-cyan-500/20">
+                            <div className="text-2xl font-bold text-cyan-400">{derivedStats.evasion.toFixed(1)}%</div>
+                            <div className="text-xs text-gray-500">💨 Evasion</div>
+                          </div>
+                          <div className="p-3 bg-void-900/50 rounded-lg border border-blue-500/20">
+                            <div className="text-2xl font-bold text-blue-400">{derivedStats.accuracy.toFixed(1)}%</div>
+                            <div className="text-xs text-gray-500">👁️ Accuracy</div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Equipment Bonuses */}
+                      {derivedStats.equipmentBonus && (
+                        <div>
+                          <h4 className="text-sm text-gray-500 mb-2 font-semibold">EQUIPMENT BONUSES</h4>
+                          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                            {Object.entries(derivedStats.equipmentBonus).map(([stat, value]) => (
+                              value > 0 && (
+                                <div key={stat} className="p-2 bg-green-500/10 rounded border border-green-500/20 text-center">
+                                  <div className="text-sm font-bold text-green-400">+{value}</div>
+                                  <div className="text-[10px] text-gray-500 uppercase">{stat}</div>
+                                </div>
+                              )
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Active Sets */}
+                      {setInfo.activeSets.length > 0 && (
+                        <div>
+                          <h4 className="text-sm text-gray-500 mb-2 font-semibold">ACTIVE SET BONUSES</h4>
+                          <div className="space-y-2">
+                            {setInfo.activeSets.map((set, idx) => (
+                              <div key={idx} className="p-3 bg-amber-500/10 rounded border border-amber-500/20">
+                                <div className="text-amber-400 font-semibold">{set.id}</div>
+                                <div className="text-xs text-amber-300">{set.pieces} pieces equipped</div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'tower' && (
-              <div className="max-w-4xl mx-auto">
-                <TowerPanel 
-                  character={character} 
-                  onCharacterUpdate={refreshCharacter}
-                  updateLocalCharacter={updateLocalCharacter}
-                  addLog={addLog}
-                  onTowerStateChange={handleTowerStateChange}
-                />
-              </div>
-            )}
-
-            {activeTab === 'inventory' && (
-              <div className="max-w-4xl mx-auto">
-                <InventoryPanel 
-                  character={character} 
-                  onCharacterUpdate={refreshCharacter}
-                  addLog={addLog}
-                />
-              </div>
-            )}
-
-            {activeTab === 'tavern' && !isInTower && (
-              <div className="max-w-4xl mx-auto">
-                <TavernPanel 
-                  character={character} 
-                  onCharacterUpdate={refreshCharacter}
-                  addLog={addLog}
-                />
-              </div>
-            )}
-
-            {activeTab === 'tavern' && isInTower && (
-              <div className="max-w-4xl mx-auto">
-                <div className="bg-void-800/50 rounded-xl p-6 neon-border text-center">
-                  <div className="text-6xl mb-4">🔒</div>
-                  <h3 className="font-display text-xl text-red-400 mb-2">Tavern Locked</h3>
-                  <p className="text-gray-400">You cannot access the tavern while inside a tower.</p>
-                  <p className="text-gray-500 text-sm mt-2">Leave the tower first to buy, sell, or trade items.</p>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          )}
 
-          </div>
+          {activeTab === 'tower' && (
+            <TowerPanel 
+              character={character} 
+              addLog={addLog} 
+              refreshCharacter={refreshCharacter}
+              updateLocalCharacter={updateLocalCharacter}
+              onTowerStateChange={handleTowerStateChange}
+            />
+          )}
+
+          {activeTab === 'inventory' && (
+            <InventoryPanel 
+              character={character} 
+              addLog={addLog} 
+              refreshCharacter={refreshCharacter}
+            />
+          )}
+
+          {activeTab === 'tavern' && (
+            <TavernPanel 
+              character={character} 
+              addLog={addLog} 
+              refreshCharacter={refreshCharacter}
+            />
+          )}
         </main>
+
+        {/* Activity Log - Collapsible */}
+        <aside className={`lg:w-64 bg-void-800/30 border-t lg:border-t-0 lg:border-l border-purple-500/10 transition-all ${showActivityLog ? 'p-3' : 'p-1'}`}>
+          <button 
+            onClick={() => setShowActivityLog(!showActivityLog)}
+            className="w-full flex items-center justify-between text-sm text-gray-500 hover:text-gray-300 mb-2"
+          >
+            <span>📜 Activity Log</span>
+            <span>{showActivityLog ? '▼' : '▲'}</span>
+          </button>
+          {showActivityLog && (
+            <div className="space-y-1 max-h-96 overflow-y-auto text-xs">
+              {[...gameLog].reverse().map((log, idx) => (
+                <div 
+                  key={idx}
+                  className={`p-2 rounded ${
+                    log.type === 'error' ? 'bg-red-500/10 text-red-400' :
+                    log.type === 'success' ? 'bg-green-500/10 text-green-400' :
+                    log.type === 'combat' ? 'bg-orange-500/10 text-orange-400' :
+                    log.type === 'system' ? 'bg-purple-500/10 text-purple-400' :
+                    'bg-void-800/50 text-gray-400'
+                  }`}
+                >
+                  {log.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </aside>
       </div>
 
       {/* Stat Allocation Modal */}
@@ -712,31 +858,36 @@ const GamePage = () => {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-void-800 rounded-xl p-6 w-full max-w-md neon-border">
             <h2 className="font-display text-xl text-purple-400 mb-4">Allocate Stats</h2>
-            <p className="text-gray-400 mb-4">Points available: <span className="text-purple-400">{character.statPoints - Object.values(pendingStats).reduce((a, b) => a + b, 0)}</span></p>
+            <p className="text-gray-400 text-sm mb-4">Available points: <span className="text-purple-400 font-bold">{character.statPoints - Object.values(pendingStats).reduce((a, b) => a + b, 0)}</span></p>
             
             <div className="space-y-3">
               {[
-                { id: 'str', name: 'Strength', color: 'text-red-400', desc: 'Physical damage' },
-                { id: 'agi', name: 'Agility', color: 'text-indigo-400', desc: 'Crit & evasion' },
-                { id: 'dex', name: 'Dexterity', color: 'text-green-400', desc: 'Accuracy & precision' },
-                { id: 'int', name: 'Intelligence', color: 'text-purple-400', desc: 'Magic damage & MP' },
-                { id: 'vit', name: 'Vitality', color: 'text-amber-400', desc: 'HP & defense' }
+                { key: 'str', label: 'Strength', icon: '💪', desc: '+3 P.DMG, +1 P.DEF' },
+                { key: 'agi', label: 'Agility', icon: '⚡', desc: '+0.5% Crit, +0.3% Evasion' },
+                { key: 'dex', label: 'Dexterity', icon: '🎯', desc: '+0.5% Accuracy, +1% Crit DMG' },
+                { key: 'int', label: 'Intelligence', icon: '🔮', desc: '+4 M.DMG, +1 M.DEF' },
+                { key: 'vit', label: 'Vitality', icon: '❤️', desc: '+2 P.DEF, +1 M.DEF' }
               ].map(stat => (
-                <div key={stat.id} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
+                <div key={stat.key} className="flex items-center justify-between p-3 bg-void-900/50 rounded-lg">
                   <div>
-                    <span className={stat.color + ' font-bold'}>{stat.name}</span>
-                    <span className="text-gray-500 text-xs ml-2">({stat.desc})</span>
-                    <div className="text-sm text-gray-400">
-                      Current: {character.stats[stat.id]} {pendingStats[stat.id] > 0 && <span className="text-green-400">+{pendingStats[stat.id]}</span>}
-                    </div>
+                    <span className="text-lg mr-2">{stat.icon}</span>
+                    <span className="text-white">{stat.label}</span>
+                    <span className="text-gray-500 ml-2">({character.stats[stat.key]})</span>
+                    {pendingStats[stat.key] > 0 && (
+                      <span className="text-green-400 ml-1">+{pendingStats[stat.key]}</span>
+                    )}
+                    <div className="text-xs text-gray-600 mt-1">{stat.desc}</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => addPendingStat(stat.id, -1)} disabled={pendingStats[stat.id] <= 0}
-                      className="w-8 h-8 bg-red-600 hover:bg-red-500 rounded disabled:opacity-30">-</button>
-                    <span className="w-8 text-center text-white">{pendingStats[stat.id]}</span>
-                    <button onClick={() => addPendingStat(stat.id, 1)} 
-                      disabled={Object.values(pendingStats).reduce((a, b) => a + b, 0) >= character.statPoints}
-                      className="w-8 h-8 bg-green-600 hover:bg-green-500 rounded disabled:opacity-30">+</button>
+                    <button 
+                      onClick={() => addPendingStat(stat.key, -1)}
+                      className="w-8 h-8 rounded bg-red-600/30 text-red-400 hover:bg-red-600/50"
+                      disabled={pendingStats[stat.key] === 0}
+                    >-</button>
+                    <button 
+                      onClick={() => addPendingStat(stat.key, 1)}
+                      className="w-8 h-8 rounded bg-green-600/30 text-green-400 hover:bg-green-600/50"
+                    >+</button>
                   </div>
                 </div>
               ))}
@@ -829,6 +980,22 @@ const GamePage = () => {
                 </div>
               </div>
             </div>
+            
+            {/* Equipment Bonuses in Modal */}
+            {derivedStats.equipmentBonus && Object.values(derivedStats.equipmentBonus).some(v => v > 0) && (
+              <div className="mb-4">
+                <h3 className="text-sm text-gray-500 mb-2 font-semibold">EQUIPMENT BONUSES</h3>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(derivedStats.equipmentBonus).map(([stat, value]) => (
+                    value > 0 && (
+                      <span key={stat} className="px-2 py-1 bg-green-500/20 rounded text-green-400 text-xs">
+                        +{value} {stat.toUpperCase()}
+                      </span>
+                    )
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* Stat Formulas */}
             <div className="text-xs text-gray-600 space-y-1 border-t border-gray-700/50 pt-3">
