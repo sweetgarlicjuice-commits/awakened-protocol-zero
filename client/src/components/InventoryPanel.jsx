@@ -4,10 +4,10 @@ import { tavernAPI } from '../services/api';
 var EQUIPMENT_SLOTS = [
   { id: 'head', name: 'Head', icon: '🧢' },
   { id: 'body', name: 'Body', icon: '👕' },
-  { id: 'leg', name: 'Leg', icon: '👖' },
-  { id: 'shoes', name: 'Shoes', icon: '👢' },
-  { id: 'leftHand', name: 'Weapon', icon: '🗡️' },
-  { id: 'rightHand', name: 'Off-hand', icon: '🛡️' },
+  { id: 'leg', name: 'Hands', icon: '🧤' },
+  { id: 'shoes', name: 'Feet', icon: '👢' },
+  { id: 'rightHand', name: 'Weapon', icon: '⚔️' },
+  { id: 'leftHand', name: 'Off-hand', icon: '🛡️' },
   { id: 'ring', name: 'Ring', icon: '💍' },
   { id: 'necklace', name: 'Necklace', icon: '📿' }
 ];
@@ -191,20 +191,29 @@ function getItemDescription(item) {
 }
 
 // Map slot names to equipment slot IDs
+// PHASE 9.3.3 FIX: Corrected weapon→rightHand mapping
 function getEquipSlotId(item) {
-  if (!item.slot) return null;
+  if (!item.slot && !item.subtype) return null;
+  var slotValue = item.slot || item.subtype;
   
   var slotMap = {
-    'weapon': 'leftHand',
-    'leftHand': 'leftHand',
-    'offhand': 'rightHand',
+    'weapon': 'rightHand',
+    'mainHand': 'rightHand',
+    'mainhand': 'rightHand',
     'rightHand': 'rightHand',
-    'shield': 'rightHand',
+    'offhand': 'leftHand',
+    'offHand': 'leftHand',
+    'leftHand': 'leftHand',
+    'shield': 'leftHand',
+    'cape': 'leftHand',
     'head': 'head',
     'helmet': 'head',
     'body': 'body',
     'chest': 'body',
     'armor': 'body',
+    'hands': 'leg',
+    'gloves': 'leg',
+    'gauntlets': 'leg',
     'leg': 'leg',
     'legs': 'leg',
     'pants': 'leg',
@@ -213,11 +222,12 @@ function getEquipSlotId(item) {
     'feet': 'shoes',
     'ring': 'ring',
     'necklace': 'necklace',
+    'pendant': 'necklace',
     'amulet': 'necklace',
     'accessory': 'ring'
   };
   
-  return slotMap[item.slot.toLowerCase()] || item.slot;
+  return slotMap[slotValue] || slotMap[slotValue.toLowerCase()] || slotValue;
 }
 
 var InventoryPanel = function(props) {
@@ -316,18 +326,6 @@ var InventoryPanel = function(props) {
       addLog('success', response.data.message);
       onCharacterUpdate();
       setSplitModal(null);
-    } catch (err) {
-      addLog('error', err.response?.data?.error || 'Failed');
-    }
-    setIsLoading(false);
-  };
-
-  var handleCombineStacks = async function(itemId) {
-    setIsLoading(true);
-    try {
-      var response = await tavernAPI.combineStacks(itemId);
-      addLog('success', response.data.message);
-      onCharacterUpdate();
     } catch (err) {
       addLog('error', err.response?.data?.error || 'Failed');
     }
@@ -659,10 +657,6 @@ var InventoryPanel = function(props) {
                         {canSplit(item) && (
                           <button onClick={function(e) { e.stopPropagation(); setSplitModal(item); setSplitQty(1); }} disabled={isLoading}
                             className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs">Split</button>
-                        )}
-                        {item.stackable && (
-                          <button onClick={function(e) { e.stopPropagation(); handleCombineStacks(item.itemId); }} disabled={isLoading}
-                            className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 rounded text-xs">Combine</button>
                         )}
                         <button onClick={function(e) { e.stopPropagation(); handleDiscardItem(item.itemId); }} disabled={isLoading}
                           className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-xs">🗑️ Discard</button>
