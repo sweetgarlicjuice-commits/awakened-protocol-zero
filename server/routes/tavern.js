@@ -108,6 +108,7 @@ function addItemToInventory(character, itemId, quantity, itemData) {
     return { success: false, error: 'Inventory full' };
   }
 
+  // PHASE 9.3 FIX: Include setId for set bonus tracking
   character.inventory.push({
     itemId: item.id || itemId,
     name: item.name,
@@ -117,7 +118,8 @@ function addItemToInventory(character, itemId, quantity, itemData) {
     rarity: item.rarity || 'common',
     quantity: quantity,
     stackable: item.stackable || false,
-    stats: item.stats || {}
+    stats: item.stats || {},
+    setId: item.setId || null  // PHASE 9.3 FIX: Include setId!
   });
 
   return { success: true, stacked: false };
@@ -157,6 +159,7 @@ function getItemDataFromInventoryOrDB(itemId, invItem) {
       rarity: invItem.rarity || 'common',
       stackable: invItem.stackable || false,
       stats: invItem.stats || {},
+      setId: invItem.setId || null,  // PHASE 9.3 FIX: Include setId
       sellPrice: calculateSellPrice(invItem),
       buyPrice: 0
     };
@@ -746,7 +749,8 @@ router.post('/inventory/split', authenticate, async function(req, res) {
       rarity: item.rarity,
       quantity: quantity,
       stackable: item.stackable,
-      stats: item.stats
+      stats: item.stats,
+      setId: item.setId || null  // PHASE 9.3 FIX: Preserve setId when splitting
     };
     character.inventory.push(newItem);
 
@@ -874,6 +878,7 @@ router.post('/equip', authenticate, async function(req, res) {
         rarity: invItem.rarity,
         stats: invItem.stats || {},
         classReq: invItem.classReq,
+        setId: invItem.setId || null,  // PHASE 9.3 FIX: Include setId
         equippable: true
       };
     }
@@ -897,6 +902,7 @@ router.post('/equip', authenticate, async function(req, res) {
         type: currentEquip.type,
         rarity: currentEquip.rarity,
         stats: currentEquip.stats,
+        setId: currentEquip.setId || null,  // PHASE 9.3 FIX: Preserve setId
         stackable: false
       };
       addItemToInventory(character, currentEquip.itemId, 1, currentItemData);
@@ -909,7 +915,8 @@ router.post('/equip', authenticate, async function(req, res) {
       icon: itemData.icon,
       type: itemData.type,
       rarity: itemData.rarity,
-      stats: itemData.stats
+      stats: itemData.stats,
+      setId: itemData.setId || null  // PHASE 9.3 FIX: Include setId for set bonus tracking!
     };
 
     // Remove from inventory
@@ -952,6 +959,7 @@ router.post('/unequip', authenticate, async function(req, res) {
       type: currentEquip.type,
       rarity: currentEquip.rarity,
       stats: currentEquip.stats,
+      setId: currentEquip.setId || null,  // PHASE 9.3 FIX: Preserve setId
       stackable: false
     };
     var result = addItemToInventory(character, currentEquip.itemId, 1, itemData);
@@ -966,7 +974,8 @@ router.post('/unequip', authenticate, async function(req, res) {
       name: null,
       type: null,
       rarity: null,
-      stats: null
+      stats: null,
+      setId: null  // PHASE 9.3 FIX: Clear setId too
     };
 
     await character.save();
