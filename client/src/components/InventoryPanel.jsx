@@ -395,7 +395,7 @@ var InventoryPanel = function(props) {
   };
   
   // Check equipment requirements and return status
-  // PHASE 9.3.3 FIX: Also accept type 'weapon' and 'armor' from equipment database
+  // PHASE 9.3.5 FIX: Use name-based slot detection as fallback
   var getEquipStatus = function(item) {
     var isEquipType = item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
     if (!isEquipType) return { canEquip: false, reason: 'Not equipment' };
@@ -419,8 +419,10 @@ var InventoryPanel = function(props) {
       }
     }
     
-    // Check if has valid slot
-    if (!item.slot && !item.subtype) {
+    // Check if has valid slot - use name-based detection as fallback
+    // PHASE 9.3.5 FIX: Don't block equip if slot/subtype missing - backend can detect from name
+    var hasSlot = item.slot || item.subtype || canDetectSlotFromName(item.name);
+    if (!hasSlot) {
       canEquip = false;
       reasons.push('Missing equipment slot');
     }
@@ -429,6 +431,57 @@ var InventoryPanel = function(props) {
       canEquip: canEquip,
       reason: reasons.length > 0 ? reasons.join(', ') : null
     };
+  };
+  
+  // Helper: Check if slot can be detected from item name (mirrors backend logic)
+  var canDetectSlotFromName = function(itemName) {
+    if (!itemName) return false;
+    var lowerName = itemName.toLowerCase();
+    
+    // Weapons
+    if (lowerName.includes('sword') || lowerName.includes('blade') || lowerName.includes('dagger') || 
+        lowerName.includes('axe') || lowerName.includes('mace') || lowerName.includes('staff') || 
+        lowerName.includes('wand') || lowerName.includes('bow') || lowerName.includes('crossbow') ||
+        lowerName.includes('spear') || lowerName.includes('hammer') || lowerName.includes('scythe')) {
+      return true;
+    }
+    // Head
+    if (lowerName.includes('helm') || lowerName.includes('hood') || lowerName.includes('crown') || 
+        lowerName.includes('cap') || lowerName.includes('hat') || lowerName.includes('circlet') || 
+        lowerName.includes('mask') || lowerName.includes('coif')) {
+      return true;
+    }
+    // Body
+    if (lowerName.includes('armor') || lowerName.includes('chest') || lowerName.includes('robe') || 
+        lowerName.includes('tunic') || lowerName.includes('vest') || lowerName.includes('plate') ||
+        lowerName.includes('mail') || lowerName.includes('garb') || lowerName.includes('shirt')) {
+      return true;
+    }
+    // Hands
+    if (lowerName.includes('gauntlet') || lowerName.includes('glove') || lowerName.includes('bracer') ||
+        lowerName.includes('vambrace') || lowerName.includes('grip') || lowerName.includes('wrap')) {
+      return true;
+    }
+    // Feet
+    if (lowerName.includes('boot') || lowerName.includes('greave') || lowerName.includes('shoe') ||
+        lowerName.includes('tread') || lowerName.includes('sabaton') || lowerName.includes('slipper')) {
+      return true;
+    }
+    // Cape/Shield
+    if (lowerName.includes('cape') || lowerName.includes('cloak') || lowerName.includes('shroud') ||
+        lowerName.includes('mantle') || lowerName.includes('shield')) {
+      return true;
+    }
+    // Ring
+    if (lowerName.includes('ring') || lowerName.includes('band') || lowerName.includes('signet')) {
+      return true;
+    }
+    // Necklace
+    if (lowerName.includes('necklace') || lowerName.includes('pendant') || lowerName.includes('amulet') ||
+        lowerName.includes('chain') || lowerName.includes('collar') || lowerName.includes('choker')) {
+      return true;
+    }
+    return false;
   };
   
   var canSplit = function(item) { return item.stackable && item.quantity > 1; };
