@@ -95,7 +95,7 @@ var ITEM_DESCRIPTIONS = {
   
   // Special
   memory_crystal_fragment: '💠 Combine 15 to craft Memory Crystal.',
-  memory_crystal: '🔷 Use to remove Hidden Class and receive scroll back.',
+  memory_crystal: '🔷 Use to remove Hidden Class (returns scroll).',
   
   // Consumables
   health_potion_small: 'Restores 100 HP when used.',
@@ -135,7 +135,7 @@ function getItemIcon(item) {
   // By type
   if (item.type === 'material') return '🪨';
   if (item.type === 'consumable') return '🧪';
-  if (item.type === 'equipment') return '⚔️';
+  if (item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor') return '⚔️';
   if (item.type === 'scroll') return '📜';
   if (item.type === 'special') return '💎';
   
@@ -155,7 +155,8 @@ function getItemDescription(item) {
   }
   
   // Generate description based on type
-  if (item.type === 'equipment') {
+  // PHASE 9.3.5 FIX: Also check weapon/armor types
+  if (item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory') {
     var desc = '';
     if (item.classReq) desc += 'Class: ' + item.classReq.charAt(0).toUpperCase() + item.classReq.slice(1) + '. ';
     if (item.levelReq) desc += 'Lv.' + item.levelReq + '+ required. ';
@@ -230,6 +231,11 @@ function getEquipSlotId(item) {
   return slotMap[slotValue] || slotMap[slotValue.toLowerCase()] || slotValue;
 }
 
+// PHASE 9.3.5 FIX: Helper function to check if item is equipment type
+function isEquipmentType(item) {
+  return item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
+}
+
 var InventoryPanel = function(props) {
   var character = props.character;
   var refreshCharacter = props.refreshCharacter;
@@ -252,7 +258,7 @@ var InventoryPanel = function(props) {
     if (filter === 'all') return true;
     if (filter === 'material') return item.type === 'material';
     if (filter === 'consumable') return item.type === 'consumable';
-    if (filter === 'equipment') return item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
+    if (filter === 'equipment') return isEquipmentType(item);
     if (filter === 'scroll') return item.type === 'scroll' || item.type === 'special';
     return true;
   });
@@ -387,18 +393,16 @@ var InventoryPanel = function(props) {
   var isUsable = function(item) { return item.type === 'consumable'; };
   
   // Check if item can be equipped (has slot/subtype and is equipment/weapon/armor type)
-  // PHASE 9.3.3 FIX: Also accept type 'weapon' and 'armor' from equipment database
+  // PHASE 9.3.5 FIX: Use helper function for equipment type check
   var isEquippable = function(item) { 
-    var isEquipType = item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
     var hasSlot = item.slot || item.subtype;
-    return isEquipType && hasSlot;
+    return isEquipmentType(item) && hasSlot;
   };
   
   // Check equipment requirements and return status
-  // PHASE 9.3.5 FIX: Use name-based slot detection as fallback
+  // PHASE 9.3.5 FIX: Use helper function for equipment type check
   var getEquipStatus = function(item) {
-    var isEquipType = item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
-    if (!isEquipType) return { canEquip: false, reason: 'Not equipment' };
+    if (!isEquipmentType(item)) return { canEquip: false, reason: 'Not equipment' };
     
     var reasons = [];
     var canEquip = true;
@@ -557,20 +561,25 @@ var InventoryPanel = function(props) {
     return true;
   };
 
-  // Count items by type for filter badges
-  // PHASE 9.3.3 FIX: Count weapon/armor types as equipment
-  var counts = { material: 0, consumable: 0, equipment: 0, scroll: 0 };
+  // Calculate item counts by type
+  // PHASE 9.3.5 FIX: Use helper function for equipment type check
+  var counts = {
+    material: 0,
+    consumable: 0,
+    equipment: 0,
+    scroll: 0
+  };
   for (var k = 0; k < inventory.length; k++) {
-    var type = inventory[k].type;
-    if (type === 'material') counts.material++;
-    else if (type === 'consumable') counts.consumable++;
-    else if (type === 'equipment' || type === 'weapon' || type === 'armor' || type === 'accessory') counts.equipment++;
-    else if (type === 'scroll' || type === 'special') counts.scroll++;
+    var itemType = inventory[k].type;
+    if (itemType === 'material') counts.material++;
+    else if (itemType === 'consumable') counts.consumable++;
+    else if (isEquipmentType(inventory[k])) counts.equipment++;
+    else if (itemType === 'scroll' || itemType === 'special') counts.scroll++;
   }
 
   return (
     <div className="space-y-4">
-      {/* Tabs */}
+      {/* Sub-tabs */}
       <div className="flex gap-2 justify-center">
         <button onClick={function() { setActiveTab('inventory'); }}
           className={'px-4 py-2 rounded-lg text-sm ' + (activeTab === 'inventory' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
@@ -589,13 +598,13 @@ var InventoryPanel = function(props) {
       {/* INVENTORY TAB */}
       {activeTab === 'inventory' && (
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-          <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center justify-between mb-4">
             <h3 className="font-display text-lg text-purple-400">📦 Inventory</h3>
-            <span className="text-gray-400 text-sm">{inventory.length}/{character.inventorySize}</span>
+            <span className="text-gray-400">{inventory.length}/{character.inventorySize || 50}</span>
           </div>
 
-          {/* Filters */}
-          <div className="flex gap-1 mb-3 flex-wrap">
+          {/* Filter buttons */}
+          <div className="flex gap-2 mb-4 flex-wrap">
             <button onClick={function() { handleFilterChange('all'); }}
               className={'px-3 py-1 rounded text-xs ' + (filter === 'all' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
               All ({inventory.length})
@@ -622,7 +631,8 @@ var InventoryPanel = function(props) {
           <div className="space-y-2 mb-4">
             {paginatedItems.map(function(item, idx) {
               var isSelected = selectedItem && selectedItem.itemId === item.itemId;
-              var equipStatus = item.type === 'equipment' ? getEquipStatus(item) : null;
+              // PHASE 9.3.5 FIX: Use helper function for equipment type check
+              var equipStatus = isEquipmentType(item) ? getEquipStatus(item) : null;
               
               return (
                 <div key={idx} 
@@ -637,7 +647,7 @@ var InventoryPanel = function(props) {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {item.type === 'equipment' && equipStatus && !equipStatus.canEquip && (
+                      {isEquipmentType(item) && equipStatus && !equipStatus.canEquip && (
                         <span className="text-xs text-red-400">⚠️</span>
                       )}
                       <span className="text-xs text-gray-500">{item.type}</span>
@@ -662,8 +672,8 @@ var InventoryPanel = function(props) {
                         </div>
                       )}
                       
-                      {/* Equipment Requirements */}
-                      {item.type === 'equipment' && (
+                      {/* Equipment Requirements - PHASE 9.3.5 FIX: Use helper function */}
+                      {isEquipmentType(item) && (
                         <div className="mb-2 space-y-1">
                           {item.levelReq && (
                             <p className={'text-xs ' + (character.level >= item.levelReq ? 'text-green-400' : 'text-red-400')}>
@@ -719,19 +729,17 @@ var InventoryPanel = function(props) {
                 </div>
               );
             })}
-            {filteredInventory.length === 0 && (
-              <p className="text-gray-500 text-center py-4">
-                {filter === 'all' ? 'Inventory is empty' : 'No ' + filter + ' items'}
-              </p>
+            {paginatedItems.length === 0 && (
+              <p className="text-gray-500 text-center py-4">No items found</p>
             )}
           </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center gap-2">
+            <div className="flex items-center justify-center gap-2">
               <button onClick={function() { setCurrentPage(Math.max(0, currentPage - 1)); }} disabled={currentPage === 0}
                 className="px-3 py-1 bg-void-700 rounded disabled:opacity-50">←</button>
-              <span className="text-gray-400 py-1">{currentPage + 1} / {totalPages}</span>
+              <span className="text-gray-400">{currentPage + 1} / {totalPages}</span>
               <button onClick={function() { setCurrentPage(Math.min(totalPages - 1, currentPage + 1)); }} disabled={currentPage >= totalPages - 1}
                 className="px-3 py-1 bg-void-700 rounded disabled:opacity-50">→</button>
             </div>
@@ -743,49 +751,54 @@ var InventoryPanel = function(props) {
       {activeTab === 'equipment' && (
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
           <h3 className="font-display text-lg text-purple-400 mb-4">⚔️ Equipment</h3>
-          <div className="grid grid-cols-2 gap-3">
+          
+          <div className="grid grid-cols-2 gap-2 mb-4">
             {EQUIPMENT_SLOTS.map(function(slot) {
-              var equipped = character.equipment?.[slot.id];
-              var hasItem = equipped && equipped.itemId;
+              var equippedItem = character.equipment ? character.equipment[slot.id] : null;
               return (
-                <div key={slot.id} className={'p-3 rounded-lg border ' + (hasItem ? 'border-purple-500/50 ' + getRarityBg(equipped.rarity) : 'bg-void-900/50 border-gray-700/50')}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-400 text-xs">{slot.name}</span>
-                    <span className="text-lg">{slot.icon}</span>
-                  </div>
-                  {hasItem ? (
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span>{equipped.icon || getItemIcon(equipped)}</span>
-                        <span className={getRarityColor(equipped.rarity) + ' text-sm'}>{equipped.name}</span>
+                <div key={slot.id} className={'p-3 rounded-lg border ' + (equippedItem ? 'border-purple-500/50 bg-purple-900/20' : 'border-gray-700 bg-void-900/50')}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{equippedItem ? (equippedItem.icon || slot.icon) : slot.icon}</span>
+                      <div>
+                        <p className="text-xs text-gray-500">{slot.name}</p>
+                        <p className={'text-sm ' + (equippedItem ? 'text-white' : 'text-gray-600')}>
+                          {equippedItem ? equippedItem.name : 'Empty'}
+                        </p>
                       </div>
-                      {equipped.stats && (
-                        <div className="text-xs text-green-400 mt-1">
-                          {Object.keys(equipped.stats).map(function(k) { return k.toUpperCase() + '+' + equipped.stats[k]; }).join(' ')}
-                        </div>
-                      )}
-                      <button onClick={function() { handleUnequipItem(slot.id); }} disabled={isLoading}
-                        className="mt-2 w-full px-2 py-1 bg-red-600/50 hover:bg-red-600 rounded text-xs">Unequip</button>
                     </div>
-                  ) : (
-                    <p className="text-gray-600 text-xs">Empty</p>
+                    {equippedItem && (
+                      <button onClick={function() { handleUnequipItem(slot.id); }} disabled={isLoading}
+                        className="px-2 py-1 bg-red-600/50 hover:bg-red-600 rounded text-xs">✕</button>
+                    )}
+                  </div>
+                  {equippedItem && equippedItem.stats && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {Object.keys(equippedItem.stats).map(function(stat) {
+                        return (
+                          <span key={stat} className="px-1 py-0.5 bg-void-800 rounded text-xs text-green-400">
+                            {stat.toUpperCase()} +{equippedItem.stats[stat]}
+                          </span>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
 
-          {/* Total Stats from Equipment */}
-          <div className="mt-4 p-3 bg-void-900/50 rounded-lg">
-            <h4 className="text-sm font-bold text-gray-400 mb-2">Equipment Bonus</h4>
+          {/* Equipment Stats Summary */}
+          <div className="p-3 rounded-lg border border-gray-700 bg-void-900/50">
+            <p className="text-sm text-gray-400 mb-2">Total Equipment Bonuses:</p>
             <div className="flex flex-wrap gap-2">
               {(function() {
                 var totalStats = {};
                 EQUIPMENT_SLOTS.forEach(function(slot) {
-                  var eq = character.equipment?.[slot.id];
-                  if (eq && eq.stats) {
-                    Object.keys(eq.stats).forEach(function(stat) {
-                      totalStats[stat] = (totalStats[stat] || 0) + eq.stats[stat];
+                  var item = character.equipment ? character.equipment[slot.id] : null;
+                  if (item && item.stats) {
+                    Object.keys(item.stats).forEach(function(stat) {
+                      totalStats[stat] = (totalStats[stat] || 0) + item.stats[stat];
                     });
                   }
                 });
