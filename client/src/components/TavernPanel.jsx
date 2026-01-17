@@ -2,90 +2,244 @@ import React, { useState, useEffect } from 'react';
 import { tavernAPI } from '../services/api';
 
 // ============================================================
-// PHASE 9.3.6: Complete TavernPanel Overhaul
-// - Fixed prop name: refreshCharacter (not onCharacterUpdate)
-// - Removed gold display from header (already in left panel)
-// - Added filters to Shop & Trading tabs
-// - Added pagination (7 items per page) instead of scrolling
-// - Added item descriptions/effects
-// - Fixed double activity log issue
+// PHASE 9.3.7: Unified Item Display System
+// Format:
+// - Consumable: [icon] Name | Description (effect)
+// - Equipment: [icon] Name | Requirements | Stats
+// - Material: [icon] Name | Description
 // ============================================================
 
 const ITEMS_PER_PAGE = 7;
 
-// Item descriptions database
-const ITEM_DESCRIPTIONS = {
-  // Health Potions
-  small_health_potion: { desc: 'Restores 50 HP', effect: '+50 HP' },
-  medium_health_potion: { desc: 'Restores 150 HP', effect: '+150 HP' },
-  large_health_potion: { desc: 'Restores 400 HP', effect: '+400 HP' },
-  mega_health_potion: { desc: 'Restores 1000 HP', effect: '+1000 HP' },
-  
-  // Mana Potions
-  small_mana_potion: { desc: 'Restores 30 MP', effect: '+30 MP' },
-  medium_mana_potion: { desc: 'Restores 80 MP', effect: '+80 MP' },
-  large_mana_potion: { desc: 'Restores 200 MP', effect: '+200 MP' },
-  mega_mana_potion: { desc: 'Restores 500 MP', effect: '+500 MP' },
-  
-  // Utility
-  antidote: { desc: 'Cures poison status', effect: 'Cure Poison' },
-  escape_rope: { desc: 'Escape from tower instantly', effect: 'Exit Tower' },
-  energy_drink: { desc: 'Restores 20 energy', effect: '+20 Energy' },
-  
-  // Buff Potions
-  strength_elixir: { desc: '+20% Physical DMG for 5 turns', effect: '+20% P.DMG' },
-  intelligence_elixir: { desc: '+20% Magic DMG for 5 turns', effect: '+20% M.DMG' },
-  iron_skin_potion: { desc: '+30% Physical DEF for 5 turns', effect: '+30% P.DEF' },
-  swift_potion: { desc: '+25% Evasion for 5 turns', effect: '+25% Evasion' },
-  critical_draught: { desc: '+15% Crit Rate for 5 turns', effect: '+15% Crit' },
-  
-  // Materials
-  bone_fragment: { desc: 'Common crafting material from undead', effect: 'Material' },
-  ghost_essence: { desc: 'Ethereal essence from spirits', effect: 'Material' },
-  death_knight_core: { desc: 'Rare core from Death Knight', effect: 'Craft Material' },
-  frost_crystal: { desc: 'Frozen crystal from ice creatures', effect: 'Material' },
-  frozen_heart: { desc: 'Rare drop from ice elementals', effect: 'Craft Material' },
-  shadow_essence: { desc: 'Dark essence from shadows', effect: 'Material' },
-  lightning_shard: { desc: 'Charged crystal shard', effect: 'Material' },
-  verdant_sap: { desc: 'Living sap from nature creatures', effect: 'Material' },
-  memory_crystal_fragment: { desc: 'Combine 15 to craft Memory Crystal', effect: 'Special' },
+// Helper function to check if item is equipment type
+const isEquipmentType = (item) => {
+  return item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
 };
 
-// Get item description
-const getItemDescription = (item) => {
-  const itemId = item.itemId || item.id;
-  if (ITEM_DESCRIPTIONS[itemId]) {
-    return ITEM_DESCRIPTIONS[itemId];
-  }
+// Get icon based on item type/subtype
+const getItemIcon = (item) => {
+  if (item.icon && item.icon !== '📦') return item.icon;
+  if (item.itemIcon) return item.itemIcon;
   
-  // Generate description based on type
+  // By slot for equipment
+  if (item.slot === 'weapon' || item.slot === 'mainHand') return '⚔️';
+  if (item.slot === 'head') return '🧢';
+  if (item.slot === 'body' || item.slot === 'chest') return '👕';
+  if (item.slot === 'hands' || item.slot === 'gloves') return '🧤';
+  if (item.slot === 'leg' || item.slot === 'legs') return '👖';
+  if (item.slot === 'shoes' || item.slot === 'boots' || item.slot === 'feet') return '👢';
+  if (item.slot === 'ring') return '💍';
+  if (item.slot === 'necklace') return '📿';
+  if (item.slot === 'offhand' || item.slot === 'leftHand' || item.slot === 'cape') return '🛡️';
+  
+  // By subtype
+  if (item.subtype === 'weapon') return '⚔️';
+  if (item.subtype === 'armor') return '🛡️';
+  if (item.subtype === 'potion') return '🧪';
+  if (item.subtype === 'drop') return '🪨';
+  
+  // By type
+  if (item.type === 'material') return '🪨';
+  if (item.type === 'consumable') return '🧪';
+  if (isEquipmentType(item)) return '⚔️';
+  if (item.type === 'scroll') return '📜';
+  if (item.type === 'special') return '💎';
+  
+  return '📦';
+};
+
+// Get effect/use text for item (short version for display)
+const getItemEffect = (item) => {
+  // Consumables - show effect value
   if (item.type === 'consumable') {
     if (item.effect) {
-      if (item.effect.type === 'heal') return { desc: `Restores ${item.effect.value} HP`, effect: `+${item.effect.value} HP` };
-      if (item.effect.type === 'mana') return { desc: `Restores ${item.effect.value} MP`, effect: `+${item.effect.value} MP` };
-      if (item.effect.type === 'energy') return { desc: `Restores ${item.effect.value} Energy`, effect: `+${item.effect.value} Energy` };
+      if (item.effect.type === 'heal') return '+' + item.effect.value + ' HP';
+      if (item.effect.type === 'mana') return '+' + item.effect.value + ' MP';
+      if (item.effect.type === 'energy') return '+' + item.effect.value + ' Energy';
+      if (item.effect.type === 'buff') return item.effect.buffType || 'Buff';
     }
-    return { desc: 'Consumable item', effect: 'Use' };
+    // Fallback by name
+    const name = (item.name || item.itemName || '').toLowerCase();
+    if (name.includes('small health')) return '+50 HP';
+    if (name.includes('medium health')) return '+150 HP';
+    if (name.includes('large health')) return '+400 HP';
+    if (name.includes('mega health')) return '+1000 HP';
+    if (name.includes('small mana')) return '+30 MP';
+    if (name.includes('medium mana')) return '+80 MP';
+    if (name.includes('large mana')) return '+200 MP';
+    if (name.includes('mega mana')) return '+500 MP';
+    if (name.includes('antidote')) return 'Cure Poison';
+    if (name.includes('escape')) return 'Exit Tower';
+    if (name.includes('energy')) return '+20 Energy';
+    if (name.includes('strength')) return '+20% P.DMG';
+    if (name.includes('intelligence')) return '+20% M.DMG';
+    if (name.includes('iron skin')) return '+30% P.DEF';
+    if (name.includes('swift')) return '+25% Evasion';
+    if (name.includes('critical')) return '+15% Crit';
+    return 'Use';
   }
   
+  // Equipment - show stats summary
+  if (isEquipmentType(item) && item.stats) {
+    const statList = Object.entries(item.stats).map(([k, v]) => k.toUpperCase() + '+' + v);
+    return statList.join(' ');
+  }
+  
+  // Materials
   if (item.type === 'material') {
-    return { desc: 'Crafting material', effect: 'Material' };
+    return 'Material';
   }
   
-  if (item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor') {
-    const stats = item.stats ? Object.entries(item.stats).map(([k, v]) => `${k.toUpperCase()}+${v}`).join(', ') : '';
-    return { desc: stats || 'Equipment item', effect: 'Equip' };
+  return '';
+};
+
+// Get description text for item
+const getItemDescription = (item) => {
+  // Consumables
+  if (item.type === 'consumable') {
+    if (item.effect) {
+      if (item.effect.type === 'heal') return 'Restores ' + item.effect.value + ' HP';
+      if (item.effect.type === 'mana') return 'Restores ' + item.effect.value + ' MP';
+      if (item.effect.type === 'energy') return 'Restores ' + item.effect.value + ' Energy';
+    }
+    const name = (item.name || item.itemName || '').toLowerCase();
+    if (name.includes('antidote')) return 'Cures poison status';
+    if (name.includes('escape')) return 'Escape tower instantly';
+    if (name.includes('strength')) return '+20% Physical DMG for 5 turns';
+    if (name.includes('intelligence')) return '+20% Magic DMG for 5 turns';
+    if (name.includes('iron skin')) return '+30% Physical DEF for 5 turns';
+    if (name.includes('swift')) return '+25% Evasion for 5 turns';
+    if (name.includes('critical')) return '+15% Crit Rate for 5 turns';
+    return '';
   }
   
-  return { desc: '', effect: '' };
+  // Materials
+  if (item.type === 'material') {
+    return 'Crafting material';
+  }
+  
+  return '';
+};
+
+// Get requirements for equipment
+const getItemRequirements = (item, character) => {
+  if (!isEquipmentType(item)) return null;
+  
+  const reqs = [];
+  
+  if (item.levelReq) {
+    const meetsLevel = !character || character.level >= item.levelReq;
+    reqs.push({ text: 'Lv.' + item.levelReq, met: meetsLevel });
+  }
+  
+  if (item.classReq || item.class) {
+    const reqClass = item.classReq || item.class;
+    const meetsClass = !character || reqClass.toLowerCase() === character.baseClass.toLowerCase();
+    reqs.push({ text: reqClass.charAt(0).toUpperCase() + reqClass.slice(1), met: meetsClass });
+  }
+  
+  return reqs.length > 0 ? reqs : null;
 };
 
 // Get item type for filtering
 const getItemFilterType = (item) => {
   if (item.type === 'material') return 'material';
   if (item.type === 'consumable') return 'consumable';
-  if (item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory') return 'equipment';
+  if (isEquipmentType(item)) return 'equipment';
   return 'other';
+};
+
+// Rarity colors
+const getRarityColor = (rarity) => {
+  const colors = {
+    common: 'text-gray-300',
+    uncommon: 'text-green-400',
+    rare: 'text-blue-400',
+    epic: 'text-purple-400',
+    legendary: 'text-amber-400'
+  };
+  return colors[rarity] || 'text-gray-300';
+};
+
+const getRarityBorder = (rarity) => {
+  const colors = {
+    common: 'border-gray-600',
+    uncommon: 'border-green-500/50',
+    rare: 'border-blue-500/50',
+    epic: 'border-purple-500/50',
+    legendary: 'border-amber-500/50'
+  };
+  return colors[rarity] || 'border-gray-600';
+};
+
+const getRarityBg = (rarity) => {
+  const colors = {
+    common: 'bg-gray-800/50',
+    uncommon: 'bg-green-900/20',
+    rare: 'bg-blue-900/20',
+    epic: 'bg-purple-900/20',
+    legendary: 'bg-amber-900/20'
+  };
+  return colors[rarity] || 'bg-gray-800/50';
+};
+
+// ============================================================
+// ItemDisplay Component - Unified item rendering
+// ============================================================
+const ItemDisplay = ({ item, character, showQuantity = true, rightContent }) => {
+  const icon = getItemIcon(item);
+  const effect = getItemEffect(item);
+  const description = getItemDescription(item);
+  const requirements = getItemRequirements(item, character);
+  const isEquip = isEquipmentType(item);
+  const itemName = item.name || item.itemName;
+  const quantity = item.quantity;
+
+  return (
+    <div className={'p-3 rounded-lg border ' + getRarityBorder(item.rarity) + ' ' + getRarityBg(item.rarity)}>
+      <div className="flex items-start gap-3">
+        {/* Icon */}
+        <span className="text-2xl mt-0.5">{icon}</span>
+        
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          {/* Top Row: Name + Quantity */}
+          <div className="flex items-center gap-2">
+            <span className={getRarityColor(item.rarity) + ' font-medium truncate'}>{itemName}</span>
+            {showQuantity && quantity > 1 && (
+              <span className="text-gray-500 text-sm">x{quantity}</span>
+            )}
+          </div>
+          
+          {/* Middle Row: Requirements (Equipment only) */}
+          {isEquip && requirements && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {requirements.map((req, idx) => (
+                <span key={idx} className={'text-xs px-1.5 py-0.5 rounded ' + (req.met ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400')}>
+                  {req.text} {req.met ? '✓' : '✗'}
+                </span>
+              ))}
+            </div>
+          )}
+          
+          {/* Bottom Row: Effect/Description */}
+          {effect && (
+            <p className="text-green-400 text-xs mt-1">({effect})</p>
+          )}
+          {description && !effect && (
+            <p className="text-gray-500 text-xs mt-1">{description}</p>
+          )}
+        </div>
+        
+        {/* Right Content (price, buttons, etc) */}
+        {rightContent && (
+          <div className="flex-shrink-0">
+            {rightContent}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
 // Pagination component
@@ -113,7 +267,31 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   );
 };
 
-// PHASE 9.3.6 FIX: Changed prop from onCharacterUpdate to refreshCharacter
+// Filter buttons component
+const FilterButtons = ({ filter, setFilter, counts }) => (
+  <div className="flex gap-2 mb-4 flex-wrap">
+    <button onClick={() => setFilter('all')}
+      className={'px-3 py-1 rounded text-xs ' + (filter === 'all' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
+      All ({counts.all})
+    </button>
+    <button onClick={() => setFilter('consumable')}
+      className={'px-3 py-1 rounded text-xs ' + (filter === 'consumable' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
+      🧪 ({counts.consumable})
+    </button>
+    <button onClick={() => setFilter('material')}
+      className={'px-3 py-1 rounded text-xs ' + (filter === 'material' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
+      📦 ({counts.material})
+    </button>
+    <button onClick={() => setFilter('equipment')}
+      className={'px-3 py-1 rounded text-xs ' + (filter === 'equipment' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
+      ⚔️ ({counts.equipment})
+    </button>
+  </div>
+);
+
+// ============================================================
+// Main TavernPanel Component
+// ============================================================
 const TavernPanel = ({ character, refreshCharacter, addLog }) => {
   const [activeTab, setActiveTab] = useState('shop');
   const [shopItems, setShopItems] = useState([]);
@@ -167,7 +345,6 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
     } catch (err) { console.error(err); }
   };
 
-  // PHASE 9.3.6 FIX: Use refreshCharacter, single log, proper error handling
   const handleBuyFromShop = async () => {
     if (!buyModal) return;
     setIsLoading(true);
@@ -290,31 +467,8 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
   const paginatedSellItems = filteredSellItems.slice(sellPage * ITEMS_PER_PAGE, (sellPage + 1) * ITEMS_PER_PAGE);
   const paginatedMyListings = myListings.slice(myListingsPage * ITEMS_PER_PAGE, (myListingsPage + 1) * ITEMS_PER_PAGE);
 
-  // Filter buttons component
-  const FilterButtons = ({ filter, setFilter, counts }) => (
-    <div className="flex gap-2 mb-4 flex-wrap">
-      <button onClick={() => setFilter('all')}
-        className={'px-3 py-1 rounded text-xs ' + (filter === 'all' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
-        All ({counts.all})
-      </button>
-      <button onClick={() => setFilter('consumable')}
-        className={'px-3 py-1 rounded text-xs ' + (filter === 'consumable' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
-        🧪 ({counts.consumable})
-      </button>
-      <button onClick={() => setFilter('material')}
-        className={'px-3 py-1 rounded text-xs ' + (filter === 'material' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
-        📦 ({counts.material})
-      </button>
-      <button onClick={() => setFilter('equipment')}
-        className={'px-3 py-1 rounded text-xs ' + (filter === 'equipment' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
-        ⚔️ ({counts.equipment})
-      </button>
-    </div>
-  );
-
   return (
     <div className="space-y-4">
-      {/* PHASE 9.3.6: Removed gold display - already shown in left panel */}
       <div className="text-center mb-4">
         <h2 className="font-display text-2xl text-amber-400 mb-1">🍺 TAVERN</h2>
         <p className="text-gray-500 text-sm">Buy, sell, and trade with other hunters</p>
@@ -328,11 +482,11 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
         </button>
         <button onClick={() => setActiveTab('trading')}
           className={'px-4 py-2 rounded-lg text-sm ' + (activeTab === 'trading' ? 'bg-amber-600 text-white' : 'bg-void-800 text-gray-400')}>
-          🤝 Trading Stall
+          🤝 Trading
         </button>
         <button onClick={() => setActiveTab('sell')}
           className={'px-4 py-2 rounded-lg text-sm ' + (activeTab === 'sell' ? 'bg-amber-600 text-white' : 'bg-void-800 text-gray-400')}>
-          💰 Sell Items
+          💰 Sell
         </button>
       </div>
 
@@ -341,39 +495,32 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
           <h3 className="font-display text-lg text-amber-400 mb-4">🏪 Tavern Shop</h3>
           
-          {/* Filter buttons */}
           <FilterButtons filter={shopFilter} setFilter={setShopFilter} counts={shopCounts} />
           
-          {/* Item list */}
           <div className="space-y-2">
-            {paginatedShopItems.map(item => {
-              const itemDesc = getItemDescription(item);
-              return (
-                <div key={item.itemId} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
-                  <div className="flex items-center gap-3 flex-1">
-                    <span className="text-xl">{item.icon || '📦'}</span>
-                    <div className="flex-1">
-                      <span className="text-white">{item.name}</span>
-                      {itemDesc.effect && (
-                        <span className="text-green-400 text-xs ml-2">({itemDesc.effect})</span>
-                      )}
-                      {itemDesc.desc && (
-                        <p className="text-gray-500 text-xs">{itemDesc.desc}</p>
-                      )}
-                    </div>
-                  </div>
+            {paginatedShopItems.map(item => (
+              <ItemDisplay 
+                key={item.itemId}
+                item={item}
+                character={character}
+                showQuantity={false}
+                rightContent={
                   <div className="flex items-center gap-3">
-                    <span className="text-yellow-400">{item.price}g</span>
-                    <button onClick={() => { setBuyModal(item); setQuantity(1); }}
-                      className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-sm">Buy</button>
+                    <span className="text-yellow-400 text-sm">{item.price}g</span>
+                    <button 
+                      onClick={() => { setBuyModal(item); setQuantity(1); }}
+                      className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-sm"
+                    >
+                      Buy
+                    </button>
                   </div>
-                </div>
-              );
-            })}
-            {filteredShopItems.length === 0 && <p className="text-gray-500 text-center py-4">No items found</p>}
+                }
+              />
+            ))}
+            {filteredShopItems.length === 0 && 
+              <p className="text-gray-500 text-center py-4">No items found</p>}
           </div>
           
-          {/* Pagination */}
           <Pagination 
             currentPage={shopPage} 
             totalPages={Math.ceil(filteredShopItems.length / ITEMS_PER_PAGE)} 
@@ -391,18 +538,21 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
               <h3 className="font-display text-lg text-purple-400 mb-3">📋 My Listings ({myListings.length})</h3>
               <div className="space-y-2">
                 {paginatedMyListings.map(listing => (
-                  <div key={listing._id} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
+                  <div key={listing._id} className="p-3 rounded-lg border border-purple-500/30 bg-purple-900/20">
                     <div className="flex items-center gap-3">
-                      <span className="text-xl">{listing.itemIcon || '📦'}</span>
-                      <div>
+                      <span className="text-2xl">{listing.itemIcon || '📦'}</span>
+                      <div className="flex-1">
                         <span className="text-white">{listing.itemName}</span>
                         <span className="text-gray-400 text-sm ml-2">x{listing.quantity}</span>
+                        <p className="text-yellow-400 text-xs">{listing.totalPrice}g total</p>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-yellow-400">{listing.totalPrice}g</span>
-                      <button onClick={() => handleCancelListing(listing._id)} disabled={isLoading}
-                        className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-sm">Cancel</button>
+                      <button 
+                        onClick={() => handleCancelListing(listing._id)} 
+                        disabled={isLoading}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded text-sm"
+                      >
+                        Cancel
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -419,36 +569,29 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
           <div className="bg-void-800/50 rounded-xl p-4 neon-border">
             <h3 className="font-display text-lg text-amber-400 mb-3">🤝 Trading Stall</h3>
             
-            {/* Filter buttons */}
             <FilterButtons filter={tradingFilter} setFilter={setTradingFilter} counts={tradingCounts} />
             
             <div className="space-y-2">
-              {paginatedTradingListings.map(listing => {
-                const itemDesc = getItemDescription(listing);
-                return (
-                  <div key={listing._id} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
-                    <div className="flex items-center gap-3 flex-1">
-                      <span className="text-xl">{listing.itemIcon || '📦'}</span>
-                      <div className="flex-1">
-                        <span className="text-white">{listing.itemName}</span>
-                        <span className="text-gray-400 text-sm ml-2">x{listing.quantity}</span>
-                        {itemDesc.effect && (
-                          <span className="text-green-400 text-xs ml-2">({itemDesc.effect})</span>
-                        )}
-                        <p className="text-xs text-gray-500">Seller: {listing.characterName || listing.sellerName}</p>
-                      </div>
+              {paginatedTradingListings.map(listing => (
+                <ItemDisplay 
+                  key={listing._id}
+                  item={listing}
+                  character={character}
+                  rightContent={
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-yellow-400 text-sm">{listing.totalPrice}g</span>
+                      <span className="text-gray-500 text-xs">{listing.pricePerUnit}g ea</span>
+                      <button 
+                        onClick={() => handleBuyFromPlayer(listing)} 
+                        disabled={isLoading || character.gold < listing.totalPrice}
+                        className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-sm disabled:opacity-50"
+                      >
+                        Buy
+                      </button>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-yellow-400">{listing.totalPrice}g</p>
-                        <p className="text-xs text-gray-500">{listing.pricePerUnit}g each</p>
-                      </div>
-                      <button onClick={() => handleBuyFromPlayer(listing)} disabled={isLoading || character.gold < listing.totalPrice}
-                        className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-sm disabled:opacity-50">Buy</button>
-                    </div>
-                  </div>
-                );
-              })}
+                  }
+                />
+              ))}
               {filteredTradingListings.length === 0 && 
                 <p className="text-gray-500 text-center py-4">No items for sale</p>}
             </div>
@@ -467,38 +610,37 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
           <h3 className="font-display text-lg text-amber-400 mb-4">💰 Sell or List Items</h3>
           
-          {/* Filter buttons */}
           <FilterButtons filter={sellFilter} setFilter={setSellFilter} counts={sellCounts} />
           
-          {/* Item list */}
           <div className="space-y-2">
             {paginatedSellItems.map((item, idx) => {
               const sellPrice = item.sellPrice || Math.max(2, Math.floor((item.stats?.value || 5) * 0.4));
-              const itemDesc = getItemDescription(item);
               
               return (
-                <div key={idx} className="flex items-center justify-between bg-void-900/50 p-3 rounded-lg">
-                  <div className="flex items-center gap-3 flex-1">
-                    <span className="text-xl">{item.icon || '📦'}</span>
-                    <div className="flex-1">
-                      <span className="text-white">{item.name}</span>
-                      <span className="text-gray-400 text-sm ml-2">x{item.quantity}</span>
-                      {itemDesc.effect && (
-                        <span className="text-green-400 text-xs ml-2">({itemDesc.effect})</span>
-                      )}
-                      <span className="text-gray-500 text-xs ml-2">({item.type})</span>
+                <ItemDisplay 
+                  key={idx}
+                  item={item}
+                  character={character}
+                  rightContent={
+                    <div className="flex flex-col items-end gap-1">
+                      <span className="text-yellow-400 text-sm">{sellPrice}g ea</span>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => { setSellModal({ ...item, sellPrice }); setQuantity(1); }}
+                          className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 rounded text-xs"
+                        >
+                          Sell
+                        </button>
+                        <button 
+                          onClick={() => setListModal({ ...item, quantity: 1, price: sellPrice * 2 })}
+                          className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs"
+                        >
+                          List
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-yellow-400 text-sm mr-4">
-                      💰 {sellPrice}g each
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => { setSellModal({ ...item, sellPrice }); setQuantity(1); }}
-                      className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 rounded text-sm">Sell</button>
-                    <button onClick={() => setListModal({ ...item, quantity: 1, price: sellPrice * 2 })}
-                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-sm">List</button>
-                  </div>
-                </div>
+                  }
+                />
               );
             })}
             {filteredSellItems.length === 0 && 
@@ -517,29 +659,32 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
       {buyModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-void-800 rounded-xl p-6 w-full max-w-sm neon-border">
-            <h3 className="font-display text-lg text-amber-400 mb-4">Buy {buyModal.name}</h3>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-3xl">{buyModal.icon || '📦'}</span>
-              <div>
-                <p className="text-white">{buyModal.name}</p>
-                <p className="text-yellow-400">{buyModal.price}g each</p>
-                {(() => {
-                  const desc = getItemDescription(buyModal);
-                  return desc.desc && <p className="text-gray-400 text-sm">{desc.desc}</p>;
-                })()}
-              </div>
-            </div>
-            <div className="mb-4">
+            <h3 className="font-display text-lg text-amber-400 mb-4">Buy Item</h3>
+            
+            <ItemDisplay item={buyModal} character={character} showQuantity={false} />
+            
+            <div className="mt-4 mb-4">
               <label className="text-gray-400 text-sm">Quantity:</label>
-              <input type="number" value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                className="input-field mt-1" min={1} />
+              <input 
+                type="number" 
+                value={quantity} 
+                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                className="input-field mt-1" 
+                min={1} 
+              />
               <p className="text-yellow-400 mt-2">Total: {buyModal.price * quantity}g</p>
               <p className="text-gray-500 text-xs mt-1">Your gold: {character.gold}g</p>
             </div>
+            
             <div className="flex gap-3">
               <button onClick={() => setBuyModal(null)} className="flex-1 btn-secondary">Cancel</button>
-              <button onClick={handleBuyFromShop} disabled={isLoading || character.gold < buyModal.price * quantity}
-                className="flex-1 btn-primary disabled:opacity-50">Buy</button>
+              <button 
+                onClick={handleBuyFromShop} 
+                disabled={isLoading || character.gold < buyModal.price * quantity}
+                className="flex-1 btn-primary disabled:opacity-50"
+              >
+                Buy
+              </button>
             </div>
           </div>
         </div>
@@ -549,25 +694,32 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
       {sellModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-void-800 rounded-xl p-6 w-full max-w-sm neon-border">
-            <h3 className="font-display text-lg text-amber-400 mb-4">Sell {sellModal.name}</h3>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-3xl">{sellModal.icon || '📦'}</span>
-              <div>
-                <p className="text-white">{sellModal.name}</p>
-                <p className="text-gray-400">Have: {sellModal.quantity}</p>
-                <p className="text-green-400 text-sm">{sellModal.sellPrice}g each</p>
-              </div>
-            </div>
-            <div className="mb-4">
+            <h3 className="font-display text-lg text-amber-400 mb-4">Sell Item</h3>
+            
+            <ItemDisplay item={sellModal} character={character} />
+            
+            <div className="mt-4 mb-4">
               <label className="text-gray-400 text-sm">Quantity to sell:</label>
-              <input type="number" value={quantity} onChange={(e) => setQuantity(Math.min(sellModal.quantity, Math.max(1, parseInt(e.target.value) || 1)))}
-                className="input-field mt-1" min={1} max={sellModal.quantity} />
+              <input 
+                type="number" 
+                value={quantity} 
+                onChange={(e) => setQuantity(Math.min(sellModal.quantity, Math.max(1, parseInt(e.target.value) || 1)))}
+                className="input-field mt-1" 
+                min={1} 
+                max={sellModal.quantity} 
+              />
               <p className="text-green-400 mt-2">You'll receive: {quantity * sellModal.sellPrice}g</p>
             </div>
+            
             <div className="flex gap-3">
               <button onClick={() => setSellModal(null)} className="flex-1 btn-secondary">Cancel</button>
-              <button onClick={handleSellToShop} disabled={isLoading}
-                className="flex-1 btn-primary disabled:opacity-50">Sell</button>
+              <button 
+                onClick={handleSellToShop} 
+                disabled={isLoading}
+                className="flex-1 btn-primary disabled:opacity-50"
+              >
+                Sell
+              </button>
             </div>
           </div>
         </div>
@@ -577,33 +729,49 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
       {listModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-void-800 rounded-xl p-6 w-full max-w-sm neon-border">
-            <h3 className="font-display text-lg text-blue-400 mb-4">List {listModal.name}</h3>
-            <div className="flex items-center gap-3 mb-4">
-              <span className="text-3xl">{listModal.icon || '📦'}</span>
-              <div>
-                <p className="text-white">{listModal.name}</p>
-                <p className="text-gray-400">Have: {character.inventory.find(i => i.itemId === listModal.itemId)?.quantity || listModal.quantity}</p>
-              </div>
-            </div>
-            <div className="space-y-3 mb-4">
+            <h3 className="font-display text-lg text-blue-400 mb-4">List for Trading</h3>
+            
+            <ItemDisplay item={listModal} character={character} />
+            
+            <div className="space-y-3 mt-4 mb-4">
               <div>
                 <label className="text-gray-400 text-sm">Quantity to list:</label>
-                <input type="number" value={listModal.quantity} 
-                  onChange={(e) => setListModal({...listModal, quantity: Math.min(character.inventory.find(i => i.itemId === listModal.itemId)?.quantity || 1, Math.max(1, parseInt(e.target.value) || 1))})}
-                  className="input-field mt-1" min={1} />
+                <input 
+                  type="number" 
+                  value={listModal.quantity} 
+                  onChange={(e) => setListModal({
+                    ...listModal, 
+                    quantity: Math.min(
+                      character.inventory.find(i => i.itemId === listModal.itemId)?.quantity || 1, 
+                      Math.max(1, parseInt(e.target.value) || 1)
+                    )
+                  })}
+                  className="input-field mt-1" 
+                  min={1} 
+                />
               </div>
               <div>
                 <label className="text-gray-400 text-sm">Price per item (gold):</label>
-                <input type="number" value={listModal.price}
+                <input 
+                  type="number" 
+                  value={listModal.price}
                   onChange={(e) => setListModal({...listModal, price: Math.max(1, parseInt(e.target.value) || 1)})}
-                  className="input-field mt-1" min={1} />
+                  className="input-field mt-1" 
+                  min={1} 
+                />
               </div>
               <p className="text-yellow-400">Total: {listModal.quantity * listModal.price}g</p>
             </div>
+            
             <div className="flex gap-3">
               <button onClick={() => setListModal(null)} className="flex-1 btn-secondary">Cancel</button>
-              <button onClick={handleListItem} disabled={isLoading}
-                className="flex-1 btn-primary disabled:opacity-50">List for Sale</button>
+              <button 
+                onClick={handleListItem} 
+                disabled={isLoading}
+                className="flex-1 btn-primary disabled:opacity-50"
+              >
+                List for Sale
+              </button>
             </div>
           </div>
         </div>
