@@ -211,6 +211,7 @@ const skillSchema = new mongoose.Schema({
   unlocked: { type: Boolean, default: true }
 });
 
+// PHASE 9.3 FIX: Added setId for set bonus tracking
 const inventoryItemSchema = new mongoose.Schema({
   itemId: String,
   name: String,
@@ -221,16 +222,19 @@ const inventoryItemSchema = new mongoose.Schema({
   quantity: { type: Number, default: 1 },
   stackable: { type: Boolean, default: true },
   stats: mongoose.Schema.Types.Mixed,
-  sellPrice: { type: Number, default: 5 }
+  sellPrice: { type: Number, default: 5 },
+  setId: { type: String, default: null }  // PHASE 9.3 FIX: Track set membership
 });
 
+// PHASE 9.3 FIX: Added setId for set bonus tracking
 const equipmentSlotSchema = new mongoose.Schema({
   itemId: { type: String, default: null },
   name: { type: String, default: null },
   icon: { type: String, default: null },
   type: String,
   rarity: String,
-  stats: mongoose.Schema.Types.Mixed
+  stats: mongoose.Schema.Types.Mixed,
+  setId: { type: String, default: null }  // PHASE 9.3 FIX: Track set membership for set bonus calculation
 });
 
 // Active buff schema for combat
