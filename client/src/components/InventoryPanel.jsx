@@ -237,11 +237,12 @@ var InventoryPanel = function(props) {
   var inventory = character.inventory || [];
   
   // Apply filter
+  // PHASE 9.3.3 FIX: Equipment filter also includes weapon/armor types from DB
   var filteredInventory = inventory.filter(function(item) {
     if (filter === 'all') return true;
     if (filter === 'material') return item.type === 'material';
     if (filter === 'consumable') return item.type === 'consumable';
-    if (filter === 'equipment') return item.type === 'equipment';
+    if (filter === 'equipment') return item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
     if (filter === 'scroll') return item.type === 'scroll' || item.type === 'special';
     return true;
   });
@@ -387,14 +388,19 @@ var InventoryPanel = function(props) {
 
   var isUsable = function(item) { return item.type === 'consumable'; };
   
-  // Check if item can be equipped (has slot and is equipment type)
+  // Check if item can be equipped (has slot/subtype and is equipment/weapon/armor type)
+  // PHASE 9.3.3 FIX: Also accept type 'weapon' and 'armor' from equipment database
   var isEquippable = function(item) { 
-    return item.type === 'equipment' && (item.slot || item.subtype === 'weapon' || item.subtype === 'armor' || item.subtype === 'accessory');
+    var isEquipType = item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
+    var hasSlot = item.slot || item.subtype;
+    return isEquipType && hasSlot;
   };
   
   // Check equipment requirements and return status
+  // PHASE 9.3.3 FIX: Also accept type 'weapon' and 'armor' from equipment database
   var getEquipStatus = function(item) {
-    if (item.type !== 'equipment') return { canEquip: false, reason: 'Not equipment' };
+    var isEquipType = item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
+    if (!isEquipType) return { canEquip: false, reason: 'Not equipment' };
     
     var reasons = [];
     var canEquip = true;
@@ -501,12 +507,13 @@ var InventoryPanel = function(props) {
   };
 
   // Count items by type for filter badges
+  // PHASE 9.3.3 FIX: Count weapon/armor types as equipment
   var counts = { material: 0, consumable: 0, equipment: 0, scroll: 0 };
   for (var k = 0; k < inventory.length; k++) {
     var type = inventory[k].type;
     if (type === 'material') counts.material++;
     else if (type === 'consumable') counts.consumable++;
-    else if (type === 'equipment') counts.equipment++;
+    else if (type === 'equipment' || type === 'weapon' || type === 'armor' || type === 'accessory') counts.equipment++;
     else if (type === 'scroll' || type === 'special') counts.scroll++;
   }
 
