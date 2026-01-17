@@ -3,22 +3,34 @@ import { tavernAPI } from '../services/api';
 
 const ITEMS_PER_PAGE = 7;
 
+// Check if item is equipment - check type, subtype, and slot
 const isEquipmentType = (item) => {
-  return item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
+  // Direct type check
+  if (item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory') {
+    return true;
+  }
+  // Subtype check
+  if (item.subtype === 'weapon' || item.subtype === 'armor' || item.subtype === 'accessory' || item.subtype === 'shield') {
+    return true;
+  }
+  // Has equipment slot
+  if (item.slot && ['weapon', 'mainHand', 'head', 'body', 'hands', 'feet', 'ring', 'necklace', 'offhand', 'cape'].includes(item.slot)) {
+    return true;
+  }
+  return false;
 };
 
 const getItemIcon = (item) => {
   if (item.icon && item.icon !== '📦') return item.icon;
   if (item.itemIcon) return item.itemIcon;
-  if (item.slot === 'weapon' || item.slot === 'mainHand') return '⚔️';
+  if (item.slot === 'weapon' || item.slot === 'mainHand' || item.subtype === 'weapon') return '⚔️';
   if (item.slot === 'head') return '🧢';
   if (item.slot === 'body' || item.slot === 'chest') return '👕';
   if (item.slot === 'hands' || item.slot === 'gloves') return '🧤';
   if (item.slot === 'ring') return '💍';
   if (item.slot === 'necklace') return '📿';
-  if (item.slot === 'shoes' || item.slot === 'boots') return '👢';
-  if (item.slot === 'offhand' || item.slot === 'leftHand') return '🛡️';
-  if (item.subtype === 'weapon') return '⚔️';
+  if (item.slot === 'shoes' || item.slot === 'boots' || item.slot === 'feet') return '👢';
+  if (item.slot === 'offhand' || item.slot === 'leftHand' || item.slot === 'cape') return '🛡️';
   if (item.subtype === 'armor') return '🛡️';
   if (item.subtype === 'potion') return '🧪';
   if (item.type === 'material') return '🪨';
@@ -27,10 +39,21 @@ const getItemIcon = (item) => {
   return '📦';
 };
 
+// Get effect text - shows stats for equipment, effect for consumables
 const getItemEffect = (item) => {
-  if (isEquipmentType(item) && item.stats) {
-    return Object.entries(item.stats).map(([k, v]) => k.toUpperCase() + '+' + v).join(' ');
+  // Equipment - show stats summary
+  if (isEquipmentType(item)) {
+    if (item.stats && Object.keys(item.stats).length > 0) {
+      return Object.entries(item.stats).map(([k, v]) => k.toUpperCase() + '+' + v).join(' ');
+    }
+    // No stats but is equipment - show slot info
+    if (item.slot) {
+      return 'Slot: ' + item.slot.charAt(0).toUpperCase() + item.slot.slice(1);
+    }
+    return 'Equipment';
   }
+  
+  // Consumables
   if (item.type === 'consumable') {
     if (item.effect) {
       if (item.effect.type === 'heal') return '+' + item.effect.value + ' HP';
@@ -48,10 +71,12 @@ const getItemEffect = (item) => {
     if (name.includes('energy')) return '+20 Energy';
     return 'Use';
   }
+  
   if (item.type === 'material') return 'Material';
   return '';
 };
 
+// Get requirements for equipment
 const getItemRequirements = (item, character) => {
   if (!isEquipmentType(item)) return null;
   const reqs = [];
@@ -185,6 +210,7 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
     const requirements = getItemRequirements(item, character);
     const itemName = item.name || item.itemName;
     const qty = item.quantity;
+    const isEquip = isEquipmentType(item);
     
     return (
       <div className={'py-2 px-3 rounded-lg border ' + getRarityBorder(item.rarity) + ' ' + getRarityBg(item.rarity)}>
@@ -195,11 +221,13 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
               <span className={getRarityColor(item.rarity) + ' text-sm font-medium truncate'}>{itemName}</span>
               {showQuantity && qty > 1 && <span className="text-gray-500 text-xs">x{qty}</span>}
             </div>
-            {isEquipmentType(item) && requirements && (
+            {/* Show requirements for equipment */}
+            {isEquip && requirements && (
               <div className="flex gap-1">
                 {requirements.map((req, i) => <span key={i} className={'text-xs ' + (req.met ? 'text-green-400' : 'text-red-400')}>{req.text}{req.met ? '✓' : '✗'}</span>)}
               </div>
             )}
+            {/* Always show effect if available */}
             {effect && <p className="text-green-400 text-xs">({effect})</p>}
           </div>
           {rightContent}
