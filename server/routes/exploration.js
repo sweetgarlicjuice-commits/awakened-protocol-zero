@@ -868,10 +868,29 @@ router.post('/combat/action', authenticate, async (req, res) => {
     const stillAlive = combat.enemies.filter(e => e.hp > 0);
     
     if (stillAlive.length === 0) {
-      const baseExp = combat.enemies.reduce((s, e) => s + (e.expReward || 2), 0);
-      const baseGold = combat.enemies.reduce((s, e) => s + Math.floor((e.goldReward?.min || 2) + Math.random() * ((e.goldReward?.max || 5) - (e.goldReward?.min || 2))), 0);
-      const mult = currentNode.type === 'boss' ? 2 : currentNode.type === 'elite' ? 1.5 : 1;
-      const rewards = { exp: Math.floor(baseExp * mult), gold: Math.floor(baseGold * mult), items: [] };
+      // ============================================================
+      // PHASE 9.5: BALANCED EXP SCALING
+      // Tower multiplier: 1.0 + (towerId - 1) * 0.5 (Tower 1 = 1.0x, Tower 10 = 5.5x)
+      // Floor multiplier: 1.0 + (floor - 1) * 0.1 (Floor 1 = 1.0x, Floor 15 = 2.4x)
+      // Node type multiplier: normal = 1x, elite = 2x, boss = 3x
+      // ============================================================
+        const baseExp = combat.enemies.reduce((s, e) => s + (e.expReward || 15), 0);
+        const baseGold = combat.enemies.reduce((s, e) => s + Math.floor((e.goldReward?.min || 5) + Math.random() * ((e.goldReward?.max || 15) - (e.goldReward?.min || 5))), 0);
+
+        // Tower scaling: later towers give more EXP
+        const towerMultiplier = 1.0 + (floorMap.towerId - 1) * 0.5;
+        // Floor scaling: higher floors give more EXP
+        const floorMultiplier = 1.0 + (floorMap.floor - 1) * 0.1;
+        // Node type bonus
+        const nodeMultiplier = currentNode.type === 'boss' ? 3 : currentNode.type === 'elite' ? 2 : 1;
+
+        const finalExpMultiplier = towerMultiplier * floorMultiplier * nodeMultiplier;
+        const finalGoldMultiplier = towerMultiplier * floorMultiplier * (currentNode.type === 'boss' ? 2 : currentNode.type === 'elite' ? 1.5 : 1);
+
+        const rewards = { 
+          exp: Math.floor(baseExp * finalExpMultiplier), 
+          gold: Math.floor(baseGold * finalGoldMultiplier), 
+          items: [] };
       
       // Generate loot drops based on node type
       const playerClass = character.hiddenClass !== 'none' 
@@ -985,9 +1004,19 @@ router.post('/combat/action', authenticate, async (req, res) => {
         status: 'victory',
         combatLog: [...(combat.combatLog || []), ...newLogs],
         rewards, leveledUp, floorComplete,
-        character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, level: character.level, gold: character.gold }
-      });
-    }
+        character: { 
+          hp: character.stats.hp, 
+          maxHp: character.stats.maxHp, 
+          mp: character.stats.mp, 
+          maxMp: character.stats.maxMp, 
+          level: character.level, 
+          gold: character.gold,
+        // PHASE 9.5: Add EXP data for real-time UI updates
+        experience: character.experience,
+        experienceToNextLevel: character.experienceToNextLevel
+          }
+        });
+      }
     
     // Enemy turn
     let damageReduction = 0, evasionChance = 0;
