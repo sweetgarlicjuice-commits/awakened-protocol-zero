@@ -81,11 +81,14 @@ function getItemEffect(item) {
     return statList.join(' ');
   }
   if (item.type === 'consumable') {
+    // FIXED: Check effect object first and use its value
     if (item.effect) {
       if (item.effect.type === 'heal') return '+' + item.effect.value + ' HP';
       if (item.effect.type === 'mana') return '+' + item.effect.value + ' MP';
+      if (item.effect.type === 'restore_energy') return '+' + item.effect.value + ' Energy';
       if (item.effect.type === 'energy') return '+' + item.effect.value + ' Energy';
     }
+    // Fallback for items without effect object (legacy support)
     var name = (item.name || '').toLowerCase();
     if (name.includes('small health')) return '+50 HP';
     if (name.includes('medium health')) return '+150 HP';
@@ -95,7 +98,7 @@ function getItemEffect(item) {
     if (name.includes('large mana')) return '+200 MP';
     if (name.includes('antidote')) return 'Cure Poison';
     if (name.includes('escape')) return 'Exit Tower';
-    if (name.includes('energy')) return '+20 Energy';
+    // Removed hardcoded energy fallback - should use effect.value
     return 'Use';
   }
   if (item.type === 'material') return 'Material';
@@ -116,7 +119,8 @@ function getItemRequirements(item, character) {
   }
   if (item.classReq || item.class) {
     var reqClass = item.classReq || item.class;
-    var meetsClass = !character || reqClass.toLowerCase() === character.baseClass.toLowerCase();
+    // FIXED: Handle 'any' class - any class can equip
+    var meetsClass = !character || reqClass.toLowerCase() === 'any' || reqClass.toLowerCase() === character.baseClass.toLowerCase();
     reqs.push({ text: reqClass.charAt(0).toUpperCase() + reqClass.slice(1), met: meetsClass });
   }
   return reqs.length > 0 ? reqs : null;
@@ -296,7 +300,8 @@ var InventoryPanel = function(props) {
     }
     if (item.classReq || item.class) {
       var reqClass = (item.classReq || item.class).toLowerCase();
-      if (reqClass !== character.baseClass.toLowerCase()) {
+      // FIXED: Handle 'any' class - any class can equip
+      if (reqClass !== 'any' && reqClass !== character.baseClass.toLowerCase()) {
         result.canEquip = false;
         result.reason = (item.classReq || item.class) + ' class required';
         return result;
@@ -361,110 +366,87 @@ var InventoryPanel = function(props) {
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-display text-lg text-purple-400">📦 Inventory</h3>
-            <span className="text-gray-400 text-sm">{inventory.length}/{character.inventorySize || 50}</span>
+            <span className="text-gray-500 text-sm">{inventory.length}/50</span>
           </div>
 
-          {/* Filter buttons */}
-          <div className="flex gap-2 mb-3 flex-wrap">
+          {/* Filters */}
+          <div className="flex gap-1 mb-3 flex-wrap">
             <button onClick={function() { handleFilterChange('all'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'all' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
+              className={'px-3 py-1 rounded text-xs ' + (filter === 'all' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
               All ({inventory.length})
             </button>
             <button onClick={function() { handleFilterChange('material'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'material' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
-              🪨 ({counts.material})
+              className={'px-3 py-1 rounded text-xs ' + (filter === 'material' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
+              📦 ({counts.material})
             </button>
             <button onClick={function() { handleFilterChange('consumable'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'consumable' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
+              className={'px-3 py-1 rounded text-xs ' + (filter === 'consumable' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
               🧪 ({counts.consumable})
             </button>
             <button onClick={function() { handleFilterChange('equipment'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'equipment' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
+              className={'px-3 py-1 rounded text-xs ' + (filter === 'equipment' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
               ⚔️ ({counts.equipment})
             </button>
             <button onClick={function() { handleFilterChange('scroll'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'scroll' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-400')}>
+              className={'px-3 py-1 rounded text-xs ' + (filter === 'scroll' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
               📜 ({counts.scroll})
             </button>
           </div>
 
-          {/* Item List - COMPACT with inline buttons */}
-          <div className="space-y-1 mb-3">
+          {/* Item List */}
+          <div className="space-y-1">
             {paginatedItems.map(function(item, idx) {
-              var isSelected = selectedItem && selectedItem.itemId === item.itemId;
-              var equipStatus = isEquipmentType(item) ? getEquipStatus(item) : null;
               var effect = getItemEffect(item);
               var requirements = getItemRequirements(item, character);
-              
+              var equipStatus = getEquipStatus(item);
               return (
-                <div 
-                  key={idx}
-                  onClick={function() { setSelectedItem(isSelected ? null : item); }}
-                  className={'py-2 px-3 rounded-lg border cursor-pointer transition ' + getRarityBorder(item.rarity) + ' ' + getRarityBg(item.rarity) + ' ' + (isSelected ? 'ring-2 ring-purple-500' : 'hover:bg-void-700')}
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Icon */}
-                    <span className="text-xl">{getItemIcon(item)}</span>
-                    
-                    {/* Content */}
+                <div key={item.itemId + '-' + idx}
+                  className={'py-2 px-3 rounded-lg border ' + getRarityBorder(item.rarity) + ' ' + getRarityBg(item.rarity)}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{getItemIcon(item)}</span>
                     <div className="flex-1 min-w-0">
-                      {/* Name + Quantity */}
                       <div className="flex items-center gap-2">
-                        <span className={getRarityColor(item.rarity) + ' font-medium text-sm'}>{item.name}</span>
+                        <span className={getRarityColor(item.rarity) + ' text-sm font-medium truncate'}>{item.name}</span>
                         {item.quantity > 1 && <span className="text-gray-500 text-xs">x{item.quantity}</span>}
                       </div>
-                      {/* Requirements (equipment only) */}
                       {isEquipmentType(item) && requirements && (
                         <div className="flex gap-1">
                           {requirements.map(function(req, i) {
-                            return (
-                              <span key={i} className={'text-xs ' + (req.met ? 'text-green-400' : 'text-red-400')}>
-                                {req.text}{req.met ? '✓' : '✗'}
-                              </span>
-                            );
+                            return <span key={i} className={'text-xs ' + (req.met ? 'text-green-400' : 'text-red-400')}>{req.text}{req.met ? '✓' : '✗'}</span>;
                           })}
                         </div>
                       )}
-                      {/* Effect */}
                       {effect && <p className="text-green-400 text-xs">({effect})</p>}
                     </div>
-                    
-                    {/* Action Buttons - INLINE on right */}
-                    {isSelected && (
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {isUsable(item) && (
-                          <button onClick={function(e) { e.stopPropagation(); handleUseItem(item.itemId); }} disabled={isLoading}
-                            className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs">Use</button>
-                        )}
-                        {isEquippable(item) && (
-                          <button 
-                            onClick={function(e) { e.stopPropagation(); handleEquipItem(item.itemId); }} 
-                            disabled={isLoading || (equipStatus && !equipStatus.canEquip)}
-                            className={'px-2 py-1 rounded text-xs ' + (equipStatus && equipStatus.canEquip ? 'bg-blue-600 hover:bg-blue-500' : 'bg-gray-600 opacity-50')}
-                          >
-                            Equip
-                          </button>
-                        )}
-                        {canSplit(item) && (
-                          <button onClick={function(e) { e.stopPropagation(); setSplitModal(item); setSplitQty(1); }} disabled={isLoading}
-                            className="px-2 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs">Split</button>
-                        )}
-                        <button onClick={function(e) { e.stopPropagation(); handleDiscardItem(item.itemId); }} disabled={isLoading}
-                          className="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded text-xs">🗑️</button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {isUsable(item) && (
+                        <button onClick={function() { handleUseItem(item.itemId); }} disabled={isLoading}
+                          className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs disabled:opacity-50">Use</button>
+                      )}
+                      {isEquippable(item) && (
+                        <button onClick={function() { handleEquipItem(item.itemId); }} disabled={isLoading || !equipStatus.canEquip}
+                          className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs disabled:opacity-50"
+                          title={equipStatus.reason || ''}>Equip</button>
+                      )}
+                      {canSplit(item) && (
+                        <button onClick={function() { setSplitModal(item); setSplitQty(1); }}
+                          className="px-2 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs">✂️</button>
+                      )}
+                      <button onClick={function() { handleDiscardItem(item.itemId); }} disabled={isLoading}
+                        className="px-2 py-1 bg-red-900/50 hover:bg-red-800/50 rounded text-xs text-red-400">🗑️</button>
+                    </div>
                   </div>
                 </div>
               );
             })}
-            {paginatedItems.length === 0 && (
+            {filteredInventory.length === 0 && (
               <p className="text-gray-500 text-center py-4">No items found</p>
             )}
           </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 mt-3">
               <button onClick={function() { setCurrentPage(Math.max(0, currentPage - 1)); }} disabled={currentPage === 0}
                 className="px-3 py-1 bg-void-700 rounded disabled:opacity-50 text-sm">←</button>
               <span className="text-gray-400 text-sm">{currentPage + 1} / {totalPages}</span>
@@ -478,26 +460,22 @@ var InventoryPanel = function(props) {
       {/* EQUIPMENT TAB */}
       {activeTab === 'equipment' && (
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-          <h3 className="font-display text-lg text-purple-400 mb-3">⚔️ Equipment</h3>
-          
-          <div className="grid grid-cols-2 gap-2 mb-3">
+          <h3 className="font-display text-lg text-purple-400 mb-3">⚔️ Equipped</h3>
+          <div className="grid grid-cols-2 gap-2">
             {EQUIPMENT_SLOTS.map(function(slot) {
               var equippedItem = character.equipment ? character.equipment[slot.id] : null;
               return (
-                <div key={slot.id} className={'p-2 rounded-lg border ' + (equippedItem ? 'border-purple-500/50 bg-purple-900/20' : 'border-gray-700 bg-void-900/50')}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{equippedItem ? getItemIcon(equippedItem) : slot.icon}</span>
-                      <div>
-                        <p className="text-xs text-gray-500">{slot.name}</p>
-                        <p className={'text-xs truncate max-w-[80px] ' + (equippedItem ? 'text-white' : 'text-gray-600')}>
-                          {equippedItem ? equippedItem.name : 'Empty'}
-                        </p>
-                      </div>
+                <div key={slot.id} className={'p-2 rounded-lg border ' + (equippedItem ? getRarityBorder(equippedItem.rarity) + ' ' + getRarityBg(equippedItem.rarity) : 'border-gray-700 bg-void-900/50')}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{equippedItem ? getItemIcon(equippedItem) : slot.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={'text-xs truncate ' + (equippedItem ? getRarityColor(equippedItem.rarity) : 'text-gray-500')}>
+                        {equippedItem ? equippedItem.name : slot.name}
+                      </p>
                     </div>
                     {equippedItem && (
                       <button onClick={function() { handleUnequipItem(slot.id); }} disabled={isLoading}
-                        className="px-1.5 py-0.5 bg-red-600/50 hover:bg-red-600 rounded text-xs">✕</button>
+                        className="px-2 py-1 bg-red-900/50 hover:bg-red-800/50 rounded text-xs text-red-400 disabled:opacity-50">-</button>
                     )}
                   </div>
                   {equippedItem && equippedItem.stats && (
