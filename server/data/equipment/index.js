@@ -54,9 +54,9 @@ export const RARITIES = {
 // ============================================================
 
 export const SLOTS = {
-  mainHand: { name: 'Main Hand', icon: '⚔️' },
-  head: { name: 'Head', icon: '⛑️' },
-  body: { name: 'Body', icon: '🛡️' },
+  mainHand: { name: 'Weapon', icon: '⚔️' },
+  head: { name: 'Head', icon: '🧢' },
+  body: { name: 'Body', icon: '👕' },
   hands: { name: 'Hands', icon: '🧤' },
   feet: { name: 'Feet', icon: '👢' },
   ring: { name: 'Ring', icon: '💍' },
