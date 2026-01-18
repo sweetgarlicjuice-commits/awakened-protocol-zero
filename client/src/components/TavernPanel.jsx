@@ -43,23 +43,9 @@ const getItemIcon = (item) => {
 const getItemEffect = (item) => {
   // Equipment - show stats summary
   if (isEquipmentType(item)) {
-    // Check for stats object with actual values
-    if (item.stats && typeof item.stats === 'object') {
-      const statEntries = Object.entries(item.stats).filter(([k, v]) => v && v !== 0 && k !== 'value');
-      if (statEntries.length > 0) {
-        return statEntries.map(([k, v]) => k.toUpperCase() + '+' + v).join(' ');
-      }
+    if (item.stats && Object.keys(item.stats).length > 0) {
+      return Object.entries(item.stats).map(([k, v]) => k.toUpperCase() + '+' + v).join(' ');
     }
-    // Check for individual stat properties directly on item (some items have flat structure)
-    const directStats = [];
-    const statKeys = ['hp', 'mp', 'patk', 'matk', 'pdef', 'mdef', 'str', 'agi', 'int', 'vit', 'luk', 'critRate', 'critDmg'];
-    for (const key of statKeys) {
-      if (item[key] && item[key] !== 0) {
-        directStats.push(key.toUpperCase() + '+' + item[key]);
-      }
-    }
-    if (directStats.length > 0) return directStats.join(' ');
-    
     // No stats but is equipment - show slot info
     if (item.slot) {
       return 'Slot: ' + item.slot.charAt(0).toUpperCase() + item.slot.slice(1);
@@ -291,17 +277,13 @@ const TavernPanel = ({ character, refreshCharacter, addLog }) => {
               <h3 className="font-display text-lg text-purple-400 mb-2">📋 My Listings ({myListings.length})</h3>
               <div className="space-y-1">
                 {paginatedMyListings.map(listing => (
-                  <div key={listing._id} className="py-2 px-3 rounded-lg border border-purple-500/30 bg-purple-900/20">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{listing.itemIcon || '📦'}</span>
-                      <div className="flex-1">
-                        <span className="text-white text-sm">{listing.itemName}</span>
-                        <span className="text-gray-400 text-xs ml-2">x{listing.quantity}</span>
-                        <p className="text-yellow-400 text-xs">{listing.totalPrice}g</p>
-                      </div>
+                  <ItemRow key={listing._id} item={listing} rightContent={
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-gray-400 text-xs">x{listing.quantity}</span>
+                      <span className="text-yellow-400 text-sm">{listing.totalPrice}g</span>
                       <button onClick={() => handleCancelListing(listing._id)} disabled={isLoading} className="px-2 py-1 bg-red-600 hover:bg-red-500 rounded text-xs">Cancel</button>
                     </div>
-                  </div>
+                  } />
                 ))}
               </div>
               <Pagination currentPage={myListingsPage} totalPages={Math.ceil(myListings.length / ITEMS_PER_PAGE)} onPageChange={setMyListingsPage} />
