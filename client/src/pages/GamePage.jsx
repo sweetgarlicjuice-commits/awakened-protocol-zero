@@ -75,8 +75,8 @@ const SKILL_DATABASE = {
   // ==================== FROSTGUARD (Swordsman) ====================
   frostStrike: { name: 'Frost Strike', mpCost: 12, damage: 1.4, element: 'ice', desc: 'Ice slash. -15% enemy ATK.', effect: '-15% ATK' },
   iceBarrier: { name: 'Ice Barrier', mpCost: 18, damage: 0, element: 'ice', desc: 'Ice shield = 150% P.DEF, reflect 20%.', effect: 'shield' },
-  glacialSlash: { name: 'Glacial Slash', mpCost: 22, damage: 2.0, element: 'ice', desc: 'Powerful ice slash. 30% freeze.', effect: 'freeze' },
-  absoluteDefense: { name: 'Absolute Defense', mpCost: 35, damage: 0, element: 'ice', desc: '+100% DEF, immune to debuffs 2 turns.', effect: '+100% DEF' },
+  frozenBlade: { name: 'Frozen Blade', mpCost: 22, damage: 2.0, element: 'ice', desc: 'Powerful ice slash. 30% freeze.', effect: 'freeze' },
+  glacialFortress: { name: 'Glacial Fortress', mpCost: 35, damage: 0, element: 'ice', desc: '+100% DEF, immune to debuffs 2 turns.', effect: '+100% DEF' },
   
   // ==================== SHADOW DANCER (Thief) ====================
   shadowStrike: { name: 'Shadow Strike', mpCost: 12, damage: 2.2, element: 'dark', desc: 'Strike from shadows. +40% crit.', effect: '+40% crit' },
@@ -85,28 +85,28 @@ const SKILL_DATABASE = {
   shadowDance: { name: 'Shadow Dance', mpCost: 35, damage: 0.8, hits: 5, element: 'dark', desc: '5-hit combo from the shadows.' },
   
   // ==================== VENOMANCER (Thief) ====================
-  toxicStab: { name: 'Toxic Stab', mpCost: 10, damage: 1.4, element: 'nature', desc: 'Poison stab. Strong DoT.', effect: 'poison' },
-  acidSpray: { name: 'Acid Spray', mpCost: 15, damage: 1.2, element: 'nature', desc: 'Acid attack. -25% DEF.', effect: '-25% DEF' },
-  plagueCloud: { name: 'Plague Cloud', mpCost: 22, damage: 0.8, element: 'nature', desc: 'Poison cloud. Heavy DoT.', effect: 'poison' },
-  venomousEnd: { name: 'Venomous End', mpCost: 38, damage: 2.5, element: 'nature', desc: 'Execute <30% HP. Massive poison.', effect: 'execute' },
+  toxicStrike: { name: 'Toxic Strike', mpCost: 10, damage: 1.4, element: 'nature', desc: 'Poison strike. Strong DoT.', effect: 'poison' },
+  venomCoat: { name: 'Venom Coat', mpCost: 15, damage: 0, element: 'nature', desc: 'Coat weapons with poison. +25% poison DMG.', effect: '+25% poison' },
+  plague: { name: 'Plague', mpCost: 22, damage: 0.8, element: 'nature', desc: 'Poison cloud. Heavy DoT.', effect: 'poison' },
+  pandemic: { name: 'Pandemic', mpCost: 38, damage: 2.5, element: 'nature', desc: 'Massive poison explosion.', effect: 'poison' },
   
   // ==================== ASSASSIN (Thief) ====================
-  assassinate: { name: 'Assassinate', mpCost: 15, damage: 3.0, element: 'none', desc: 'Execute <25% HP. +100% crit DMG.', effect: 'execute' },
-  shadowStep: { name: 'Shadow Step', mpCost: 12, damage: 1.5, element: 'dark', desc: 'Teleport strike. +50% evasion.', effect: '+50% evasion' },
-  markedForDeath: { name: 'Marked for Death', mpCost: 18, damage: 0, element: 'dark', desc: '+50% crit chance on target.', effect: '+50% crit' },
-  deathLotus: { name: 'Death Lotus', mpCost: 40, damage: 1.0, hits: 6, element: 'dark', desc: '6-hit spinning attack.' },
+  exposeWeakness: { name: 'Expose Weakness', mpCost: 12, damage: 1.2, element: 'none', desc: 'Find weakness. +30% DMG on target.', effect: '+30% vuln' },
+  markForDeath: { name: 'Mark for Death', mpCost: 18, damage: 0, element: 'dark', desc: '+50% crit chance on target.', effect: '+50% crit' },
+  execute: { name: 'Execute', mpCost: 25, damage: 3.0, element: 'none', desc: 'Execute <25% HP. +100% crit DMG.', effect: 'execute' },
+  assassination: { name: 'Assassination', mpCost: 40, damage: 4.0, element: 'dark', desc: 'Ultimate kill. Massive single-target DMG.' },
   
   // ==================== PHANTOM (Thief) ====================
-  phantomStrike: { name: 'Phantom Strike', mpCost: 12, damage: 1.8, element: 'dark', desc: 'Ghostly attack. Ignores 30% DEF.', effect: 'armor pierce' },
-  phaseShift: { name: 'Phase Shift', mpCost: 15, damage: 0, element: 'dark', desc: '+60% evasion for 2 turns.', effect: '+60% evasion' },
+  haunt: { name: 'Haunt', mpCost: 12, damage: 1.8, element: 'dark', desc: 'Ghostly attack. Ignores 30% DEF.', effect: 'armor pierce' },
+  nightmare: { name: 'Nightmare', mpCost: 15, damage: 0, element: 'dark', desc: 'Terrify enemy. -30% ATK for 2 turns.', effect: '-30% ATK' },
   soulDrain: { name: 'Soul Drain', mpCost: 20, damage: 1.5, element: 'dark', desc: 'Drain HP and MP from enemy.', effect: 'lifesteal' },
-  etherealBurst: { name: 'Ethereal Burst', mpCost: 35, damage: 3.0, element: 'dark', desc: 'Massive dark explosion.' },
+  dread: { name: 'Dread', mpCost: 35, damage: 3.0, element: 'dark', desc: 'Massive dark explosion. Fear effect.' },
   
   // ==================== BLOODREAPER (Thief) ====================
-  bloodSlash: { name: 'Blood Slash', mpCost: 10, damage: 1.8, element: 'dark', desc: 'Slash that heals 20% DMG dealt.', effect: 'lifesteal' },
-  crimsonDance: { name: 'Crimson Dance', mpCost: 18, damage: 0.6, hits: 4, element: 'dark', desc: '4-hit attack, each heals.' },
-  bloodPact: { name: 'Blood Pact', mpCost: 15, damage: 0, element: 'dark', desc: '-20% HP, +40% P.DMG 3 turns.', effect: '+40% P.DMG' },
-  sanguineHarvest: { name: 'Sanguine Harvest', mpCost: 40, damage: 3.5, element: 'dark', desc: 'Massive attack. Heal 50% DMG.', effect: 'lifesteal' },
+  bloodlet: { name: 'Bloodlet', mpCost: 10, damage: 1.8, element: 'none', desc: 'Slash that heals 20% DMG dealt.', effect: 'lifesteal' },
+  sanguineBlade: { name: 'Sanguine Blade', mpCost: 15, damage: 0, element: 'none', desc: 'Attacks heal 25% for 3 turns.', effect: 'lifesteal' },
+  crimsonSlash: { name: 'Crimson Slash', mpCost: 22, damage: 2.2, element: 'none', desc: '220% P.DMG + Lifesteal 35%.', effect: 'lifesteal' },
+  exsanguinate: { name: 'Exsanguinate', mpCost: 40, damage: 3.5, element: 'none', desc: 'Massive attack. Heal 50% DMG.', effect: 'lifesteal' },
   
   // ==================== STORM RANGER (Archer) ====================
   lightningArrow: { name: 'Lightning Arrow', mpCost: 14, damage: 2.0, element: 'lightning', desc: 'Electric arrow. High DMG.', effect: 'shock' },
@@ -115,34 +115,34 @@ const SKILL_DATABASE = {
   thunderstorm: { name: 'Thunderstorm', mpCost: 45, damage: 0.8, hits: 4, element: 'lightning', desc: '4-hit lightning storm.' },
   
   // ==================== PYRO ARCHER (Archer) ====================
-  fireArrow: { name: 'Fire Arrow', mpCost: 12, damage: 1.6, element: 'fire', desc: 'Flaming arrow. Burns.', effect: 'burn' },
-  explosiveShot: { name: 'Explosive Shot', mpCost: 20, damage: 1.8, element: 'fire', desc: 'Exploding arrow. AoE damage.' },
-  igniteTrap: { name: 'Ignite Trap', mpCost: 15, damage: 0.5, element: 'fire', desc: 'Fire trap. Burns for 4 turns.', effect: 'burn' },
-  phoenixArrow: { name: 'Phoenix Arrow', mpCost: 42, damage: 3.2, element: 'fire', desc: 'Massive fire arrow. High DMG + burn.' },
+  fireArrow: { name: 'Fire Arrow', mpCost: 12, damage: 1.7, element: 'fire', desc: 'Flaming arrow. Burns 20%/t (3t).', effect: 'burn' },
+  explosiveShot: { name: 'Explosive Shot', mpCost: 18, damage: 2.3, element: 'fire', desc: '230% P.DMG (🔥).', effect: 'burn' },
+  ignite: { name: 'Ignite', mpCost: 15, damage: 0, element: 'fire', desc: 'Attacks add Burn 15%/t (3t).', effect: 'burn' },
+  meteorArrow: { name: 'Meteor Arrow', mpCost: 40, damage: 3.5, element: 'fire', desc: '350% P.DMG (🔥) + Burn 40%/t (3t).' },
   
   // ==================== FROST SNIPER (Archer) ====================
   iceArrow: { name: 'Ice Arrow', mpCost: 12, damage: 1.5, element: 'ice', desc: 'Freezing arrow. Slows enemy.', effect: 'slow' },
   frozenAim: { name: 'Frozen Aim', mpCost: 18, damage: 0, element: 'ice', desc: '+40% crit, +50% crit DMG for 2 turns.', effect: '+40% crit' },
   piercingCold: { name: 'Piercing Cold', mpCost: 22, damage: 2.2, element: 'ice', desc: 'Armor-piercing ice shot.', effect: 'armor pierce' },
-  absoluteZero: { name: 'Absolute Zero', mpCost: 45, damage: 2.8, element: 'ice', desc: 'Ultimate ice attack. 50% freeze.', effect: 'freeze' },
+  absoluteShot: { name: 'Absolute Shot', mpCost: 42, damage: 4.2, element: 'ice', desc: '420% P.DMG (❄️) + Freeze (1t).', effect: 'freeze' },
   
   // ==================== NATURE WARDEN (Archer) ====================
-  thornArrow: { name: 'Thorn Arrow', mpCost: 10, damage: 1.4, element: 'nature', desc: 'Thorny arrow. DoT.', effect: 'thorn' },
-  naturesBlessing: { name: "Nature's Blessing", mpCost: 20, damage: 0, element: 'nature', desc: 'Heal 25% HP, +20% DEF.', effect: 'heal' },
-  vineSnare: { name: 'Vine Snare', mpCost: 15, damage: 0.8, element: 'nature', desc: 'Root enemy. -30% evasion.', effect: 'root' },
-  wildHunt: { name: 'Wild Hunt', mpCost: 40, damage: 0.7, hits: 5, element: 'nature', desc: '5 nature arrows.' },
+  thornArrow: { name: 'Thorn Arrow', mpCost: 10, damage: 1.5, element: 'nature', desc: '150% P.DMG (🌿) + Poison 15%/t (3t).', effect: 'poison' },
+  naturesGift: { name: "Nature's Gift", mpCost: 20, damage: 0, element: 'nature', desc: 'Heal 25% HP, +20% DEF.', effect: 'heal' },
+  vineTrap: { name: 'Vine Trap', mpCost: 15, damage: 0.8, element: 'nature', desc: 'Root enemy. -30% evasion.', effect: 'root' },
+  overgrowth: { name: 'Overgrowth', mpCost: 40, damage: 0.7, hits: 5, element: 'nature', desc: '5 nature arrows.' },
   
   // ==================== VOID HUNTER (Archer) ====================
   voidArrow: { name: 'Void Arrow', mpCost: 15, damage: 1.8, element: 'dark', desc: 'Dark arrow. Ignores 40% DEF.', effect: 'armor pierce' },
-  nullField: { name: 'Null Field', mpCost: 20, damage: 0, element: 'dark', desc: 'Nullify enemy buffs.', effect: 'dispel' },
+  nullZone: { name: 'Null Zone', mpCost: 20, damage: 0, element: 'dark', desc: 'Nullify enemy buffs.', effect: 'dispel' },
   darkVolley: { name: 'Dark Volley', mpCost: 28, damage: 0.6, hits: 4, element: 'dark', desc: '4 void arrows.' },
-  oblivionShot: { name: 'Oblivion Shot', mpCost: 45, damage: 3.5, element: 'dark', desc: 'Ultimate void attack. Massive DMG.' },
+  oblivion: { name: 'Oblivion', mpCost: 45, damage: 3.5, element: 'dark', desc: 'Ultimate void attack. Massive DMG.' },
   
   // ==================== FROST WEAVER (Mage) ====================
-  frostBolt: { name: 'Frost Bolt', mpCost: 12, damage: 1.5, element: 'ice', desc: 'Ice bolt. Slows enemy.', effect: 'slow' },
-  blizzard: { name: 'Blizzard', mpCost: 30, damage: 1.2, element: 'ice', desc: 'AoE ice storm. Slows all.', effect: 'slow' },
-  iceArmor: { name: 'Ice Armor', mpCost: 20, damage: 0, element: 'ice', desc: '+40% P.DEF, reflect 10% DMG.', effect: '+40% P.DEF' },
-  glacialSpike: { name: 'Glacial Spike', mpCost: 45, damage: 3.0, element: 'ice', desc: 'Massive ice spike. 40% freeze.', effect: 'freeze' },
+  frostBolt: { name: 'Frost Bolt', mpCost: 12, damage: 1.5, element: 'ice', desc: '150% M.DMG (❄️) + -25% ATK (2t).', effect: 'slow' },
+  blizzard: { name: 'Blizzard', mpCost: 28, damage: 2.0, element: 'ice', desc: '200% M.DMG (❄️) + -30% DEF (2t).', effect: 'slow' },
+  iceArmor: { name: 'Ice Armor', mpCost: 20, damage: 0, element: 'ice', desc: '+40% P.DEF, +20% M.DEF (3t).', effect: '+40% P.DEF' },
+  absoluteZero: { name: 'Absolute Zero', mpCost: 50, damage: 4.0, element: 'ice', desc: '400% M.DMG (❄️) + Freeze (1t).', effect: 'freeze' },
   
   // ==================== PYROMANCER (Mage) ====================
   flameBurst: { name: 'Flame Burst', mpCost: 14, damage: 1.8, element: 'fire', desc: 'Fire explosion. Burns.', effect: 'burn' },
@@ -157,16 +157,16 @@ const SKILL_DATABASE = {
   tempest: { name: 'Tempest', mpCost: 48, damage: 1.4, element: 'lightning', desc: 'AoE lightning storm. Massive DMG.' },
   
   // ==================== NECROMANCER (Mage) ====================
-  darkBolt: { name: 'Dark Bolt', mpCost: 12, damage: 1.5, element: 'dark', desc: 'Dark magic bolt.', effect: 'drain' },
-  lifeSteal: { name: 'Life Steal', mpCost: 18, damage: 1.2, element: 'dark', desc: 'Drain HP = 50% DMG.', effect: 'lifesteal' },
-  curseOfDeath: { name: 'Curse of Death', mpCost: 25, damage: 0, element: 'dark', desc: '-30% ATK, -30% DEF.', effect: 'curse' },
-  deathCoil: { name: 'Death Coil', mpCost: 45, damage: 3.2, element: 'dark', desc: 'Ultimate dark magic. Heal 30% DMG.' },
+  lifeDrain: { name: 'Life Drain', mpCost: 12, damage: 1.4, element: 'dark', desc: '140% M.DMG (🌑) + Heal 30% dealt.', effect: 'lifesteal' },
+  curse: { name: 'Curse', mpCost: 15, damage: 0, element: 'dark', desc: 'Enemy -25% all stats (3t).', effect: 'curse' },
+  soulRend: { name: 'Soul Rend', mpCost: 25, damage: 2.2, element: 'dark', desc: '220% M.DMG (🌑) + Heal 40% dealt.', effect: 'lifesteal' },
+  deathPact: { name: 'Death Pact', mpCost: 42, damage: 3.5, element: 'dark', desc: '350% M.DMG (🌑) + Heal 50% dealt.', effect: 'lifesteal' },
   
   // ==================== ARCANIST (Mage) ====================
-  arcaneMissile: { name: 'Arcane Missile', mpCost: 10, damage: 0.5, hits: 3, element: 'holy', desc: '3 arcane missiles.' },
-  manaSurge: { name: 'Mana Surge', mpCost: 0, damage: 0, element: 'holy', desc: 'Restore 30% MP.', effect: 'mana restore' },
-  arcaneBarrier: { name: 'Arcane Barrier', mpCost: 22, damage: 0, element: 'holy', desc: 'Shield = 150% M.DEF.', effect: 'shield' },
-  arcaneNova: { name: 'Arcane Nova', mpCost: 50, damage: 1.2, hits: 4, element: 'holy', desc: '4-hit arcane explosion.' }
+  arcaneMissile: { name: 'Arcane Missile', mpCost: 10, damage: 1.6, element: 'holy', desc: '160% M.DMG (✨).', hits: 1 },
+  empower: { name: 'Empower', mpCost: 18, damage: 0, element: 'holy', desc: '+35% M.DMG (3t).', effect: '+35% M.DMG' },
+  arcaneBurst: { name: 'Arcane Burst', mpCost: 28, damage: 2.8, element: 'holy', desc: '280% M.DMG (✨).' },
+  transcendence: { name: 'Transcendence', mpCost: 45, damage: 0, element: 'holy', desc: '+50% All DMG, +30% Crit Rate (3t).', effect: '+50% DMG' }
 };
 
 // Component for skill cards - reusable
