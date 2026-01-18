@@ -267,11 +267,14 @@ function addItemToInventory(character, itemId, quantity, itemData) {
     icon: item.icon || '📦',
     type: item.type,
     subtype: subtype,
+    slot: item.slot || null,
     rarity: item.rarity || 'common',
     quantity: quantity,
     stackable: item.stackable || false,
     stats: item.stats || {},
-    setId: item.setId || null
+    setId: item.setId || null,
+    levelReq: item.levelReq || null,
+    classReq: item.classReq || item.class || null
   });
 
   return { success: true, stacked: false };
@@ -437,7 +440,6 @@ async function populateShopWithConsumables(shop) {
 
 // GET /api/tavern/shop - Get shop items
 // PHASE 9.3.5 FIX: Removed auto-populate - GM has full control over shop contents
-// PHASE 9.3.9 FIX: Enrich shop items with full data from equipment database (stats, slot, requirements)
 // Use POST /api/tavern/gm/shop/repopulate to restore default items
 router.get('/shop', authenticate, async function(req, res) {
   try {
@@ -446,39 +448,7 @@ router.get('/shop', authenticate, async function(req, res) {
       shop = await TavernShop.initializeShop();
     }
     
-    // Enrich shop items with full data from equipment database
-    var enrichedItems = shop.items
-      .filter(function(i) { return i.isActive; })
-      .map(function(shopItem) {
-        // Get full item data from database
-        var fullItemData = getItemById(shopItem.itemId);
-        
-        if (fullItemData) {
-          // Merge shop item with full database data
-          return {
-            itemId: shopItem.itemId,
-            name: fullItemData.name || shopItem.name,
-            icon: fullItemData.icon || shopItem.icon || '📦',
-            type: fullItemData.type || shopItem.type,
-            subtype: fullItemData.subtype || fullItemData.slot || null,
-            slot: fullItemData.slot || null,
-            rarity: fullItemData.rarity || 'common',
-            stats: fullItemData.stats || {},
-            levelReq: fullItemData.levelReq || null,
-            classReq: fullItemData.classReq || fullItemData.class || null,
-            setId: fullItemData.setId || null,
-            effect: fullItemData.effect || null,
-            price: shopItem.price,
-            stock: shopItem.stock,
-            isActive: shopItem.isActive
-          };
-        }
-        
-        // Fallback: return shop item as-is if not found in database
-        return shopItem;
-      });
-    
-    res.json({ items: enrichedItems });
+    res.json({ items: shop.items.filter(function(i) { return i.isActive; }) });
   } catch (error) {
     console.error('Get shop error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -592,22 +562,90 @@ router.post('/shop/sell', authenticate, async function(req, res) {
 // ============ TRADING STALL ROUTES ============
 
 // GET /api/tavern/trading - Get all active listings
+// PHASE 9.3.9 FIX: Enrich listings with full item data from equipment database
 router.get('/trading', authenticate, async function(req, res) {
   try {
     var listings = await TradingListing.find({ isActive: true })
       .sort({ listedAt: -1 })
       .limit(100);
-    res.json({ listings: listings });
+    
+    // Enrich each listing with full item data
+    var enrichedListings = listings.map(function(listing) {
+      var listingObj = listing.toObject();
+      var fullItemData = getItemById(listing.itemId);
+      
+      // Merge with database data if available
+      if (fullItemData) {
+        listingObj.stats = fullItemData.stats || listingObj.itemStats || {};
+        listingObj.slot = fullItemData.slot || listingObj.itemSlot || null;
+        listingObj.levelReq = fullItemData.levelReq || listingObj.itemLevelReq || null;
+        listingObj.classReq = fullItemData.classReq || fullItemData.class || listingObj.itemClassReq || null;
+        listingObj.rarity = fullItemData.rarity || listingObj.itemRarity || 'common';
+        listingObj.type = fullItemData.type || listingObj.itemType;
+        listingObj.subtype = fullItemData.subtype || fullItemData.slot || listingObj.itemSubtype || null;
+        listingObj.name = fullItemData.name || listingObj.itemName;
+        listingObj.icon = fullItemData.icon || listingObj.itemIcon || '📦';
+      } else {
+        // Use stored listing data
+        listingObj.stats = listingObj.itemStats || {};
+        listingObj.slot = listingObj.itemSlot || null;
+        listingObj.levelReq = listingObj.itemLevelReq || null;
+        listingObj.classReq = listingObj.itemClassReq || null;
+        listingObj.rarity = listingObj.itemRarity || 'common';
+        listingObj.type = listingObj.itemType;
+        listingObj.subtype = listingObj.itemSubtype || null;
+        listingObj.name = listingObj.itemName;
+        listingObj.icon = listingObj.itemIcon || '📦';
+      }
+      
+      return listingObj;
+    });
+    
+    res.json({ listings: enrichedListings });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 // GET /api/tavern/trading/my - Get my listings
+// PHASE 9.3.9 FIX: Enrich listings with full item data from equipment database
 router.get('/trading/my', authenticate, async function(req, res) {
   try {
     var listings = await TradingListing.find({ sellerId: req.userId, isActive: true });
-    res.json({ listings: listings });
+    
+    // Enrich each listing with full item data
+    var enrichedListings = listings.map(function(listing) {
+      var listingObj = listing.toObject();
+      var fullItemData = getItemById(listing.itemId);
+      
+      // Merge with database data if available
+      if (fullItemData) {
+        listingObj.stats = fullItemData.stats || listingObj.itemStats || {};
+        listingObj.slot = fullItemData.slot || listingObj.itemSlot || null;
+        listingObj.levelReq = fullItemData.levelReq || listingObj.itemLevelReq || null;
+        listingObj.classReq = fullItemData.classReq || fullItemData.class || listingObj.itemClassReq || null;
+        listingObj.rarity = fullItemData.rarity || listingObj.itemRarity || 'common';
+        listingObj.type = fullItemData.type || listingObj.itemType;
+        listingObj.subtype = fullItemData.subtype || fullItemData.slot || listingObj.itemSubtype || null;
+        listingObj.name = fullItemData.name || listingObj.itemName;
+        listingObj.icon = fullItemData.icon || listingObj.itemIcon || '📦';
+      } else {
+        // Use stored listing data
+        listingObj.stats = listingObj.itemStats || {};
+        listingObj.slot = listingObj.itemSlot || null;
+        listingObj.levelReq = listingObj.itemLevelReq || null;
+        listingObj.classReq = listingObj.itemClassReq || null;
+        listingObj.rarity = listingObj.itemRarity || 'common';
+        listingObj.type = listingObj.itemType;
+        listingObj.subtype = listingObj.itemSubtype || null;
+        listingObj.name = listingObj.itemName;
+        listingObj.icon = listingObj.itemIcon || '📦';
+      }
+      
+      return listingObj;
+    });
+    
+    res.json({ listings: enrichedListings });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
@@ -657,8 +695,11 @@ router.post('/trading/list', authenticate, async function(req, res) {
       itemIcon: invItem.icon || '📦',
       itemType: invItem.type,
       itemSubtype: invItem.subtype || '',
+      itemSlot: invItem.slot || null,
       itemRarity: invItem.rarity || 'common',
       itemStats: invItem.stats || {},
+      itemLevelReq: invItem.levelReq || null,
+      itemClassReq: invItem.classReq || null,
       quantity: quantity,
       pricePerUnit: pricePerUnit,
       totalPrice: quantity * pricePerUnit
