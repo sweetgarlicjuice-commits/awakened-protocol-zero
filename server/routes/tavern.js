@@ -440,6 +440,7 @@ async function populateShopWithConsumables(shop) {
 
 // GET /api/tavern/shop - Get shop items
 // PHASE 9.3.5 FIX: Removed auto-populate - GM has full control over shop contents
+// PHASE 9.3.9 FIX: Enrich shop items with full data from equipment database
 // Use POST /api/tavern/gm/shop/repopulate to restore default items
 router.get('/shop', authenticate, async function(req, res) {
   try {
@@ -448,7 +449,39 @@ router.get('/shop', authenticate, async function(req, res) {
       shop = await TavernShop.initializeShop();
     }
     
-    res.json({ items: shop.items.filter(function(i) { return i.isActive; }) });
+    // Enrich shop items with full data from equipment database
+    var enrichedItems = shop.items
+      .filter(function(i) { return i.isActive; })
+      .map(function(shopItem) {
+        // Get full item data from database
+        var fullItemData = getItemById(shopItem.itemId);
+        
+        if (fullItemData) {
+          // Merge shop item with full database data
+          return {
+            itemId: shopItem.itemId,
+            name: fullItemData.name || shopItem.name,
+            icon: fullItemData.icon || shopItem.icon || '📦',
+            type: fullItemData.type || shopItem.type,
+            subtype: fullItemData.subtype || fullItemData.slot || null,
+            slot: fullItemData.slot || null,
+            rarity: fullItemData.rarity || 'common',
+            stats: fullItemData.stats || {},
+            levelReq: fullItemData.levelReq || null,
+            classReq: fullItemData.classReq || fullItemData.class || null,
+            setId: fullItemData.setId || null,
+            effect: fullItemData.effect || null,
+            price: shopItem.price,
+            stock: shopItem.stock,
+            isActive: shopItem.isActive
+          };
+        }
+        
+        // Fallback: return shop item as-is if not found in database
+        return shopItem;
+      });
+    
+    res.json({ items: enrichedItems });
   } catch (error) {
     console.error('Get shop error:', error);
     res.status(500).json({ error: 'Server error' });
