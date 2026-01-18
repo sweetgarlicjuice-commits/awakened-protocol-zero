@@ -43,9 +43,23 @@ const getItemIcon = (item) => {
 const getItemEffect = (item) => {
   // Equipment - show stats summary
   if (isEquipmentType(item)) {
-    if (item.stats && Object.keys(item.stats).length > 0) {
-      return Object.entries(item.stats).map(([k, v]) => k.toUpperCase() + '+' + v).join(' ');
+    // Check for stats object with actual values
+    if (item.stats && typeof item.stats === 'object') {
+      const statEntries = Object.entries(item.stats).filter(([k, v]) => v && v !== 0 && k !== 'value');
+      if (statEntries.length > 0) {
+        return statEntries.map(([k, v]) => k.toUpperCase() + '+' + v).join(' ');
+      }
     }
+    // Check for individual stat properties directly on item (some items have flat structure)
+    const directStats = [];
+    const statKeys = ['hp', 'mp', 'patk', 'matk', 'pdef', 'mdef', 'str', 'agi', 'int', 'vit', 'luk', 'critRate', 'critDmg'];
+    for (const key of statKeys) {
+      if (item[key] && item[key] !== 0) {
+        directStats.push(key.toUpperCase() + '+' + item[key]);
+      }
+    }
+    if (directStats.length > 0) return directStats.join(' ');
+    
     // No stats but is equipment - show slot info
     if (item.slot) {
       return 'Slot: ' + item.slot.charAt(0).toUpperCase() + item.slot.slice(1);
