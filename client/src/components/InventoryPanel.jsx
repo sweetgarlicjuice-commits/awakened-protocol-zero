@@ -48,6 +48,52 @@ function isEquipmentType(item) {
   return item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
 }
 
+// ============================================================
+// PHASE 9.6.3: Hidden Class Scroll Detection
+// ============================================================
+function isHiddenClassScroll(item) {
+  return item.type === 'hidden_class_scroll' || 
+         item.type === 'scroll' ||
+         (item.name && item.name.toLowerCase().includes('scroll') && item.hiddenClass) ||
+         (item.itemId && item.itemId.endsWith('_scroll'));
+}
+
+// Base class mapping for scrolls
+var SCROLL_BASE_CLASS_MAP = {
+  // Swordsman scrolls
+  flameblade: 'swordsman', berserker: 'swordsman', paladin: 'swordsman',
+  earthshaker: 'swordsman', frostguard: 'swordsman',
+  // Thief scrolls
+  shadowDancer: 'thief', venomancer: 'thief', assassin: 'thief',
+  phantom: 'thief', bloodreaper: 'thief',
+  // Archer scrolls
+  stormRanger: 'archer', pyroArcher: 'archer', frostSniper: 'archer',
+  natureWarden: 'archer', voidHunter: 'archer',
+  // Mage scrolls
+  frostWeaver: 'mage', pyromancer: 'mage', stormcaller: 'mage',
+  necromancer: 'mage', arcanist: 'mage'
+};
+
+function getScrollBaseClass(item) {
+  // Check direct baseClass property
+  if (item.baseClass) return item.baseClass.toLowerCase();
+  
+  // Check hiddenClass and map to base class
+  if (item.hiddenClass && SCROLL_BASE_CLASS_MAP[item.hiddenClass]) {
+    return SCROLL_BASE_CLASS_MAP[item.hiddenClass];
+  }
+  
+  // Try to extract from itemId (e.g., frostSniper_scroll -> frostSniper)
+  if (item.itemId && item.itemId.endsWith('_scroll')) {
+    var hiddenClass = item.itemId.replace('_scroll', '');
+    if (SCROLL_BASE_CLASS_MAP[hiddenClass]) {
+      return SCROLL_BASE_CLASS_MAP[hiddenClass];
+    }
+  }
+  
+  return null;
+}
+
 function getItemIcon(item) {
   if (item.icon && item.icon !== '📦') return item.icon;
   if (item.slot === 'weapon' || item.slot === 'mainHand') return '⚔️';
@@ -102,7 +148,13 @@ function getItemEffect(item) {
     return 'Use';
   }
   if (item.type === 'material') return 'Material';
-  if (item.type === 'scroll') return 'Hidden Class';
+  if (item.type === 'scroll' || item.type === 'hidden_class_scroll' || isHiddenClassScroll(item)) {
+    var scrollBase = getScrollBaseClass(item);
+    if (scrollBase) {
+      return 'Requires ' + scrollBase.charAt(0).toUpperCase() + scrollBase.slice(1);
+    }
+    return 'Hidden Class';
+  }
   if (item.type === 'special') {
     if (item.itemId === 'memory_crystal') return 'Remove Class';
     return 'Special';
@@ -162,7 +214,7 @@ var InventoryPanel = function(props) {
     if (filter === 'material') return item.type === 'material';
     if (filter === 'consumable') return item.type === 'consumable';
     if (filter === 'equipment') return isEquipmentType(item);
-    if (filter === 'scroll') return item.type === 'scroll' || item.type === 'special';
+    if (filter === 'scroll') return item.type === 'scroll' || item.type === 'special' || item.type === 'hidden_class_scroll' || isHiddenClassScroll(item);
     return true;
   });
   
@@ -287,9 +339,45 @@ var InventoryPanel = function(props) {
     setIsLoading(false);
   };
 
+  // PHASE 9.6.3: Handle using hidden class scroll
+  var handleUseScroll = async function(itemId) {
+    setIsLoading(true);
+    try {
+      // tavernAPI.useScroll should call POST /api/tavern/use-scroll
+      var response = await tavernAPI.useScroll(itemId);
+      addLog('success', response.data.message);
+      await refreshCharacter();
+    } catch (err) {
+      addLog('error', err.response?.data?.error || 'Failed to use scroll');
+    }
+    setIsLoading(false);
+  };
+
   var isUsable = function(item) { return item.type === 'consumable'; };
   var isEquippable = function(item) { return isEquipmentType(item) && (item.slot || item.subtype); };
   var canSplit = function(item) { return item.stackable && item.quantity > 1; };
+
+  // PHASE 9.6.3: Check if scroll can be used
+  var getScrollStatus = function(item) {
+    var result = { canUse: true, reason: '' };
+    
+    // Check if player already has a hidden class
+    if (character.hiddenClass && character.hiddenClass !== 'none') {
+      result.canUse = false;
+      result.reason = 'Already have hidden class: ' + character.hiddenClass;
+      return result;
+    }
+    
+    // Check if scroll matches player's base class
+    var scrollBase = getScrollBaseClass(item);
+    if (scrollBase && scrollBase !== character.baseClass.toLowerCase()) {
+      result.canUse = false;
+      result.reason = 'Requires ' + scrollBase.charAt(0).toUpperCase() + scrollBase.slice(1) + ' class';
+      return result;
+    }
+    
+    return result;
+  };
 
   var getEquipStatus = function(item) {
     var result = { canEquip: true, reason: '' };
@@ -340,7 +428,7 @@ var InventoryPanel = function(props) {
     if (itemType === 'material') counts.material++;
     else if (itemType === 'consumable') counts.consumable++;
     else if (isEquipmentType(inventory[k])) counts.equipment++;
-    else if (itemType === 'scroll' || itemType === 'special') counts.scroll++;
+    else if (itemType === 'scroll' || itemType === 'special' || itemType === 'hidden_class_scroll' || isHiddenClassScroll(inventory[k])) counts.scroll++;
   }
 
   return (
@@ -399,6 +487,8 @@ var InventoryPanel = function(props) {
               var effect = getItemEffect(item);
               var requirements = getItemRequirements(item, character);
               var equipStatus = getEquipStatus(item);
+              var isScroll = isHiddenClassScroll(item);
+              var scrollStatus = isScroll ? getScrollStatus(item) : null;
               return (
                 <div key={item.itemId + '-' + idx}
                   className={'py-2 px-3 rounded-lg border ' + getRarityBorder(item.rarity) + ' ' + getRarityBg(item.rarity)}>
@@ -416,12 +506,44 @@ var InventoryPanel = function(props) {
                           })}
                         </div>
                       )}
+                      {/* Show scroll requirements */}
+                      {isScroll && (
+                        <div className="flex gap-1">
+                          {(function() {
+                            var scrollBase = getScrollBaseClass(item);
+                            var meetsClass = scrollBase && scrollBase === character.baseClass.toLowerCase();
+                            var hasHidden = character.hiddenClass && character.hiddenClass !== 'none';
+                            return (
+                              <>
+                                {scrollBase && (
+                                  <span className={'text-xs ' + (meetsClass ? 'text-green-400' : 'text-red-400')}>
+                                    {scrollBase.charAt(0).toUpperCase() + scrollBase.slice(1)}{meetsClass ? '✓' : '✗'}
+                                  </span>
+                                )}
+                                {hasHidden && (
+                                  <span className="text-xs text-red-400">Has Class✗</span>
+                                )}
+                                {!hasHidden && meetsClass && (
+                                  <span className="text-xs text-green-400">Ready✓</span>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                       {effect && <p className="text-green-400 text-xs">({effect})</p>}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {isUsable(item) && (
                         <button onClick={function() { handleUseItem(item.itemId); }} disabled={isLoading}
                           className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs disabled:opacity-50">Use</button>
+                      )}
+                      {/* Hidden Class Scroll Use Button */}
+                      {isScroll && (
+                        <button onClick={function() { handleUseScroll(item.itemId); }} 
+                          disabled={isLoading || !scrollStatus.canUse}
+                          className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs disabled:opacity-50"
+                          title={scrollStatus.reason || 'Awaken hidden class'}>Awaken</button>
                       )}
                       {isEquippable(item) && (
                         <button onClick={function() { handleEquipItem(item.itemId); }} disabled={isLoading || !equipStatus.canEquip}
