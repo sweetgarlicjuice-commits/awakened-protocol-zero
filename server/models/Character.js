@@ -375,6 +375,12 @@ const characterSchema = new mongoose.Schema({
     default: Date.now
   },
   
+  // PHASE 9.5: Track last HP/MP regen separately
+  lastRegenUpdate: {
+    type: Date,
+    default: Date.now
+  },
+  
   // Gold
   gold: {
     type: Number,
@@ -535,21 +541,53 @@ characterSchema.pre('save', function(next) {
 });
 
 // ============================================================
-// METHOD - Update energy based on time passed
+// PHASE 9.5: METHOD - Update energy AND HP/MP based on time passed
+// Regen rates:
+// - Energy: 25 per hour
+// - HP: 5% of maxHp per hour (when NOT in tower)
+// - MP: 10% of maxMp per hour (when NOT in tower)
 // ============================================================
 
 characterSchema.methods.updateEnergy = function() {
   const now = new Date();
-  const lastUpdate = this.lastEnergyUpdate || now;
-  const hoursPassed = (now - lastUpdate) / (1000 * 60 * 60);
-  const energyGain = Math.floor(hoursPassed * 25); // 25 energy per hour
+  
+  // ===== ENERGY REGEN (always happens) =====
+  const lastEnergyUpdate = this.lastEnergyUpdate || now;
+  const energyHoursPassed = (now - lastEnergyUpdate) / (1000 * 60 * 60);
+  const energyGain = Math.floor(energyHoursPassed * 25); // 25 energy per hour
   
   if (energyGain > 0) {
     this.energy = Math.min(100, this.energy + energyGain);
     this.lastEnergyUpdate = now;
   }
   
-  return this.energy;
+  // ===== HP/MP REGEN (only when NOT in tower) =====
+  if (!this.isInTower) {
+    const lastRegenUpdate = this.lastRegenUpdate || now;
+    const regenHoursPassed = (now - lastRegenUpdate) / (1000 * 60 * 60);
+    
+    if (regenHoursPassed >= 0.1) { // At least 6 minutes passed
+      // HP Regen: 5% of maxHp per hour
+      const hpRegenRate = 0.05; // 5% per hour
+      const hpGain = Math.floor(this.stats.maxHp * hpRegenRate * regenHoursPassed);
+      
+      // MP Regen: 10% of maxMp per hour
+      const mpRegenRate = 0.10; // 10% per hour
+      const mpGain = Math.floor(this.stats.maxMp * mpRegenRate * regenHoursPassed);
+      
+      if (hpGain > 0 || mpGain > 0) {
+        this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + hpGain);
+        this.stats.mp = Math.min(this.stats.maxMp, this.stats.mp + mpGain);
+        this.lastRegenUpdate = now;
+      }
+    }
+  }
+  
+  return {
+    energy: this.energy,
+    hp: this.stats.hp,
+    mp: this.stats.mp
+  };
 };
 
 // ============================================================
