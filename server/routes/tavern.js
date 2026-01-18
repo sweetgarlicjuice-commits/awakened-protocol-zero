@@ -789,15 +789,19 @@ router.post('/trading/buy/:listingId', authenticate, async function(req, res) {
     }
 
     // Build item data from listing (includes dynamically generated items)
+    // PHASE 9.3.9 FIX: Include all item fields for proper inventory storage
     var itemData = {
       id: listing.itemId,
       name: listing.itemName,
       icon: listing.itemIcon || '📦',
       type: listing.itemType,
       subtype: listing.itemSubtype || '',
+      slot: listing.itemSlot || listing.itemSubtype || null,
       rarity: listing.itemRarity || 'common',
       stackable: listing.itemType === 'material' || listing.itemType === 'consumable',
-      stats: listing.itemStats || {}
+      stats: listing.itemStats || {},
+      levelReq: listing.itemLevelReq || null,
+      classReq: listing.itemClassReq || null
     };
 
     var result = addItemToInventory(buyer, listing.itemId, buyQty, itemData);
@@ -829,7 +833,8 @@ router.post('/trading/buy/:listingId', authenticate, async function(req, res) {
     });
   } catch (error) {
     console.error('Trading buy error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Server error: ' + error.message });
   }
 });
 
@@ -849,15 +854,19 @@ router.delete('/trading/:listingId', authenticate, async function(req, res) {
     var character = await Character.findOne({ userId: req.userId });
 
     // Build item data from listing
+    // PHASE 9.3.9 FIX: Include all item fields for proper inventory storage
     var itemData = {
       id: listing.itemId,
       name: listing.itemName,
       icon: listing.itemIcon || '📦',
       type: listing.itemType,
       subtype: listing.itemSubtype || '',
+      slot: listing.itemSlot || listing.itemSubtype || null,
       rarity: listing.itemRarity || 'common',
       stackable: listing.itemType === 'material' || listing.itemType === 'consumable',
-      stats: listing.itemStats || {}
+      stats: listing.itemStats || {},
+      levelReq: listing.itemLevelReq || null,
+      classReq: listing.itemClassReq || null
     };
 
     var result = addItemToInventory(character, listing.itemId, listing.quantity, itemData);
