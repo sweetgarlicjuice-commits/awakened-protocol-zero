@@ -7,7 +7,7 @@ var EQUIPMENT_SLOTS = [
   { id: 'leg', name: 'Hands', icon: '🧤' },
   { id: 'shoes', name: 'Feet', icon: '👢' },
   { id: 'rightHand', name: 'Weapon', icon: '⚔️' },
-  { id: 'leftHand', name: 'Off-hand', icon: '🛡️' },
+  { id: 'leftHand', name: 'Cape', icon: '🧥' },
   { id: 'ring', name: 'Ring', icon: '💍' },
   { id: 'necklace', name: 'Necklace', icon: '📿' }
 ];
@@ -58,7 +58,7 @@ function getItemIcon(item) {
   if (item.slot === 'shoes' || item.slot === 'boots' || item.slot === 'feet') return '👢';
   if (item.slot === 'ring') return '💍';
   if (item.slot === 'necklace') return '📿';
-  if (item.slot === 'offhand' || item.slot === 'leftHand' || item.slot === 'cape') return '🛡️';
+  if (item.slot === 'offhand' || item.slot === 'leftHand' || item.slot === 'cape') return '🧥';
   if (item.subtype === 'weapon') return '⚔️';
   if (item.subtype === 'armor') return '🛡️';
   if (item.subtype === 'potion') return '🧪';
