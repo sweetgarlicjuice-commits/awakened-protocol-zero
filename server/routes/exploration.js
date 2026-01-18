@@ -579,7 +579,7 @@ function generateEnemies(type, towerId, floor) {
   const towerEnemies = ENEMIES[`tower${towerId}`] || ENEMIES.tower1;
   
   if (!towerEnemies) {
-    return [{ id: 'skeleton', name: 'Skeleton', icon: '💀', hp: 80, maxHp: 80, atk: 15, def: 6, expReward: 2, goldReward: { min: 2, max: 5 } }];
+    return [{ id: 'skeleton', name: 'Skeleton', icon: '💀', hp: 80, maxHp: 80, atk: 15, def: 6, expReward: 15, goldReward: { min: 5, max: 15 } }];
   }
   
   const floorScale = 1 + (floor - 1) * 0.15;
@@ -589,14 +589,14 @@ function generateEnemies(type, towerId, floor) {
     b.hp = Math.floor((b.baseHp || 800) * floorScale); b.maxHp = b.hp;
     b.atk = Math.floor((b.baseAtk || 50) * floorScale);
     b.def = Math.floor((b.baseDef || 20) * floorScale);
-    b.expReward = Math.floor(10 + floor);
+    b.expReward = b.expReward || Math.floor(100 + floor * 20);
     enemies.push(b);
   } else if (type === 'elite' && towerEnemies.elite?.length > 0) {
     const e = { ...towerEnemies.elite[Math.floor(Math.random() * towerEnemies.elite.length)] };
     e.hp = Math.floor((e.baseHp || 300) * floorScale); e.maxHp = e.hp;
     e.atk = Math.floor((e.baseAtk || 30) * floorScale);
     e.def = Math.floor((e.baseDef || 12) * floorScale);
-    e.expReward = Math.floor(5 + floor * 0.5);
+    e.expReward = e.expReward || Math.floor(40 + floor * 8);
     enemies.push(e);
   } else if (towerEnemies.normal?.length > 0) {
     const count = 1 + Math.floor(Math.random() * 3);
@@ -606,7 +606,7 @@ function generateEnemies(type, towerId, floor) {
       e.hp = Math.floor((e.baseHp || 80) * floorScale); e.maxHp = e.hp;
       e.atk = Math.floor((e.baseAtk || 15) * floorScale);
       e.def = Math.floor((e.baseDef || 6) * floorScale);
-      e.expReward = Math.floor(1 + floor * 0.3);
+      e.expReward = e.expReward || Math.floor(15 + floor * 3);
       e.instanceId = `${e.id}_${i}`;
       enemies.push(e);
     }
@@ -725,8 +725,8 @@ router.post('/combat/start', authenticate, async (req, res) => {
       maxHp: e.maxHp || e.hp || 50,
       atk: e.atk || 10,
       def: e.def || 5,
-      expReward: e.expReward || 2,
-      goldReward: e.goldReward || { min: 2, max: 5 },
+      expReward: e.expReward || 15,
+      goldReward: e.goldReward || { min: 5, max: 15 },
       isElite: e.isElite || false,
       isBoss: e.isBoss || false
     }));
@@ -874,23 +874,24 @@ router.post('/combat/action', authenticate, async (req, res) => {
       // Floor multiplier: 1.0 + (floor - 1) * 0.1 (Floor 1 = 1.0x, Floor 15 = 2.4x)
       // Node type multiplier: normal = 1x, elite = 2x, boss = 3x
       // ============================================================
-        const baseExp = combat.enemies.reduce((s, e) => s + (e.expReward || 15), 0);
-        const baseGold = combat.enemies.reduce((s, e) => s + Math.floor((e.goldReward?.min || 5) + Math.random() * ((e.goldReward?.max || 15) - (e.goldReward?.min || 5))), 0);
+      const baseExp = combat.enemies.reduce((s, e) => s + (e.expReward || 15), 0);
+      const baseGold = combat.enemies.reduce((s, e) => s + Math.floor((e.goldReward?.min || 5) + Math.random() * ((e.goldReward?.max || 15) - (e.goldReward?.min || 5))), 0);
 
-        // Tower scaling: later towers give more EXP
-        const towerMultiplier = 1.0 + (floorMap.towerId - 1) * 0.5;
-        // Floor scaling: higher floors give more EXP
-        const floorMultiplier = 1.0 + (floorMap.floor - 1) * 0.1;
-        // Node type bonus
-        const nodeMultiplier = currentNode.type === 'boss' ? 3 : currentNode.type === 'elite' ? 2 : 1;
+      // Tower scaling: later towers give more EXP
+      const towerMultiplier = 1.0 + (floorMap.towerId - 1) * 0.5;
+      // Floor scaling: higher floors give more EXP
+      const floorMultiplier = 1.0 + (floorMap.floor - 1) * 0.1;
+      // Node type bonus
+      const nodeMultiplier = currentNode.type === 'boss' ? 3 : currentNode.type === 'elite' ? 2 : 1;
 
-        const finalExpMultiplier = towerMultiplier * floorMultiplier * nodeMultiplier;
-        const finalGoldMultiplier = towerMultiplier * floorMultiplier * (currentNode.type === 'boss' ? 2 : currentNode.type === 'elite' ? 1.5 : 1);
+      const finalExpMultiplier = towerMultiplier * floorMultiplier * nodeMultiplier;
+      const finalGoldMultiplier = towerMultiplier * floorMultiplier * (currentNode.type === 'boss' ? 2 : currentNode.type === 'elite' ? 1.5 : 1);
 
-        const rewards = { 
-          exp: Math.floor(baseExp * finalExpMultiplier), 
-          gold: Math.floor(baseGold * finalGoldMultiplier), 
-          items: [] };
+      const rewards = { 
+        exp: Math.floor(baseExp * finalExpMultiplier), 
+        gold: Math.floor(baseGold * finalGoldMultiplier), 
+        items: [] 
+      };
       
       // Generate loot drops based on node type
       const playerClass = character.hiddenClass !== 'none' 
@@ -1000,6 +1001,7 @@ router.post('/combat/action', authenticate, async (req, res) => {
       
       newLogs.push({ actor: 'system', message: floorComplete ? 'Victory! Floor cleared!' : 'Victory!', damage: 0, type: 'victory' });
       
+      // PHASE 9.5: Return EXP data for real-time UI updates
       return res.json({
         status: 'victory',
         combatLog: [...(combat.combatLog || []), ...newLogs],
@@ -1011,12 +1013,11 @@ router.post('/combat/action', authenticate, async (req, res) => {
           maxMp: character.stats.maxMp, 
           level: character.level, 
           gold: character.gold,
-        // PHASE 9.5: Add EXP data for real-time UI updates
-        experience: character.experience,
-        experienceToNextLevel: character.experienceToNextLevel
-          }
-        });
-      }
+          experience: character.experience,
+          experienceToNextLevel: character.experienceToNextLevel
+        }
+      });
+    }
     
     // Enemy turn
     let damageReduction = 0, evasionChance = 0;
