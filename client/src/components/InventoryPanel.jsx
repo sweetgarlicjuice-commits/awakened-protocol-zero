@@ -356,6 +356,22 @@ var InventoryPanel = function(props) {
   var isUsable = function(item) { return item.type === 'consumable'; };
   var isEquippable = function(item) { return isEquipmentType(item) && (item.slot || item.subtype); };
   var canSplit = function(item) { return item.stackable && item.quantity > 1; };
+  
+  // PHASE 9.6.3: Check if item is Memory Crystal
+  var isMemoryCrystal = function(item) {
+    return item.itemId === 'memory_crystal' || 
+           (item.name && item.name.toLowerCase().includes('memory crystal') && item.type === 'special');
+  };
+  
+  // Check if Memory Crystal can be used
+  var getMemoryCrystalStatus = function() {
+    var result = { canUse: true, reason: '' };
+    if (!character.hiddenClass || character.hiddenClass === 'none') {
+      result.canUse = false;
+      result.reason = 'No hidden class to remove';
+    }
+    return result;
+  };
 
   // PHASE 9.6.3: Check if scroll can be used
   var getScrollStatus = function(item) {
@@ -545,6 +561,16 @@ var InventoryPanel = function(props) {
                           className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs disabled:opacity-50"
                           title={scrollStatus.reason || 'Awaken hidden class'}>Awaken</button>
                       )}
+                      {/* Memory Crystal Use Button */}
+                      {isMemoryCrystal(item) && (function() {
+                        var crystalStatus = getMemoryCrystalStatus();
+                        return (
+                          <button onClick={function() { handleUseMemoryCrystal(); }} 
+                            disabled={isLoading || !crystalStatus.canUse}
+                            className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs disabled:opacity-50"
+                            title={crystalStatus.reason || 'Remove hidden class'}>Use</button>
+                        );
+                      })()}
                       {isEquippable(item) && (
                         <button onClick={function() { handleEquipItem(item.itemId); }} disabled={isLoading || !equipStatus.canEquip}
                           className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs disabled:opacity-50"
