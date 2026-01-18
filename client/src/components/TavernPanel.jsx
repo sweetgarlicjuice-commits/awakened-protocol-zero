@@ -55,11 +55,14 @@ const getItemEffect = (item) => {
   
   // Consumables
   if (item.type === 'consumable') {
+    // FIXED: Check effect object first and use its value
     if (item.effect) {
       if (item.effect.type === 'heal') return '+' + item.effect.value + ' HP';
       if (item.effect.type === 'mana') return '+' + item.effect.value + ' MP';
+      if (item.effect.type === 'restore_energy') return '+' + item.effect.value + ' Energy';
       if (item.effect.type === 'energy') return '+' + item.effect.value + ' Energy';
     }
+    // Fallback for items without effect object (legacy support)
     const name = (item.name || item.itemName || '').toLowerCase();
     if (name.includes('small health')) return '+50 HP';
     if (name.includes('medium health')) return '+150 HP';
@@ -68,7 +71,7 @@ const getItemEffect = (item) => {
     if (name.includes('medium mana')) return '+80 MP';
     if (name.includes('large mana')) return '+200 MP';
     if (name.includes('antidote')) return 'Cure Poison';
-    if (name.includes('energy')) return '+20 Energy';
+    // Removed hardcoded energy fallback - should use effect.value
     return 'Use';
   }
   
@@ -85,7 +88,9 @@ const getItemRequirements = (item, character) => {
   }
   if (item.classReq || item.class) {
     const reqClass = item.classReq || item.class;
-    reqs.push({ text: reqClass.charAt(0).toUpperCase() + reqClass.slice(1), met: !character || reqClass.toLowerCase() === character.baseClass.toLowerCase() });
+    // FIXED: Handle 'any' class - any class can equip
+    const meetsClass = !character || reqClass.toLowerCase() === 'any' || reqClass.toLowerCase() === character.baseClass.toLowerCase();
+    reqs.push({ text: reqClass.charAt(0).toUpperCase() + reqClass.slice(1), met: meetsClass });
   }
   return reqs.length > 0 ? reqs : null;
 };
