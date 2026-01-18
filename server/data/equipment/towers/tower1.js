@@ -750,7 +750,7 @@ export const TOWER1 = {
       class: 'any',
       rarity: 'common',
       levelReq: 1,
-      stats: { hp: 15 },
+      stats: { hp: 1500 },
       dropFloor: [1, 3],
       buyPrice: 50,
       sellPrice: 12,
