@@ -1,8 +1,51 @@
 import express from 'express';
 import Character, { CLASS_BASE_STATS } from '../models/Character.js';
 import { authenticate } from '../middleware/auth.js';
+import { getEquipmentById } from '../data/equipment/index.js';
+import { CONSUMABLES } from '../data/equipment/consumables.js';
 
 const router = express.Router();
+
+// ============================================================
+// PHASE 9.3.9: Helper to get any item by ID
+// ============================================================
+const CONSUMABLES_BY_ID = {};
+if (Array.isArray(CONSUMABLES)) {
+  CONSUMABLES.forEach(c => { CONSUMABLES_BY_ID[c.id] = c; });
+} else if (typeof CONSUMABLES === 'object' && CONSUMABLES) {
+  Object.assign(CONSUMABLES_BY_ID, CONSUMABLES);
+}
+
+function getItemById(itemId) {
+  // Check equipment
+  const equipment = getEquipmentById ? getEquipmentById(itemId) : null;
+  if (equipment) return equipment;
+  
+  // Check consumables
+  if (CONSUMABLES_BY_ID[itemId]) return CONSUMABLES_BY_ID[itemId];
+  
+  return null;
+}
+
+// Enrich inventory item with full data from equipment database
+function enrichInventoryItem(invItem) {
+  const fullItemData = getItemById(invItem.itemId);
+  
+  if (fullItemData) {
+    return {
+      ...invItem,
+      stats: fullItemData.stats || invItem.stats || {},
+      slot: fullItemData.slot || invItem.slot || invItem.subtype || null,
+      levelReq: fullItemData.levelReq || invItem.levelReq || null,
+      classReq: fullItemData.classReq || fullItemData.class || invItem.classReq || null,
+      rarity: fullItemData.rarity || invItem.rarity || 'common',
+      effect: fullItemData.effect || invItem.effect || null,
+      setId: fullItemData.setId || invItem.setId || null
+    };
+  }
+  
+  return invItem;
+}
 
 // ============================================================
 // PHASE 7: Updated Class Info with 5 Hidden Classes per Base
@@ -143,6 +186,7 @@ router.post('/create', authenticate, async (req, res) => {
 });
 
 // GET /api/character - Get current character
+// PHASE 9.3.9: Enrich inventory items with full data from equipment database
 router.get('/', authenticate, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.userId });
@@ -156,8 +200,16 @@ router.get('/', authenticate, async (req, res) => {
     character.lastPlayed = new Date();
     await character.save();
     
+    // Convert to plain object so we can modify it
+    const charObj = character.toObject();
+    
+    // Enrich inventory items with full data from equipment database
+    if (charObj.inventory && charObj.inventory.length > 0) {
+      charObj.inventory = charObj.inventory.map(enrichInventoryItem);
+    }
+    
     res.json({
-      character,
+      character: charObj,
       classInfo: CLASS_INFO[character.baseClass]
     });
   } catch (error) {
