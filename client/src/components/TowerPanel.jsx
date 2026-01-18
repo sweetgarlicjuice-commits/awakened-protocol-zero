@@ -84,6 +84,22 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         setMessage({ type: 'success', text: `Victory! +${data.rewards.exp} EXP, +${data.rewards.gold} Gold` });
         addLog?.('success', `Victory! +${data.rewards.exp} EXP, +${data.rewards.gold} Gold`);
         setFloorMap(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n) }));
+        
+        // PHASE 9.5 FIX: Update local character with EXP, gold, level, HP/MP for real-time UI
+        updateLocalCharacter?.({ 
+          stats: { 
+            ...character.stats, 
+            hp: data.character.hp, 
+            mp: data.character.mp,
+            maxHp: data.character.maxHp,
+            maxMp: data.character.maxMp
+          },
+          gold: data.character.gold,
+          level: data.character.level,
+          experience: data.character.experience,
+          experienceToNextLevel: data.character.experienceToNextLevel
+        });
+        
         if (data.floorComplete) {
           const newFloor = (character.currentFloor || 1) + 1;
           setHighestFloor(prev => Math.max(prev, newFloor));
@@ -141,105 +157,118 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
   };
 
-  useEffect(() => { if (combatLogRef.current) combatLogRef.current.scrollTop = combatLogRef.current.scrollHeight; }, [combatLog]);
-
-  // ============ TOWER SELECT ============
+  // ============ SELECT FLOOR ============
   if (view === 'select') {
-    // Generate floor options (1 to highestFloor)
-    const floorOptions = [];
-    for (let i = 1; i <= Math.max(highestFloor, 1); i++) {
-      floorOptions.push(i);
-    }
+    const maxFloor = 15;
+    const floors = Array.from({ length: maxFloor }, (_, i) => i + 1);
     
     return (
       <div className="space-y-4">
-        <div className="text-center mb-6">
-          <h2 className="font-display text-xl text-purple-400 mb-2">Tower Selection</h2>
-          <p className="text-gray-400 text-sm">Tower {character.currentTower} - Highest Floor: {highestFloor}</p>
-        </div>
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-          <div className="flex items-center justify-between mb-4">
-            <div><h3 className="text-white font-semibold">Tower {character.currentTower}</h3><p className="text-gray-400 text-sm">Progress: Floor {highestFloor}/15</p></div>
-            <div className="text-right"><p className="text-amber-400">⚡ {character.energy}/100</p><p className="text-gray-500 text-xs">5 energy per node</p></div>
-          </div>
-          <div className="h-2 bg-void-900 rounded-full mb-4"><div className="h-full bg-purple-500 rounded-full" style={{ width: `${(highestFloor / 15) * 100}%` }}></div></div>
+          <h2 className="font-display text-lg text-purple-400 mb-2">🏰 Tower Selection</h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Current: Tower {character.currentTower || 1} | Highest Floor: {highestFloor}
+          </p>
           
-          {/* Floor Selection */}
           <div className="mb-4">
-            <label className="text-gray-400 text-sm mb-2 block">Select Floor:</label>
-            <div className="flex gap-2">
-              <select 
-                value={selectedFloor} 
-                onChange={(e) => setSelectedFloor(parseInt(e.target.value))}
-                className="flex-1 bg-void-900 border border-purple-500/30 rounded-lg px-3 py-2 text-white focus:border-purple-500 outline-none"
-              >
-                {floorOptions.map(f => (
-                  <option key={f} value={f}>Floor {f} {f === highestFloor ? '(Highest)' : ''}</option>
-                ))}
-              </select>
+            <label className="text-gray-400 text-sm block mb-2">Select Floor:</label>
+            <div className="grid grid-cols-5 gap-2">
+              {floors.map(floor => {
+                const isUnlocked = floor <= highestFloor;
+                const isCurrent = floor === selectedFloor;
+                return (
+                  <button
+                    key={floor}
+                    onClick={() => isUnlocked && setSelectedFloor(floor)}
+                    disabled={!isUnlocked}
+                    className={`p-2 rounded-lg text-center transition-all ${
+                      isCurrent 
+                        ? 'bg-purple-600 text-white ring-2 ring-purple-400' 
+                        : isUnlocked 
+                          ? 'bg-void-800 hover:bg-void-700 text-gray-300' 
+                          : 'bg-void-900/50 text-gray-600 cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="text-lg font-bold">{floor}</div>
+                    <div className="text-[10px]">{floor === 15 ? '👹 Boss' : floor >= 13 ? '💀 Elite' : '⚔️'}</div>
+                  </button>
+                );
+              })}
             </div>
-            <p className="text-gray-500 text-xs mt-1">You can replay any floor you've reached</p>
           </div>
           
-          <button onClick={() => loadFloorMap(selectedFloor)} disabled={isLoading || character.energy < 5 || character.stats.hp <= 0} className="w-full btn-primary py-3 disabled:opacity-50">
-            {isLoading ? 'Loading...' : character.stats.hp <= 0 ? 'Need to heal first' : `⚔️ Enter Floor ${selectedFloor}`}
+          <button
+            onClick={() => loadFloorMap(selectedFloor)}
+            disabled={isLoading || character.energy < 5}
+            className="w-full btn-primary py-3 disabled:opacity-50"
+          >
+            {isLoading ? 'Loading...' : character.energy < 5 ? 'Not enough energy!' : `⚔️ Enter Floor ${selectedFloor}`}
           </button>
-        </div>
-        <div className="bg-void-800/30 p-3 rounded-lg text-sm text-gray-400">
-          <p>💡 Clear the <span className="text-yellow-400">🚩 exit node</span> to unlock next floor</p>
-          <p className="mt-1">👹 Boss every 5 floors (5, 10, 15)</p>
+          
+          <p className="text-gray-500 text-xs text-center mt-2">Costs 5 energy per node</p>
         </div>
       </div>
     );
   }
 
-  // ============ NODE MAP ============
+  // ============ MAP VIEW ============
   if (view === 'map' && floorMap) {
-    const currentNode = floorMap.nodes.find(n => n.id === floorMap.currentNodeId);
-    const accessibleNodes = currentNode?.connections || [];
+    const nodes = floorMap.nodes || [];
+    const currentNode = nodes.find(n => n.id === floorMap.currentNodeId);
+    const connectedIds = currentNode?.connections || [];
     
-    // Group nodes by row
-    const rows = {};
-    floorMap.nodes.forEach(node => { if (!rows[node.row]) rows[node.row] = []; rows[node.row].push(node); });
-    const sortedRows = Object.keys(rows).sort((a, b) => b - a).map(k => rows[k]);
-    
-    // Find max row (exit row)
-    const maxRow = Math.max(...floorMap.nodes.map(n => n.row));
+    // Group nodes by row for display
+    const maxRow = Math.max(...nodes.map(n => n.row || 0));
+    const rows = [];
+    for (let r = 0; r <= maxRow; r++) {
+      rows.push(nodes.filter(n => n.row === r));
+    }
     
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div><h2 className="font-display text-lg text-purple-400">{tower?.name}</h2><p className="text-gray-400 text-sm">Floor {character.currentFloor}</p></div>
-          <button onClick={leaveTower} className="btn-secondary text-xs px-3 py-1">🚪 Leave</button>
+      <div className="space-y-3">
+        {/* Header */}
+        <div className="flex items-center justify-between bg-void-800/50 rounded-lg p-3">
+          <div>
+            <h2 className="font-display text-purple-400">{tower?.name || 'Tower'}</h2>
+            <p className="text-gray-500 text-xs">Floor {floorMap.floor}</p>
+          </div>
+          <button onClick={leaveTower} className="text-red-400 hover:text-red-300 text-sm">🚪 Leave</button>
         </div>
-        <div className="bg-void-800/50 rounded-xl p-4 neon-border overflow-x-auto">
-          <div className="min-w-[280px] space-y-3">
-            {sortedRows.map((row, ri) => (
-              <div key={ri} className="flex justify-center gap-3">
-                {row.map(node => {
+        
+        {/* Map Grid */}
+        <div className="bg-void-800/30 rounded-xl p-4 overflow-x-auto">
+          <div className="flex flex-col-reverse gap-2 min-w-fit">
+            {rows.map((rowNodes, rowIdx) => (
+              <div key={rowIdx} className="flex justify-center gap-2">
+                {rowNodes.map(node => {
                   const isCurrent = node.id === floorMap.currentNodeId;
-                  const isAccessible = accessibleNodes.includes(node.id);
-                  const canMove = isAccessible && !node.cleared && !isCurrent && currentNode?.cleared;
-                  const isExitNode = node.row === maxRow; // Top row = exit
+                  const isConnected = connectedIds.includes(node.id);
+                  const canMove = isConnected && !node.visited && !isCurrent;
                   
                   return (
-                    <button key={node.id} onClick={() => canMove && moveToNode(node.id)} disabled={!canMove || isLoading}
-                      className={`w-14 h-14 rounded-lg flex flex-col items-center justify-center transition-all relative
-                        ${isCurrent ? 'ring-2 ring-yellow-400 scale-110' : ''} ${node.cleared ? 'opacity-50' : ''}
-                        ${canMove ? 'hover:scale-105 cursor-pointer' : 'cursor-default'}
-                        ${node.visited ? NODE_COLORS[node.type] : 'bg-gray-700'}
-                        ${isAccessible && !node.cleared && currentNode?.cleared ? 'ring-1 ring-white/30' : ''}
-                        ${isExitNode && !node.cleared ? 'ring-2 ring-yellow-500' : ''}`}>
-                      <span className="text-xl">{node.visited ? NODE_ICONS[node.type] : '?'}</span>
-                      {node.cleared && <span className="text-xs">✓</span>}
-                      {isExitNode && !node.cleared && <span className="absolute -top-2 -right-2 text-sm bg-yellow-500 rounded-full w-5 h-5 flex items-center justify-center">🚩</span>}
+                    <button
+                      key={node.id}
+                      onClick={() => canMove && moveToNode(node.id)}
+                      disabled={!canMove && !isCurrent}
+                      className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-xs transition-all relative
+                        ${isCurrent ? 'ring-2 ring-yellow-400 bg-yellow-600/30' : ''}
+                        ${node.cleared ? 'opacity-50' : ''}
+                        ${canMove ? 'hover:scale-110 cursor-pointer' : ''}
+                        ${NODE_COLORS[node.type] || 'bg-gray-600'}
+                      `}
+                    >
+                      <span className="text-lg">{NODE_ICONS[node.type]}</span>
+                      {node.row === maxRow && <span className="absolute -top-1 -right-1 text-xs">🚩</span>}
+                      {node.cleared && <span className="absolute bottom-0 right-0 text-[8px]">✓</span>}
                     </button>
                   );
                 })}
               </div>
             ))}
           </div>
-          <div className="mt-3 pt-2 border-t border-gray-700/50 text-center text-xs text-gray-500">
+          
+          <div className="flex justify-center gap-4 mt-3 text-xs text-gray-500">
+            <span className="text-yellow-400">⭕ = You</span>
             <span className="text-yellow-400">🚩 = Exit (clear to advance)</span>
           </div>
         </div>
