@@ -659,12 +659,12 @@ const GamePage = () => {
                       {['head', 'body', 'leftHand', 'rightHand', 'leg', 'shoes', 'ring', 'necklace'].map(slot => {
                         const item = character.equipment?.[slot];
                         const slotIcons = {
-                          head: '⛑️', body: '🛡️', leftHand: '🧥', rightHand: '⚔️',
+                          head: '🧢', body: '👕', leftHand: '🧥', rightHand: '⚔️',
                           leg: '🧤', shoes: '👢', ring: '💍', necklace: '📿'
                         };
                         const slotLabels = {
                           head: 'Head', body: 'Body', leftHand: 'Cape', rightHand: 'Weapon',
-                          leg: 'Hands', shoes: 'Feet', ring: 'Ring', necklace: 'Neck'
+                          leg: 'Hands', shoes: 'Feet', ring: 'Ring', necklace: 'Necklace'
                         };
                         return (
                           <div 
