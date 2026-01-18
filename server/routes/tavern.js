@@ -790,18 +790,21 @@ router.post('/trading/buy/:listingId', authenticate, async function(req, res) {
 
     // Build item data from listing (includes dynamically generated items)
     // PHASE 9.3.9 FIX: Include all item fields for proper inventory storage
+    // Also fallback to equipment database for old listings missing data
+    var dbItem = getItemById(listing.itemId);
     var itemData = {
       id: listing.itemId,
-      name: listing.itemName,
-      icon: listing.itemIcon || '📦',
-      type: listing.itemType,
-      subtype: listing.itemSubtype || '',
-      slot: listing.itemSlot || listing.itemSubtype || null,
-      rarity: listing.itemRarity || 'common',
+      name: listing.itemName || (dbItem && dbItem.name) || 'Unknown Item',
+      icon: listing.itemIcon || (dbItem && dbItem.icon) || '📦',
+      type: listing.itemType || (dbItem && dbItem.type) || 'equipment',
+      subtype: listing.itemSubtype || (dbItem && (dbItem.subtype || dbItem.slot)) || '',
+      slot: listing.itemSlot || (dbItem && dbItem.slot) || listing.itemSubtype || null,
+      rarity: listing.itemRarity || (dbItem && dbItem.rarity) || 'common',
       stackable: listing.itemType === 'material' || listing.itemType === 'consumable',
-      stats: listing.itemStats || {},
-      levelReq: listing.itemLevelReq || null,
-      classReq: listing.itemClassReq || null
+      stats: listing.itemStats || (dbItem && dbItem.stats) || {},
+      levelReq: listing.itemLevelReq || (dbItem && dbItem.levelReq) || null,
+      classReq: listing.itemClassReq || (dbItem && (dbItem.classReq || dbItem.class)) || null,
+      setId: (dbItem && dbItem.setId) || null
     };
 
     var result = addItemToInventory(buyer, listing.itemId, buyQty, itemData);
@@ -817,13 +820,14 @@ router.post('/trading/buy/:listingId', authenticate, async function(req, res) {
 
     // Update listing
     if (buyQty >= listing.quantity) {
-      listing.isActive = false;
-      listing.quantity = 0;
+      // Mark as inactive and delete instead of setting quantity to 0
+      // This avoids Mongoose validation error (min: 1 on quantity)
+      await TradingListing.findByIdAndDelete(listing._id);
     } else {
       listing.quantity -= buyQty;
       listing.totalPrice = listing.quantity * listing.pricePerUnit;
+      await listing.save();
     }
-    await listing.save();
     await buyer.save();
 
     res.json({
@@ -855,18 +859,21 @@ router.delete('/trading/:listingId', authenticate, async function(req, res) {
 
     // Build item data from listing
     // PHASE 9.3.9 FIX: Include all item fields for proper inventory storage
+    // Also fallback to equipment database for old listings missing data
+    var dbItem = getItemById(listing.itemId);
     var itemData = {
       id: listing.itemId,
-      name: listing.itemName,
-      icon: listing.itemIcon || '📦',
-      type: listing.itemType,
-      subtype: listing.itemSubtype || '',
-      slot: listing.itemSlot || listing.itemSubtype || null,
-      rarity: listing.itemRarity || 'common',
+      name: listing.itemName || (dbItem && dbItem.name) || 'Unknown Item',
+      icon: listing.itemIcon || (dbItem && dbItem.icon) || '📦',
+      type: listing.itemType || (dbItem && dbItem.type) || 'equipment',
+      subtype: listing.itemSubtype || (dbItem && (dbItem.subtype || dbItem.slot)) || '',
+      slot: listing.itemSlot || (dbItem && dbItem.slot) || listing.itemSubtype || null,
+      rarity: listing.itemRarity || (dbItem && dbItem.rarity) || 'common',
       stackable: listing.itemType === 'material' || listing.itemType === 'consumable',
-      stats: listing.itemStats || {},
-      levelReq: listing.itemLevelReq || null,
-      classReq: listing.itemClassReq || null
+      stats: listing.itemStats || (dbItem && dbItem.stats) || {},
+      levelReq: listing.itemLevelReq || (dbItem && dbItem.levelReq) || null,
+      classReq: listing.itemClassReq || (dbItem && (dbItem.classReq || dbItem.class)) || null,
+      setId: (dbItem && dbItem.setId) || null
     };
 
     var result = addItemToInventory(character, listing.itemId, listing.quantity, itemData);
