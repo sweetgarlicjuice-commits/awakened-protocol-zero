@@ -1,8 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-const NODE_ICONS = { start: '🚪', combat: '⚔️', elite: '💀', boss: '👹', treasure: '💰', rest: '🏕️', mystery: '❓', merchant: '🛒', shrine: '📜' };
-const NODE_COLORS = { start: 'bg-green-600', combat: 'bg-red-600', elite: 'bg-purple-600', boss: 'bg-red-800', treasure: 'bg-yellow-600', rest: 'bg-blue-600', mystery: 'bg-indigo-600', merchant: 'bg-emerald-600', shrine: 'bg-cyan-600' };
+// Unknown node for unexplored nodes
+const NODE_ICONS = { 
+  start: '🚪', 
+  combat: '⚔️', 
+  elite: '💀', 
+  boss: '👹', 
+  treasure: '💰', 
+  rest: '🏕️', 
+  mystery: '❓', 
+  merchant: '🛒', 
+  shrine: '📜',
+  unknown: '❔'  // New: Unknown node icon
+};
+
+const NODE_COLORS = { 
+  start: 'bg-green-600', 
+  combat: 'bg-red-600', 
+  elite: 'bg-purple-600', 
+  boss: 'bg-red-800', 
+  treasure: 'bg-yellow-600', 
+  rest: 'bg-blue-600', 
+  mystery: 'bg-indigo-600', 
+  merchant: 'bg-emerald-600', 
+  shrine: 'bg-cyan-600',
+  unknown: 'bg-gray-700'  // New: Unknown node color
+};
+
+const NODE_NAMES = {
+  start: 'Entrance',
+  combat: 'Combat',
+  elite: 'Elite Combat',
+  boss: 'Boss',
+  treasure: 'Treasure',
+  rest: 'Rest Area',
+  mystery: 'Mystery',
+  merchant: 'Merchant',
+  shrine: 'Shrine',
+  unknown: 'Unknown'
+};
+
 const BUFF_ICONS = { attack: '⚔️', critRate: '🎯', evasion: '💨', shield: '🛡️', defend: '🛡️' };
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -23,20 +61,69 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const [playerSkills, setPlayerSkills] = useState([]);
   const [selectedFloor, setSelectedFloor] = useState(character.currentFloor || 1);
   const [highestFloor, setHighestFloor] = useState(1);
+  const [selectedTower, setSelectedTower] = useState(character.currentTower || 1);
   const combatLogRef = useRef(null);
 
-  // Get highest floor on mount
+  // Tower data
+  const TOWER_DATA = {
+    1: { name: 'Crimson Spire', icon: '🏰', theme: 'Undead', element: '🖤 Dark' },
+    2: { name: 'Frost Citadel', icon: '❄️', theme: 'Ice', element: '💠 Ice' },
+    3: { name: 'Shadow Keep', icon: '🌑', theme: 'Shadow', element: '🖤 Dark' },
+    4: { name: 'Storm Bastion', icon: '⚡', theme: 'Storm', element: '⚡ Lightning' },
+    5: { name: 'Verdant Spire', icon: '🌿', theme: 'Nature', element: '🌿 Nature' },
+    6: { name: 'Infernal Fortress', icon: '🔥', theme: 'Fire', element: '🔥 Fire' },
+    7: { name: 'Abyssal Depths', icon: '🌊', theme: 'Water', element: '🌊 Water' },
+    8: { name: 'Crystal Caverns', icon: '💎', theme: 'Crystal', element: '✨ Holy' },
+    9: { name: 'Void Sanctum', icon: '🕳️', theme: 'Void', element: '🖤 Dark' },
+    10: { name: 'Celestial Pinnacle', icon: '⭐', theme: 'Celestial', element: '✨ Holy' }
+  };
+
+  // Helper: Get display type for a node (unknown if not explored)
+  const getNodeDisplayType = (node, currentNodeId) => {
+    // Start node is always visible
+    if (node.type === 'start') return 'start';
+    // Current node is always visible
+    if (node.id === currentNodeId) return node.type;
+    // Visited/cleared nodes show their true type
+    if (node.visited || node.cleared) return node.type;
+    // Everything else is unknown
+    return 'unknown';
+  };
+
+  // Get unlocked towers (tower is unlocked if player has cleared floor 15 of previous tower, or tower 1 always unlocked)
+  const getUnlockedTowers = () => {
+    const unlocked = [1]; // Tower 1 always unlocked
+    for (let t = 2; t <= 10; t++) {
+      const prevTowerKey = `tower_${t - 1}`;
+      const prevTowerProgress = character.towerProgress?.[prevTowerKey] || 0;
+      if (prevTowerProgress >= 15) {
+        unlocked.push(t);
+      }
+    }
+    return unlocked;
+  };
+
+  // Get highest floor on mount and when tower changes
   useEffect(() => {
-    const towerKey = `tower_${character.currentTower || 1}`;
-    const highest = character.towerProgress?.[towerKey] || character.currentFloor || 1;
+    const towerKey = `tower_${selectedTower}`;
+    const highest = character.towerProgress?.[towerKey] || 1;
     setHighestFloor(highest);
-    setSelectedFloor(character.currentFloor || 1);
-  }, [character]);
+    setSelectedFloor(Math.min(character.currentFloor || 1, highest));
+  }, [character, selectedTower]);
+
+  // Handle tower change
+  const handleTowerChange = (towerId) => {
+    setSelectedTower(towerId);
+    const towerKey = `tower_${towerId}`;
+    const highest = character.towerProgress?.[towerKey] || 1;
+    setHighestFloor(highest);
+    setSelectedFloor(1); // Reset to floor 1 when changing towers
+  };
 
   const loadFloorMap = async (floor = selectedFloor) => {
     setIsLoading(true);
     try {
-      const { data } = await api.get(`/exploration/map?towerId=${character.currentTower}&floor=${floor}`);
+      const { data } = await api.get(`/exploration/map?towerId=${selectedTower}&floor=${floor}`);
       setFloorMap(data.map);
       setTower(data.tower);
       if (data.highestFloor) setHighestFloor(data.highestFloor);
@@ -161,15 +248,51 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   if (view === 'select') {
     const maxFloor = 15;
     const floors = Array.from({ length: maxFloor }, (_, i) => i + 1);
+    const unlockedTowers = getUnlockedTowers();
+    const currentTowerData = TOWER_DATA[selectedTower];
     
     return (
       <div className="space-y-4">
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
           <h2 className="font-display text-lg text-purple-400 mb-2">🏰 Tower Selection</h2>
-          <p className="text-gray-400 text-sm mb-4">
-            Current: Tower {character.currentTower || 1} | Highest Floor: {highestFloor}
-          </p>
           
+          {/* Tower Dropdown */}
+          <div className="mb-4">
+            <label className="text-gray-400 text-sm block mb-2">Select Tower:</label>
+            <select
+              value={selectedTower}
+              onChange={(e) => handleTowerChange(parseInt(e.target.value))}
+              className="w-full bg-void-900 border border-purple-500/30 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              {Array.from({ length: 10 }, (_, i) => i + 1).map(towerId => {
+                const tData = TOWER_DATA[towerId];
+                const isUnlocked = unlockedTowers.includes(towerId);
+                const towerKey = `tower_${towerId}`;
+                const progress = character.towerProgress?.[towerKey] || 0;
+                return (
+                  <option key={towerId} value={towerId} disabled={!isUnlocked}>
+                    {tData.icon} Tower {towerId}: {tData.name} {isUnlocked ? `(Floor ${progress}/15)` : '🔒 Locked'}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          {/* Tower Info */}
+          <div className="bg-void-900/50 rounded-lg p-3 mb-4">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-3xl">{currentTowerData.icon}</span>
+              <div>
+                <h3 className="text-white font-semibold">{currentTowerData.name}</h3>
+                <p className="text-gray-400 text-xs">Theme: {currentTowerData.theme} | {currentTowerData.element}</p>
+              </div>
+            </div>
+            <p className="text-gray-400 text-sm">
+              Progress: Floor {highestFloor}/15 {highestFloor >= 15 ? '✅ Completed' : ''}
+            </p>
+          </div>
+          
+          {/* Floor Selection */}
           <div className="mb-4">
             <label className="text-gray-400 text-sm block mb-2">Select Floor:</label>
             <div className="grid grid-cols-5 gap-2">
@@ -245,6 +368,10 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
                   const isConnected = connectedIds.includes(node.id);
                   const canMove = isConnected && !node.visited && !isCurrent;
                   
+                  // Get display type (unknown if not explored)
+                  const displayType = getNodeDisplayType(node, floorMap.currentNodeId);
+                  const isUnknown = displayType === 'unknown';
+                  
                   return (
                     <button
                       key={node.id}
@@ -254,10 +381,12 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
                         ${isCurrent ? 'ring-2 ring-yellow-400 bg-yellow-600/30' : ''}
                         ${node.cleared ? 'opacity-50' : ''}
                         ${canMove ? 'hover:scale-110 cursor-pointer' : ''}
-                        ${NODE_COLORS[node.type] || 'bg-gray-600'}
+                        ${isUnknown ? 'animate-pulse' : ''}
+                        ${NODE_COLORS[displayType] || 'bg-gray-600'}
                       `}
+                      title={isUnknown ? 'Unknown - Explore to reveal' : NODE_NAMES[displayType]}
                     >
-                      <span className="text-lg">{NODE_ICONS[node.type]}</span>
+                      <span className="text-lg">{NODE_ICONS[displayType]}</span>
                       {node.row === maxRow && <span className="absolute -top-1 -right-1 text-xs">🚩</span>}
                       {node.cleared && <span className="absolute bottom-0 right-0 text-[8px]">✓</span>}
                     </button>
@@ -267,28 +396,81 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
             ))}
           </div>
           
+          {/* Map Legend */}
           <div className="flex justify-center gap-4 mt-3 text-xs text-gray-500">
             <span className="text-yellow-400">⭕ = You</span>
             <span className="text-yellow-400">🚩 = Exit (clear to advance)</span>
+            <span className="text-gray-400">❔ = Unknown</span>
           </div>
         </div>
+        
+        {/* Current Node Info Panel */}
         {currentNode && (
           <div className="bg-void-800/30 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">{NODE_ICONS[currentNode.type]}</span>
               <div>
                 <p className="text-white font-medium capitalize">
-                  {currentNode.type} Node
+                  {NODE_NAMES[currentNode.type]} Node
                   {currentNode.row === maxRow && <span className="text-yellow-400 text-xs ml-2">🚩 EXIT</span>}
                 </p>
                 <p className="text-gray-400 text-xs">{currentNode.cleared ? 'Cleared ✓' : 'Not cleared'}</p>
               </div>
             </div>
+            
+            {/* Node Description */}
+            <div className="text-gray-400 text-xs mb-2 italic">
+              {currentNode.type === 'combat' && '⚔️ Enemies lurk in this area. Prepare for battle!'}
+              {currentNode.type === 'elite' && '💀 A powerful foe guards this path. Tread carefully!'}
+              {currentNode.type === 'boss' && '👹 The floor guardian awaits. Defeat it to proceed!'}
+              {currentNode.type === 'treasure' && '💰 A chest glimmers in the darkness...'}
+              {currentNode.type === 'rest' && '🏕️ A safe haven to recover your strength.'}
+              {currentNode.type === 'mystery' && '❓ Something strange emanates from this place...'}
+              {currentNode.type === 'merchant' && '🛒 A wandering merchant has set up shop here.'}
+              {currentNode.type === 'shrine' && '📜 Ancient power radiates from this shrine.'}
+              {currentNode.type === 'start' && '🚪 The entrance to this floor.'}
+            </div>
+            
             {!currentNode.cleared && ['combat', 'elite', 'boss'].includes(currentNode.type) && <button onClick={startCombat} className="w-full btn-primary py-2 mt-2">⚔️ Start Combat</button>}
             {!currentNode.cleared && ['treasure', 'rest', 'shrine'].includes(currentNode.type) && <button onClick={() => handleInteraction()} className="w-full btn-secondary py-2 mt-2">{NODE_ICONS[currentNode.type]} Interact</button>}
             {!currentNode.cleared && currentNode.type === 'mystery' && <button onClick={() => { setEventData(currentNode); setView('event'); }} className="w-full btn-secondary py-2 mt-2">❓ Investigate</button>}
           </div>
         )}
+        
+        {/* Connected Nodes Preview */}
+        {connectedIds.length > 0 && (
+          <div className="bg-void-900/30 rounded-lg p-3">
+            <p className="text-gray-500 text-xs mb-2">Available Paths:</p>
+            <div className="flex flex-wrap gap-2">
+              {connectedIds.map(connId => {
+                const connNode = nodes.find(n => n.id === connId);
+                if (!connNode) return null;
+                const displayType = getNodeDisplayType(connNode, floorMap.currentNodeId);
+                const isUnknown = displayType === 'unknown';
+                const canMoveToNode = !connNode.visited;
+                
+                return (
+                  <button
+                    key={connId}
+                    onClick={() => canMoveToNode && moveToNode(connId)}
+                    disabled={!canMoveToNode}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-all
+                      ${canMoveToNode ? 'hover:bg-void-700 cursor-pointer' : 'opacity-50 cursor-not-allowed'}
+                      ${isUnknown ? 'bg-gray-700/50' : NODE_COLORS[displayType] + '/50'}
+                    `}
+                  >
+                    <span>{NODE_ICONS[displayType]}</span>
+                    <span className="text-gray-300">
+                      {isUnknown ? 'Unknown' : NODE_NAMES[displayType]}
+                      {connNode.visited && ' (Visited)'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        
         {message && <div className={`p-3 rounded-lg text-center ${message.type === 'success' ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}`}>{message.text}</div>}
       </div>
     );
