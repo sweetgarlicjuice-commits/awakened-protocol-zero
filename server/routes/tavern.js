@@ -1331,32 +1331,55 @@ router.post('/use-memory-crystal', authenticate, async function(req, res) {
       character.inventory.splice(crystalIndex, 1);
     }
 
-    // Release class ownership
+    // Release class ownership - makes scroll available for others to find
     await HiddenClassOwnership.releaseClass(character.hiddenClass, character._id);
 
-    // Get scroll ID for the hidden class (all 20 classes)
-    var scrollId = 'scroll_' + character.hiddenClass.toLowerCase();
-    
-    // Try to get scroll data from HIDDEN_CLASS_SCROLLS
+    // PHASE 9.6.2 FIX: Get scroll data from HIDDEN_CLASS_SCROLLS
+    // Scroll IDs are formatted as: {hiddenClass}_scroll (e.g., flameblade_scroll)
     var scrollData = null;
+    var scrollId = character.hiddenClass + '_scroll';  // FIXED: correct format
+    
     if (HIDDEN_CLASS_SCROLLS) {
-      scrollData = Object.values(HIDDEN_CLASS_SCROLLS).find(s => s.hiddenClass === character.hiddenClass);
+      // Find scroll by matching hiddenClass field
+      scrollData = Object.values(HIDDEN_CLASS_SCROLLS).find(function(s) {
+        return s.hiddenClass === character.hiddenClass;
+      });
     }
     
-    if (!scrollData) {
-      // Fallback scroll data
+    // Use scroll ID from database if found
+    if (scrollData) {
+      scrollId = scrollData.id;
+    } else {
+      // Fallback scroll data (should never happen if special_items.js is complete)
+      console.warn('[Memory Crystal] Scroll not found in database for class:', character.hiddenClass);
+      
+      // Determine base class for fallback
+      var hiddenToBase = {
+        flameblade: 'swordsman', berserker: 'swordsman', paladin: 'swordsman',
+        earthshaker: 'swordsman', frostguard: 'swordsman',
+        shadowDancer: 'thief', venomancer: 'thief', assassin: 'thief',
+        phantom: 'thief', bloodreaper: 'thief',
+        stormRanger: 'archer', pyroArcher: 'archer', frostSniper: 'archer',
+        natureWarden: 'archer', voidHunter: 'archer',
+        frostWeaver: 'mage', pyromancer: 'mage', stormcaller: 'mage',
+        necromancer: 'mage', arcanist: 'mage'
+      };
+      
       scrollData = {
         id: scrollId,
-        name: character.hiddenClass + ' Awakening Scroll',
+        name: 'Scroll of the ' + character.hiddenClass.charAt(0).toUpperCase() + character.hiddenClass.slice(1),
         icon: '📜',
         type: 'hidden_class_scroll',
         rarity: 'legendary',
-        stackable: false
+        hiddenClass: character.hiddenClass,
+        baseClass: hiddenToBase[character.hiddenClass] || null,
+        stackable: false,
+        isUnique: true
       };
     }
 
     // Add scroll back to inventory
-    addItemToInventory(character, scrollData.id || scrollId, 1, scrollData);
+    addItemToInventory(character, scrollId, 1, scrollData);
 
     var oldClass = character.hiddenClass;
 
