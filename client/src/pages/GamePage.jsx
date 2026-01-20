@@ -408,6 +408,7 @@ const GamePage = () => {
   const [isAllocating, setIsAllocating] = useState(false);
   const [isInTower, setIsInTower] = useState(false);
   const [regenTimer, setRegenTimer] = useState(60); // Phase 9.7.2: Regen countdown timer
+  const [showGuide, setShowGuide] = useState(false); // Phase 9.7.2: Game guide popup
   const [showActivityLog, setShowActivityLog] = useState(true);
   const [gameLog, setGameLog] = useState([
     { type: 'system', message: 'Welcome to Awakened Protocol: Zero', timestamp: new Date() },
@@ -516,6 +517,7 @@ const GamePage = () => {
             <span className="hidden md:block text-gray-400 text-sm">Awakened Protocol: Zero</span>
           </div>
           <div className="flex items-center gap-4">
+            <button onClick={() => setShowGuide(true)} className="text-gray-400 hover:text-purple-400 transition-colors text-sm">📖 Guide</button>
             <button onClick={handleLogout} className="text-gray-400 hover:text-red-400 transition-colors text-sm">Logout</button>
           </div>
         </div>
@@ -1045,6 +1047,144 @@ const GamePage = () => {
               className="w-full mt-4 btn-primary"
             >
               Close
+            </button>
+          </div>
+        </div>
+      )}
+      {/* GAME GUIDE MODAL */}
+      {showGuide && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-void-800 rounded-xl p-6 w-full max-w-2xl neon-border my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-2xl text-purple-400">📖 Hunter's Guide</h2>
+              <button 
+                onClick={() => setShowGuide(false)}
+                className="text-gray-400 hover:text-white text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* Getting Started */}
+            <div className="mb-6">
+              <h3 className="text-lg text-purple-300 font-semibold mb-2">🎮 Getting Started</h3>
+              <div className="text-sm text-gray-300 space-y-2">
+                <p>Welcome to <span className="text-purple-400">Awakened Protocol: Zero</span>! You are a Hunter exploring dangerous towers filled with monsters, treasures, and secrets.</p>
+                <p>Your goal: Climb all 10 towers, defeat powerful bosses, and unlock a <span className="text-yellow-400">Hidden Class</span> to become the ultimate Hunter!</p>
+              </div>
+            </div>
+
+            {/* How to Progress */}
+            <div className="mb-6">
+              <h3 className="text-lg text-purple-300 font-semibold mb-2">🏰 Tower Exploration</h3>
+              <div className="text-sm text-gray-300 space-y-2">
+                <p><span className="text-green-400">1.</span> Go to the <span className="text-amber-400">Tower</span> tab and select a floor</p>
+                <p><span className="text-green-400">2.</span> Navigate through nodes - each node costs <span className="text-amber-400">5 Energy</span></p>
+                <p><span className="text-green-400">3.</span> Clear the <span className="text-red-400">Boss</span> node to unlock the next floor</p>
+                <p><span className="text-green-400">4.</span> Complete Floor 15 to unlock the next Tower</p>
+              </div>
+              <div className="mt-3 p-3 bg-void-900/50 rounded-lg">
+                <div className="text-xs text-gray-400 mb-2">Node Types:</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><span className="text-red-400">⚔️ Combat</span> - Fight monsters</div>
+                  <div><span className="text-purple-400">💀 Elite</span> - Stronger enemies, better loot</div>
+                  <div><span className="text-red-600">👹 Boss</span> - Floor boss (must clear)</div>
+                  <div><span className="text-yellow-400">💰 Treasure</span> - Free loot!</div>
+                  <div><span className="text-blue-400">🏕️ Rest</span> - Recover HP/MP</div>
+                  <div><span className="text-cyan-400">📜 Shrine</span> - Random buffs</div>
+                  <div><span className="text-indigo-400">❓ Mystery</span> - Random event</div>
+                  <div><span className="text-emerald-400">🛒 Merchant</span> - Buy items</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Combat */}
+            <div className="mb-6">
+              <h3 className="text-lg text-purple-300 font-semibold mb-2">⚔️ Combat</h3>
+              <div className="text-sm text-gray-300 space-y-2">
+                <p><span className="text-orange-400">Attack</span> - Basic attack using P.DMG</p>
+                <p><span className="text-blue-400">Defend</span> - Reduce damage taken this turn</p>
+                <p><span className="text-purple-400">Skills</span> - Use MP for powerful abilities</p>
+                <p><span className="text-red-400">Flee</span> - Escape combat (lose progress)</p>
+              </div>
+              <div className="mt-3 p-3 bg-void-900/50 rounded-lg text-xs">
+                <div className="text-gray-400 mb-1">Damage Types:</div>
+                <div><span className="text-orange-400">P.DMG</span> = Physical Damage (scales with STR)</div>
+                <div><span className="text-cyan-400">M.DMG</span> = Magic Damage (scales with INT)</div>
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="mb-6">
+              <h3 className="text-lg text-purple-300 font-semibold mb-2">📊 Stats</h3>
+              <div className="text-sm text-gray-300 space-y-1">
+                <p><span className="text-red-400">💪 STR</span> → Physical DMG (+3), Physical DEF (+1)</p>
+                <p><span className="text-yellow-400">⚡ AGI</span> → Crit Rate (+0.5%), Evasion (+0.3%)</p>
+                <p><span className="text-green-400">🎯 DEX</span> → Accuracy (+0.5%), Crit DMG (+1%)</p>
+                <p><span className="text-blue-400">🔮 INT</span> → Magic DMG (+4), Magic DEF (+1), MP Regen</p>
+                <p><span className="text-pink-400">❤️ VIT</span> → Physical DEF (+2), Magic DEF (+1), HP Regen</p>
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                You get <span className="text-purple-400">5 stat points</span> per level. Allocate them in the Status tab!
+              </div>
+            </div>
+
+            {/* Hidden Classes */}
+            <div className="mb-6">
+              <h3 className="text-lg text-purple-300 font-semibold mb-2">⭐ Hidden Classes</h3>
+              <div className="text-sm text-gray-300 space-y-2">
+                <p>Each base class has <span className="text-yellow-400">5 Hidden Classes</span> with unique powerful skills!</p>
+                <p><span className="text-green-400">How to unlock:</span></p>
+                <p className="pl-4">1. Find a <span className="text-purple-400">Class Scroll</span> from boss drops</p>
+                <p className="pl-4">2. Use the scroll in your <span className="text-amber-400">Inventory</span></p>
+                <p className="pl-4">3. Gain 4 new powerful skills!</p>
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                ⚠️ Each scroll is <span className="text-red-400">unique</span> - only one player can own each Hidden Class at a time!
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div className="mb-6">
+              <h3 className="text-lg text-purple-300 font-semibold mb-2">💡 Tips</h3>
+              <div className="text-sm text-gray-300 space-y-2">
+                <p>• <span className="text-amber-400">Energy</span> regenerates over time (1 per minute)</p>
+                <p>• <span className="text-green-400">HP/MP</span> regenerate based on your VIT/INT stats</p>
+                <p>• Use <span className="text-blue-400">Rest</span> in town to fully recover (costs gold)</p>
+                <p>• <span className="text-purple-400">Equipment</span> greatly boosts your stats - check the Items tab</p>
+                <p>• <span className="text-yellow-400">Set Bonuses</span> activate when wearing multiple items from the same set</p>
+                <p>• Visit the <span className="text-amber-400">Tavern</span> to buy potions and sell loot</p>
+              </div>
+            </div>
+
+            {/* Class Recommendations */}
+            <div className="mb-6">
+              <h3 className="text-lg text-purple-300 font-semibold mb-2">🎭 Class Guide</h3>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="p-2 bg-red-900/20 rounded border border-red-500/20">
+                  <div className="text-red-400 font-semibold">⚔️ Swordsman</div>
+                  <div className="text-xs text-gray-400">Balanced fighter. Focus STR & VIT.</div>
+                </div>
+                <div className="p-2 bg-indigo-900/20 rounded border border-indigo-500/20">
+                  <div className="text-indigo-400 font-semibold">🗡️ Thief</div>
+                  <div className="text-xs text-gray-400">High crit damage. Focus AGI & DEX.</div>
+                </div>
+                <div className="p-2 bg-green-900/20 rounded border border-green-500/20">
+                  <div className="text-green-400 font-semibold">🏹 Archer</div>
+                  <div className="text-xs text-gray-400">Accurate & deadly. Focus DEX & AGI.</div>
+                </div>
+                <div className="p-2 bg-purple-900/20 rounded border border-purple-500/20">
+                  <div className="text-purple-400 font-semibold">🔮 Mage</div>
+                  <div className="text-xs text-gray-400">Powerful magic. Focus INT & VIT.</div>
+                </div>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => setShowGuide(false)}
+              className="w-full mt-4 btn-primary"
+            >
+              Got it, let's hunt! ⚔️
             </button>
           </div>
         </div>
