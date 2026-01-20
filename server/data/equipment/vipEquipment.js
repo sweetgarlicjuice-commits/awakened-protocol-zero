@@ -409,6 +409,43 @@ export function getVipSetPieces(setId) {
   return set.pieces.map(pieceId => VIP_EQUIPMENT[pieceId]).filter(Boolean);
 }
 
+// ============================================================
+// PHASE 9.9.4: Create inventory item from VIP equipment
+// This function creates the inventory object with all VIP fields
+// Used by gm.js when adding VIP items to player inventory
+// ============================================================
+
+export function createVipInventoryItem(itemId) {
+  const item = VIP_EQUIPMENT[itemId];
+  if (!item) return null;
+  
+  return {
+    itemId: item.id,
+    name: item.name,
+    icon: item.icon,
+    type: item.type,
+    subtype: item.slot,
+    slot: item.slot,
+    rarity: item.rarity,
+    quantity: 1,
+    stackable: false,
+    stats: { ...item.stats },
+    setId: item.setId || null,
+    levelReq: item.levelReq || 1,
+    classReq: item.classReq || 'any',
+    // VIP Expiration Fields - timer starts on first equip!
+    vipOnly: true,
+    expirationType: item.expirationType || 'on_first_equip',
+    expirationDays: item.expirationDays || 7,
+    firstEquippedAt: null,  // Set when player first equips
+    expiresAt: null         // Set when player first equips
+  };
+}
+
+// ============================================================
+// EXPORTS
+// ============================================================
+
 export default {
   VIP_EQUIPMENT,
   VIP_SETS,
@@ -416,5 +453,6 @@ export default {
   getVipSetById,
   getAllVipItems,
   getAllVipSets,
-  getVipSetPieces
+  getVipSetPieces,
+  createVipInventoryItem
 };
