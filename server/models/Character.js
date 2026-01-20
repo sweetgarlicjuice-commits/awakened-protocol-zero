@@ -475,6 +475,61 @@ const characterSchema = new mongoose.Schema({
     floorsCleared: { type: Number, default: 0 }
   },
   
+  // ============================================================
+  // PHASE 9.8: SOCIAL FEATURES
+  // ============================================================
+  
+  // Helper Points - Used for co-op boss help
+  helperPoints: {
+    type: Number,
+    default: 10,
+    min: 0
+  },
+  
+  maxHelperPoints: {
+    type: Number,
+    default: 30
+  },
+  
+  // Online status for friend list
+  lastOnline: {
+    type: Date,
+    default: Date.now
+  },
+  
+  isOnline: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Current activity (for friend list display)
+  currentActivity: {
+    type: String,
+    enum: ['idle', 'in_tower', 'in_combat', 'in_dungeon_break', 'helping_friend'],
+    default: 'idle'
+  },
+  
+  // Social statistics
+  socialStats: {
+    helpsGiven: { type: Number, default: 0 },
+    helpsReceived: { type: Number, default: 0 },
+    dungeonBreaksParticipated: { type: Number, default: 0 },
+    totalDungeonDamage: { type: Number, default: 0 }
+  },
+  
+  // Titles earned from achievements
+  titles: [{
+    id: String,
+    name: String,
+    earnedAt: Date
+  }],
+  
+  // Currently displayed title
+  activeTitle: {
+    type: String,
+    default: null
+  },
+  
   createdAt: {
     type: Date,
     default: Date.now
@@ -760,6 +815,74 @@ characterSchema.statics.getSkillsForClass = function(baseClass, hiddenClass = 'n
   }
   
   return skills;
+};
+
+// ============================================================
+// PHASE 9.8: SOCIAL FEATURE METHODS
+// ============================================================
+
+/**
+ * Add helper points (earned from helping friends)
+ */
+characterSchema.methods.addHelperPoints = function(amount) {
+  this.helperPoints = Math.min(this.maxHelperPoints, this.helperPoints + amount);
+  return this.save();
+};
+
+/**
+ * Spend helper points (used when helping)
+ */
+characterSchema.methods.spendHelperPoints = function(amount) {
+  if (this.helperPoints < amount) {
+    throw new Error('Not enough Helper Points');
+  }
+  this.helperPoints -= amount;
+  return this.save();
+};
+
+/**
+ * Update online status and activity
+ */
+characterSchema.methods.updateOnlineStatus = function(isOnline, activity = 'idle') {
+  this.isOnline = isOnline;
+  this.lastOnline = new Date();
+  this.currentActivity = activity;
+  return this.save();
+};
+
+/**
+ * Add a title to the character
+ */
+characterSchema.methods.addTitle = function(titleId, titleName) {
+  if (!this.titles.find(t => t.id === titleId)) {
+    this.titles.push({
+      id: titleId,
+      name: titleName,
+      earnedAt: new Date()
+    });
+  }
+  return this.save();
+};
+
+/**
+ * Get public profile data (for friends to see)
+ */
+characterSchema.methods.getPublicProfile = function() {
+  return {
+    name: this.name,
+    level: this.level,
+    baseClass: this.baseClass,
+    hiddenClass: this.hiddenClass,
+    isOnline: this.isOnline,
+    lastOnline: this.lastOnline,
+    currentActivity: this.currentActivity,
+    activeTitle: this.activeTitle,
+    statistics: {
+      bossKills: this.statistics.bossKills,
+      floorsCleared: this.statistics.floorsCleared
+    },
+    socialStats: this.socialStats
+  };
 };
 
 // ============================================================
