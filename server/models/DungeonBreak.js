@@ -1,33 +1,63 @@
 // ============================================================
 // DUNGEON BREAK MODEL - Limited Time Event System
 // ============================================================
-// Phase 9.9+: Dungeon Break Events
+// Phase 9.9: Dungeon Break Events
 // Phase 9.9.1: Added boss combat stats & skills (boss counter-attacks!)
+// Phase 9.9.2: Raid Coins reward system (replaces direct set drops)
 // 
 // Features:
 // - GM-triggered limited time events (e.g., 3 hours)
 // - Massive boss with shared HP pool
 // - All players contribute damage
-// - Boss counter-attacks players! (NEW)
-// - Rewards based on damage % contribution
-// - Exclusive equipment sets from dungeon break bosses
+// - Boss counter-attacks players!
+// - Raid Coins based on damage leaderboard rank
+// - Redeem coins for specific equipment pieces
 // ============================================================
 
 import mongoose from 'mongoose';
 
 // ============================================================
+// RAID COIN REWARDS BY RANK
+// ============================================================
+const RAID_COIN_REWARDS = {
+  1: 20,      // Rank 1
+  2: 15,      // Rank 2
+  3: 10,      // Rank 3
+  top10: 7,   // Rank 4-10
+  top20: 5,   // Rank 11-20
+  participant: 2  // Rank 21+
+};
+
+// ============================================================
+// BOSS TO COIN LEVEL MAPPING
+// ============================================================
+const BOSS_COIN_LEVELS = {
+  1: 'lv5',   // Shadow Monarch -> R-Coin Lv.5
+  2: 'lv10',  // Demon King -> R-Coin Lv.10
+  3: 'lv20',  // Ice Dragon -> R-Coin Lv.20
+  4: 'lv30',  // Architect -> R-Coin Lv.30
+  5: 'lv40'   // Absolute Being -> R-Coin Lv.40
+};
+
+// Coin level to set mapping (for redeem)
+const COIN_TO_SET_MAP = {
+  lv5: 'shadow_monarch_set',
+  lv10: 'demon_king_set',
+  lv20: 'ice_dragon_set',
+  lv30: 'architect_set',
+  lv40: 'absolute_being_set'
+};
+
+// ============================================================
 // DUNGEON BREAK SCALING TIERS
 // ============================================================
-// GM selects tier based on active player count
-// HP is multiplied by tier multiplier
-
 const DUNGEON_BREAK_TIERS = {
   solo: {
     id: 'solo',
     name: 'Solo',
     description: '1-3 players',
-    hpMultiplier: 1,        // Base HP
-    rewardMultiplier: 0.5,  // 50% rewards
+    hpMultiplier: 1,
+    rewardMultiplier: 0.5,
     minPlayers: 1,
     maxPlayers: 3
   },
@@ -35,8 +65,8 @@ const DUNGEON_BREAK_TIERS = {
     id: 'small',
     name: 'Small Raid',
     description: '5-10 players',
-    hpMultiplier: 5,        // 5x base HP
-    rewardMultiplier: 0.75, // 75% rewards
+    hpMultiplier: 5,
+    rewardMultiplier: 0.75,
     minPlayers: 5,
     maxPlayers: 10
   },
@@ -44,8 +74,8 @@ const DUNGEON_BREAK_TIERS = {
     id: 'medium',
     name: 'Medium Raid',
     description: '10-30 players',
-    hpMultiplier: 15,       // 15x base HP
-    rewardMultiplier: 1.0,  // 100% rewards
+    hpMultiplier: 15,
+    rewardMultiplier: 1.0,
     minPlayers: 10,
     maxPlayers: 30
   },
@@ -53,8 +83,8 @@ const DUNGEON_BREAK_TIERS = {
     id: 'large',
     name: 'Large Raid',
     description: '30-100 players',
-    hpMultiplier: 50,       // 50x base HP
-    rewardMultiplier: 1.25, // 125% rewards
+    hpMultiplier: 50,
+    rewardMultiplier: 1.25,
     minPlayers: 30,
     maxPlayers: 100
   },
@@ -62,8 +92,8 @@ const DUNGEON_BREAK_TIERS = {
     id: 'massive',
     name: 'Server Event',
     description: '100+ players',
-    hpMultiplier: 200,      // 200x base HP
-    rewardMultiplier: 1.5,  // 150% rewards
+    hpMultiplier: 200,
+    rewardMultiplier: 1.5,
     minPlayers: 100,
     maxPlayers: 9999
   }
@@ -72,9 +102,6 @@ const DUNGEON_BREAK_TIERS = {
 // ============================================================
 // DUNGEON BREAK BOSS DATA
 // ============================================================
-// Base HP values - multiply by tier for actual HP
-// Phase 9.9.1: Added combat stats and skills for counter-attacks
-
 const DUNGEON_BREAK_BOSSES = {
   1: {
     id: 'shadow_monarch_fragment',
@@ -84,7 +111,7 @@ const DUNGEON_BREAK_BOSSES = {
     levelReq: 5,
     baseHp: 5000,
     element: 'dark',
-    // Combat stats for counter-attacks
+    coinLevel: 'lv5',  // Phase 9.9.2: Coin type this boss gives
     stats: {
       pDmg: 40,
       mDmg: 60,
@@ -93,13 +120,12 @@ const DUNGEON_BREAK_BOSSES = {
       critRate: 10,
       critDmg: 150
     },
-    // Boss skill
     skill: {
       name: 'Arise',
       icon: '💀',
       description: 'Summons shadow soldiers to attack',
-      damageMultiplier: 1.8,  // 180% of normal attack
-      chance: 20,             // 20% chance to use
+      damageMultiplier: 1.8,
+      chance: 20,
       element: 'dark'
     },
     rewards: {
@@ -117,6 +143,7 @@ const DUNGEON_BREAK_BOSSES = {
     levelReq: 10,
     baseHp: 15000,
     element: 'fire',
+    coinLevel: 'lv10',
     stats: {
       pDmg: 70,
       mDmg: 90,
@@ -148,6 +175,7 @@ const DUNGEON_BREAK_BOSSES = {
     levelReq: 20,
     baseHp: 50000,
     element: 'ice',
+    coinLevel: 'lv20',
     stats: {
       pDmg: 100,
       mDmg: 140,
@@ -179,6 +207,7 @@ const DUNGEON_BREAK_BOSSES = {
     levelReq: 30,
     baseHp: 150000,
     element: 'holy',
+    coinLevel: 'lv30',
     stats: {
       pDmg: 150,
       mDmg: 200,
@@ -210,6 +239,7 @@ const DUNGEON_BREAK_BOSSES = {
     levelReq: 40,
     baseHp: 500000,
     element: 'none',
+    coinLevel: 'lv40',
     stats: {
       pDmg: 250,
       mDmg: 350,
@@ -236,69 +266,36 @@ const DUNGEON_BREAK_BOSSES = {
 };
 
 // ============================================================
-// PARTICIPANT SCHEMA (embedded)
+// PARTICIPANT SCHEMA
 // ============================================================
-
 const participantSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  
   characterId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Character',
     required: true
   },
-  
   characterName: String,
   characterLevel: Number,
   characterClass: String,
-  
-  // Damage tracking
-  totalDamage: {
-    type: Number,
-    default: 0
-  },
-  
-  // Attack count
-  attackCount: {
-    type: Number,
-    default: 0
-  },
-  
-  // Highest single hit
-  highestHit: {
-    type: Number,
-    default: 0
-  },
-  
-  // First attack time
-  firstAttack: {
-    type: Date,
-    default: null
-  },
-  
-  // Last attack time (used for cooldown)
-  lastAttack: {
-    type: Date,
-    default: null
-  },
-  
-  // Rewards claimed
-  rewardsClaimed: {
-    type: Boolean,
-    default: false
-  }
+  totalDamage: { type: Number, default: 0 },
+  attackCount: { type: Number, default: 0 },
+  highestHit: { type: Number, default: 0 },
+  firstAttack: { type: Date, default: null },
+  lastAttack: { type: Date, default: null },
+  rewardsClaimed: { type: Boolean, default: false },
+  // Phase 9.9.2: Track coins earned
+  coinsEarned: { type: Number, default: 0 }
 }, { _id: false });
 
 // ============================================================
 // DUNGEON BREAK EVENT SCHEMA
 // ============================================================
-
 const dungeonBreakSchema = new mongoose.Schema({
-  // Boss info
   bossId: {
     type: Number,
     required: true,
@@ -313,7 +310,7 @@ const dungeonBreakSchema = new mongoose.Schema({
     description: String,
     levelReq: Number,
     element: String,
-    // Phase 9.9.1: Store boss combat stats
+    coinLevel: String,  // Phase 9.9.2: Which coin this boss gives
     stats: {
       pDmg: Number,
       mDmg: Number,
@@ -332,7 +329,6 @@ const dungeonBreakSchema = new mongoose.Schema({
     }
   },
   
-  // Tier selection (determines HP and rewards)
   tier: {
     type: String,
     enum: ['solo', 'small', 'medium', 'large', 'massive'],
@@ -347,54 +343,23 @@ const dungeonBreakSchema = new mongoose.Schema({
     rewardMultiplier: Number
   },
   
-  // HP tracking
-  maxHp: {
-    type: Number,
-    required: true
-  },
+  maxHp: { type: Number, required: true },
+  currentHp: { type: Number, required: true },
   
-  currentHp: {
-    type: Number,
-    required: true
-  },
-  
-  // Event status
   status: {
     type: String,
     enum: ['scheduled', 'active', 'completed', 'failed', 'cancelled'],
     default: 'scheduled'
   },
   
-  // Timing
-  scheduledStart: {
-    type: Date,
-    required: true
-  },
+  scheduledStart: { type: Date, required: true },
+  startedAt: { type: Date, default: null },
+  duration: { type: Number, default: 3 * 60 * 60 * 1000 },
+  endsAt: { type: Date, required: true },
+  completedAt: { type: Date, default: null },
   
-  startedAt: {
-    type: Date,
-    default: null
-  },
-  
-  duration: {
-    type: Number,
-    default: 3 * 60 * 60 * 1000  // 3 hours in milliseconds
-  },
-  
-  endsAt: {
-    type: Date,
-    required: true
-  },
-  
-  completedAt: {
-    type: Date,
-    default: null
-  },
-  
-  // Participants
   participants: [participantSchema],
   
-  // Statistics
   stats: {
     totalDamage: { type: Number, default: 0 },
     totalAttacks: { type: Number, default: 0 },
@@ -402,20 +367,18 @@ const dungeonBreakSchema = new mongoose.Schema({
     peakParticipants: { type: Number, default: 0 }
   },
   
-  // GM who created the event
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
   
-  // Rewards configuration
   rewards: {
     setId: String,
     setLevel: Number,
     goldBase: Number,
     expBase: Number,
-    guaranteedRewardTop: { type: Number, default: 3 }  // Top 3 get guaranteed drops
+    coinLevel: String  // Phase 9.9.2
   }
   
 }, { timestamps: true });
@@ -425,10 +388,21 @@ const dungeonBreakSchema = new mongoose.Schema({
 // ============================================================
 
 /**
+ * Phase 9.9.2: Calculate raid coins based on rank
+ */
+dungeonBreakSchema.statics.calculateRaidCoins = function(rank) {
+  if (rank === 1) return RAID_COIN_REWARDS[1];
+  if (rank === 2) return RAID_COIN_REWARDS[2];
+  if (rank === 3) return RAID_COIN_REWARDS[3];
+  if (rank >= 4 && rank <= 10) return RAID_COIN_REWARDS.top10;
+  if (rank >= 11 && rank <= 20) return RAID_COIN_REWARDS.top20;
+  return RAID_COIN_REWARDS.participant;
+};
+
+/**
  * Create a new Dungeon Break event
  */
 dungeonBreakSchema.statics.createEvent = async function(gmUserId, bossId, tier = 'small', durationHours = 3, scheduledStart = null) {
-  // Check for existing active event
   const existingActive = await this.findOne({ status: 'active' });
   if (existingActive) {
     throw new Error('There is already an active Dungeon Break event');
@@ -449,15 +423,6 @@ dungeonBreakSchema.statics.createEvent = async function(gmUserId, bossId, tier =
   const startTime = scheduledStart ? new Date(scheduledStart) : new Date();
   const endTime = new Date(startTime.getTime() + durationMs);
   
-  // Apply tier reward multiplier
-  const adjustedRewards = {
-    setId: boss.rewards.setId,
-    setLevel: boss.rewards.setLevel,
-    goldBase: Math.floor(boss.rewards.goldBase * tierInfo.rewardMultiplier),
-    expBase: Math.floor(boss.rewards.expBase * tierInfo.rewardMultiplier),
-    guaranteedRewardTop: 3
-  };
-  
   return await this.create({
     bossId,
     bossData: {
@@ -467,7 +432,7 @@ dungeonBreakSchema.statics.createEvent = async function(gmUserId, bossId, tier =
       description: boss.description,
       levelReq: boss.levelReq,
       element: boss.element,
-      // Phase 9.9.1: Include combat stats
+      coinLevel: boss.coinLevel,  // Phase 9.9.2
       stats: boss.stats,
       skill: boss.skill
     },
@@ -486,7 +451,13 @@ dungeonBreakSchema.statics.createEvent = async function(gmUserId, bossId, tier =
     duration: durationMs,
     endsAt: endTime,
     createdBy: gmUserId,
-    rewards: adjustedRewards
+    rewards: {
+      setId: boss.rewards.setId,
+      setLevel: boss.rewards.setLevel,
+      goldBase: Math.floor(boss.rewards.goldBase * tierInfo.rewardMultiplier),
+      expBase: Math.floor(boss.rewards.expBase * tierInfo.rewardMultiplier),
+      coinLevel: boss.coinLevel  // Phase 9.9.2
+    }
   });
 };
 
@@ -496,13 +467,8 @@ dungeonBreakSchema.statics.createEvent = async function(gmUserId, bossId, tier =
 dungeonBreakSchema.statics.startEvent = async function(eventId) {
   const event = await this.findById(eventId);
   
-  if (!event) {
-    throw new Error('Event not found');
-  }
-  
-  if (event.status !== 'scheduled') {
-    throw new Error('Event is not in scheduled status');
-  }
+  if (!event) throw new Error('Event not found');
+  if (event.status !== 'scheduled') throw new Error('Event is not in scheduled status');
   
   event.status = 'active';
   event.startedAt = new Date();
@@ -517,10 +483,7 @@ dungeonBreakSchema.statics.startEvent = async function(eventId) {
 dungeonBreakSchema.statics.cancelEvent = async function(eventId, gmUserId) {
   const event = await this.findById(eventId);
   
-  if (!event) {
-    throw new Error('Event not found');
-  }
-  
+  if (!event) throw new Error('Event not found');
   if (!['scheduled', 'active'].includes(event.status)) {
     throw new Error('Cannot cancel event in current status');
   }
@@ -532,36 +495,29 @@ dungeonBreakSchema.statics.cancelEvent = async function(eventId, gmUserId) {
 };
 
 /**
- * Phase 9.9.1: Calculate boss counter-attack damage
+ * Calculate boss counter-attack damage
  */
 dungeonBreakSchema.statics.calculateBossAttack = function(bossData, playerDerivedStats) {
   const bossStats = bossData.stats;
   const skill = bossData.skill;
   
-  // Determine if boss uses skill
   const useSkill = Math.random() * 100 < skill.chance;
-  
-  // Base damage (mix of physical and magical)
   let baseDamage = bossStats.pDmg + bossStats.mDmg;
   
-  // Apply skill multiplier if using skill
   if (useSkill) {
     baseDamage = Math.floor(baseDamage * skill.damageMultiplier);
   }
   
-  // Add variance (90-110%)
   const variance = 0.9 + (Math.random() * 0.2);
   baseDamage = Math.floor(baseDamage * variance);
   
-  // Check for crit
   const isCrit = Math.random() * 100 < bossStats.critRate;
   if (isCrit) {
     baseDamage = Math.floor(baseDamage * (bossStats.critDmg / 100));
   }
   
-  // Apply player defense reduction (pDef + mDef average)
   const playerDefense = (playerDerivedStats.pDef + playerDerivedStats.mDef) / 2;
-  const defenseReduction = playerDefense / (playerDefense + 100); // Diminishing returns
+  const defenseReduction = playerDefense / (playerDefense + 100);
   const finalDamage = Math.max(1, Math.floor(baseDamage * (1 - defenseReduction)));
   
   return {
@@ -574,18 +530,13 @@ dungeonBreakSchema.statics.calculateBossAttack = function(bossData, playerDerive
 };
 
 /**
- * Record damage from a player (Updated with counter-attack)
+ * Record damage from a player
  */
 dungeonBreakSchema.statics.recordDamage = async function(eventId, userId, characterId, characterInfo, damage) {
   const event = await this.findById(eventId);
   
-  if (!event) {
-    throw new Error('Event not found');
-  }
-  
-  if (event.status !== 'active') {
-    throw new Error('Event is not active');
-  }
+  if (!event) throw new Error('Event not found');
+  if (event.status !== 'active') throw new Error('Event is not active');
   
   if (new Date() > event.endsAt) {
     event.status = 'failed';
@@ -593,12 +544,10 @@ dungeonBreakSchema.statics.recordDamage = async function(eventId, userId, charac
     throw new Error('Event has ended');
   }
   
-  // Check level requirement
   if (characterInfo.level < event.bossData.levelReq) {
     throw new Error(`Minimum level ${event.bossData.levelReq} required`);
   }
   
-  // Find or create participant entry
   let participant = event.participants.find(p => p.userId.toString() === userId.toString());
   
   if (!participant) {
@@ -612,31 +561,39 @@ dungeonBreakSchema.statics.recordDamage = async function(eventId, userId, charac
       attackCount: 0,
       highestHit: 0,
       firstAttack: new Date(),
-      lastAttack: new Date()
+      lastAttack: new Date(),
+      coinsEarned: 0
     };
     event.participants.push(participant);
     event.stats.uniqueParticipants++;
   }
   
-  // Update participant stats
   const pIndex = event.participants.findIndex(p => p.userId.toString() === userId.toString());
   event.participants[pIndex].totalDamage += damage;
   event.participants[pIndex].attackCount++;
   event.participants[pIndex].highestHit = Math.max(event.participants[pIndex].highestHit, damage);
   event.participants[pIndex].lastAttack = new Date();
   
-  // Update event stats
   event.stats.totalDamage += damage;
   event.stats.totalAttacks++;
   event.stats.peakParticipants = Math.max(event.stats.peakParticipants, event.participants.length);
   
-  // Apply damage to boss
   event.currentHp = Math.max(0, event.currentHp - damage);
   
-  // Check if boss is defeated
   if (event.currentHp <= 0) {
     event.status = 'completed';
     event.completedAt = new Date();
+    
+    // Phase 9.9.2: Calculate and store coins for all participants
+    const sorted = [...event.participants].sort((a, b) => b.totalDamage - a.totalDamage);
+    sorted.forEach((p, index) => {
+      const rank = index + 1;
+      const coins = this.calculateRaidCoins(rank);
+      const realIndex = event.participants.findIndex(ep => ep.userId.toString() === p.userId.toString());
+      if (realIndex !== -1) {
+        event.participants[realIndex].coinsEarned = coins;
+      }
+    });
   }
   
   event.markModified('participants');
@@ -670,7 +627,6 @@ dungeonBreakSchema.statics.getActiveEvent = async function() {
   const event = await this.findOne({ status: 'active' });
   
   if (event && new Date() > event.endsAt) {
-    // Event has expired, mark as failed
     event.status = 'failed';
     event.completedAt = new Date();
     await event.save();
@@ -686,9 +642,7 @@ dungeonBreakSchema.statics.getActiveEvent = async function() {
 dungeonBreakSchema.statics.getLeaderboard = async function(eventId, limit = 100) {
   const event = await this.findById(eventId);
   
-  if (!event) {
-    return [];
-  }
+  if (!event) return [];
   
   return [...event.participants]
     .sort((a, b) => b.totalDamage - a.totalDamage)
@@ -700,64 +654,38 @@ dungeonBreakSchema.statics.getLeaderboard = async function(eventId, limit = 100)
       class: p.characterClass,
       damage: p.totalDamage,
       attacks: p.attackCount,
-      damagePercent: ((p.totalDamage / event.stats.totalDamage) * 100).toFixed(2)
+      damagePercent: ((p.totalDamage / event.stats.totalDamage) * 100).toFixed(2),
+      coinsEarned: p.coinsEarned || this.calculateRaidCoins(index + 1)  // Phase 9.9.2
     }));
 };
 
 /**
- * Calculate rewards for a participant
+ * Phase 9.9.2: Calculate rewards (now gives coins instead of items)
  */
 dungeonBreakSchema.statics.calculateRewards = async function(eventId, userId) {
   const event = await this.findById(eventId);
   
-  if (!event) {
-    throw new Error('Event not found');
-  }
-  
-  if (event.status !== 'completed') {
-    throw new Error('Event is not completed (boss not defeated)');
-  }
+  if (!event) throw new Error('Event not found');
+  if (event.status !== 'completed') throw new Error('Event is not completed (boss not defeated)');
   
   const participant = event.participants.find(p => p.userId.toString() === userId.toString());
   
-  if (!participant) {
-    throw new Error('You did not participate in this event');
-  }
-  
-  if (participant.rewardsClaimed) {
-    throw new Error('Rewards already claimed');
-  }
+  if (!participant) throw new Error('You did not participate in this event');
+  if (participant.rewardsClaimed) throw new Error('Rewards already claimed');
   
   const rank = this.getPlayerRank(event, userId);
   const damagePercent = participant.totalDamage / event.stats.totalDamage;
+  const coins = participant.coinsEarned || this.calculateRaidCoins(rank);
   
-  // Base rewards scaled by damage contribution
+  // Phase 9.9.2: Rewards now include coins instead of equipment
   const rewards = {
-    gold: Math.floor(event.rewards.goldBase * damagePercent * 10), // 10x multiplier for participation
+    gold: Math.floor(event.rewards.goldBase * damagePercent * 10),
     exp: Math.floor(event.rewards.expBase * damagePercent * 10),
-    items: []
+    coins: coins,
+    coinLevel: event.bossData.coinLevel
   };
   
-  // Guaranteed set piece for top players
-  if (rank <= event.rewards.guaranteedRewardTop) {
-    rewards.items.push({
-      type: 'equipment',
-      setId: event.rewards.setId,
-      guaranteed: true
-    });
-  } else {
-    // Chance-based reward for others (higher damage = higher chance)
-    const dropChance = Math.min(0.5, damagePercent * 5); // Max 50% chance
-    if (Math.random() < dropChance) {
-      rewards.items.push({
-        type: 'equipment',
-        setId: event.rewards.setId,
-        guaranteed: false
-      });
-    }
-  }
-  
-  // Bonus rewards for high ranks
+  // Bonus gold/exp for high ranks
   if (rank === 1) {
     rewards.gold *= 3;
     rewards.exp *= 3;
@@ -783,19 +711,12 @@ dungeonBreakSchema.statics.calculateRewards = async function(eventId, userId) {
 dungeonBreakSchema.statics.claimRewards = async function(eventId, userId) {
   const event = await this.findById(eventId);
   
-  if (!event) {
-    throw new Error('Event not found');
-  }
+  if (!event) throw new Error('Event not found');
   
   const pIndex = event.participants.findIndex(p => p.userId.toString() === userId.toString());
   
-  if (pIndex === -1) {
-    throw new Error('You did not participate in this event');
-  }
-  
-  if (event.participants[pIndex].rewardsClaimed) {
-    throw new Error('Rewards already claimed');
-  }
+  if (pIndex === -1) throw new Error('You did not participate in this event');
+  if (event.participants[pIndex].rewardsClaimed) throw new Error('Rewards already claimed');
   
   event.participants[pIndex].rewardsClaimed = true;
   event.markModified('participants');
@@ -828,11 +749,14 @@ dungeonBreakSchema.statics.getPlayerHistory = async function(userId, limit = 10)
   .limit(limit);
 };
 
-// Export boss data and tiers for reference
+// Export constants
 dungeonBreakSchema.statics.BOSSES = DUNGEON_BREAK_BOSSES;
 dungeonBreakSchema.statics.TIERS = DUNGEON_BREAK_TIERS;
+dungeonBreakSchema.statics.RAID_COIN_REWARDS = RAID_COIN_REWARDS;
+dungeonBreakSchema.statics.BOSS_COIN_LEVELS = BOSS_COIN_LEVELS;
+dungeonBreakSchema.statics.COIN_TO_SET_MAP = COIN_TO_SET_MAP;
 
 const DungeonBreak = mongoose.model('DungeonBreak', dungeonBreakSchema);
 
-export { DUNGEON_BREAK_BOSSES, DUNGEON_BREAK_TIERS };
+export { DUNGEON_BREAK_BOSSES, DUNGEON_BREAK_TIERS, RAID_COIN_REWARDS, BOSS_COIN_LEVELS, COIN_TO_SET_MAP };
 export default DungeonBreak;
