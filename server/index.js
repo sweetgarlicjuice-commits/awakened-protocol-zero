@@ -7,7 +7,6 @@ import bcrypt from 'bcryptjs';
 // Import routes
 import authRoutes from './routes/auth.js';
 import characterRoutes from './routes/character.js';
-import towerRoutes from './routes/tower.js';
 import gmRoutes from './routes/gm.js';
 import tavernRoutes from './routes/tavern.js';
 import explorationRoutes from './routes/exploration.js';
@@ -36,7 +35,6 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/character', characterRoutes);
-app.use('/api/tower', towerRoutes);
 app.use('/api/gm', gmRoutes);
 app.use('/api/tavern', tavernRoutes);
 app.use('/api/exploration', explorationRoutes);
@@ -47,7 +45,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok', 
     game: 'Awakened Protocol: Zero',
     version: '1.0.0-alpha',
-    phase: 1
+    phase: '9.7'
   });
 });
 
@@ -57,12 +55,13 @@ app.get('/api/info', (req, res) => {
     name: 'Awakened Protocol: Zero',
     description: 'A Solo Leveling inspired text-based turn-based RPG',
     version: '1.0.0-alpha',
-    phase: 1,
+    phase: '9.7',
     features: {
-      towers: 2,
+      towers: 10,
       baseClasses: 4,
-      hiddenClasses: 4,
-      maxLevel: 50
+      hiddenClasses: 20,
+      maxLevel: 100,
+      skills: 96
     }
   });
 });
@@ -134,7 +133,7 @@ async function startServer() {
 ║              Server Started                           ║
 ║                                                       ║
 ║        Port: ${PORT}                                    ║
-║        Phase: 1 - Foundation                          ║
+║        Phase: 9.7 - Modular Combat                    ║
 ║        Exploration: ENABLED                           ║
 ║                                                       ║
 ╚═══════════════════════════════════════════════════════╝
