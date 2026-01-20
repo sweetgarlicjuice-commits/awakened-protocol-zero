@@ -589,13 +589,6 @@ const GamePage = () => {
           )}
 
           <button 
-            onClick={() => setShowCombatStats(true)}
-            className="w-full mb-2 py-2 text-sm bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-purple-300 transition-colors"
-          >
-            ⚔️ View Combat Stats
-          </button>
-
-          <button 
             onClick={handleRest}
             disabled={isResting || character.gold < restCost || isInTower}
             className="w-full py-2 text-sm bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 rounded-lg text-green-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -669,15 +662,15 @@ const GamePage = () => {
                     </div>
                     <div className="grid grid-cols-5 gap-2">
                       {[
-                        { key: 'str', label: 'STR', icon: '💪', color: 'text-red-400' },
-                        { key: 'agi', label: 'AGI', icon: '⚡', color: 'text-yellow-400' },
-                        { key: 'dex', label: 'DEX', icon: '🎯', color: 'text-green-400' },
-                        { key: 'int', label: 'INT', icon: '🔮', color: 'text-blue-400' },
-                        { key: 'vit', label: 'VIT', icon: '❤️', color: 'text-pink-400' }
+                        { key: 'str', label: 'STR', icon: '💪', color: 'text-red-400', borderColor: 'border-red-500/30' },
+                        { key: 'agi', label: 'AGI', icon: '⚡', color: 'text-yellow-400', borderColor: 'border-yellow-500/30' },
+                        { key: 'dex', label: 'DEX', icon: '🎯', color: 'text-green-400', borderColor: 'border-green-500/30' },
+                        { key: 'int', label: 'INT', icon: '🔮', color: 'text-blue-400', borderColor: 'border-blue-500/30' },
+                        { key: 'vit', label: 'VIT', icon: '❤️', color: 'text-pink-400', borderColor: 'border-pink-500/30' }
                       ].map(stat => {
                         const equipBonus = derivedStats?.equipmentBonus?.[stat.key] || 0;
                         return (
-                          <div key={stat.key} className="text-center p-2 bg-void-800/30 rounded-lg">
+                          <div key={stat.key} className={`text-center p-2 bg-void-900/50 rounded-lg border ${stat.borderColor}`}>
                             <div className="text-xl mb-1">{stat.icon}</div>
                             <div className={`text-lg font-bold ${stat.color}`}>
                               {character.stats[stat.key]}
