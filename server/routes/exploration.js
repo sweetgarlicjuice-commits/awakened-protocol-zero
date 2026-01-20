@@ -504,16 +504,20 @@ router.post('/combat/start', authenticate, async (req, res) => {
     });
     
     // Get usable potions from inventory for combat (flexible check)
+    // consumables.js uses: subType: 'potion', effect.type: 'heal_hp' or 'heal_mp'
     const usablePotions = character.inventory.filter(item => {
       if (item.type !== 'consumable' || item.quantity <= 0) return false;
-      // Check by subtype
+      // Check by subType (camelCase from consumables.js)
+      if (item.subType === 'potion') return true;
+      // Check by subtype (lowercase from drops)
       if (item.subtype === 'health_potion' || item.subtype === 'mana_potion') return true;
       // Check by effect type
-      if (item.effect?.type === 'heal' || item.effect?.type === 'health' || 
-          item.effect?.type === 'mana' || item.effect?.type === 'mp') return true;
+      if (item.effect?.type === 'heal_hp' || item.effect?.type === 'heal_mp') return true;
+      if (item.effect?.type === 'heal' || item.effect?.type === 'health') return true;
+      if (item.effect?.type === 'mana' || item.effect?.type === 'mp') return true;
       // Check by name pattern
-      if (item.name?.toLowerCase().includes('health') || item.name?.toLowerCase().includes('hp')) return true;
-      if (item.name?.toLowerCase().includes('mana') || item.name?.toLowerCase().includes('mp')) return true;
+      if (item.name?.toLowerCase().includes('health potion')) return true;
+      if (item.name?.toLowerCase().includes('mana potion')) return true;
       return false;
     });
     
@@ -593,18 +597,35 @@ router.post('/combat/action', authenticate, async (req, res) => {
       let effectMessage = '';
       let usedItem = false;
       
-      // Health potion - check subtype OR effect type
-      if (inventoryItem.subtype === 'health_potion' || effect?.type === 'heal' || effect?.type === 'health') {
-        const healAmount = effect?.value || 100;
+      // Health potion - check multiple possible field names and effect types
+      // consumables.js uses: subType: 'potion', effect.type: 'heal_hp'
+      // drops might use: subtype: 'health_potion', effect.type: 'heal'
+      const isHealthPotion = 
+        (inventoryItem.subType === 'potion' && effect?.type === 'heal_hp') ||
+        inventoryItem.subtype === 'health_potion' ||
+        effect?.type === 'heal_hp' ||
+        effect?.type === 'heal' ||
+        effect?.type === 'health' ||
+        (inventoryItem.name?.toLowerCase().includes('health') && !inventoryItem.name?.toLowerCase().includes('mana'));
+      
+      const isManaPotion = 
+        (inventoryItem.subType === 'potion' && effect?.type === 'heal_mp') ||
+        inventoryItem.subtype === 'mana_potion' ||
+        effect?.type === 'heal_mp' ||
+        effect?.type === 'mana' ||
+        effect?.type === 'mp' ||
+        (inventoryItem.name?.toLowerCase().includes('mana') && !inventoryItem.name?.toLowerCase().includes('health'));
+      
+      if (isHealthPotion) {
+        const healAmount = effect?.value || 50;
         const actualHeal = Math.min(healAmount, character.stats.maxHp - character.stats.hp);
         character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + healAmount);
         effectMessage = `Used ${inventoryItem.name}! +${actualHeal} HP`;
         newLogs.push({ actor: 'player', message: `🧪 ${effectMessage}`, damage: 0, type: 'heal' });
         usedItem = true;
       } 
-      // Mana potion - check subtype OR effect type
-      else if (inventoryItem.subtype === 'mana_potion' || effect?.type === 'mana' || effect?.type === 'mp') {
-        const manaAmount = effect?.value || 50;
+      else if (isManaPotion) {
+        const manaAmount = effect?.value || 30;
         const actualMana = Math.min(manaAmount, character.stats.maxMp - character.stats.mp);
         character.stats.mp = Math.min(character.stats.maxMp, character.stats.mp + manaAmount);
         effectMessage = `Used ${inventoryItem.name}! +${actualMana} MP`;
@@ -921,14 +942,16 @@ router.post('/combat/action', authenticate, async (req, res) => {
     await character.save();
     await floorMap.save();
     
-    // Get updated usable potions (flexible check)
+    // Get updated usable potions (flexible check matching consumables.js)
     const usablePotions = character.inventory.filter(item => {
       if (item.type !== 'consumable' || item.quantity <= 0) return false;
+      if (item.subType === 'potion') return true;
       if (item.subtype === 'health_potion' || item.subtype === 'mana_potion') return true;
-      if (item.effect?.type === 'heal' || item.effect?.type === 'health' || 
-          item.effect?.type === 'mana' || item.effect?.type === 'mp') return true;
-      if (item.name?.toLowerCase().includes('health') || item.name?.toLowerCase().includes('hp')) return true;
-      if (item.name?.toLowerCase().includes('mana') || item.name?.toLowerCase().includes('mp')) return true;
+      if (item.effect?.type === 'heal_hp' || item.effect?.type === 'heal_mp') return true;
+      if (item.effect?.type === 'heal' || item.effect?.type === 'health') return true;
+      if (item.effect?.type === 'mana' || item.effect?.type === 'mp') return true;
+      if (item.name?.toLowerCase().includes('health potion')) return true;
+      if (item.name?.toLowerCase().includes('mana potion')) return true;
       return false;
     });
     
