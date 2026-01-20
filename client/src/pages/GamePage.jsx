@@ -195,7 +195,7 @@ const SkillCard = ({ skill, skillData }) => {
   );
 };
 
-const StatBar = ({ label, current, max, color, icon }) => {
+const StatBar = ({ label, current, max, color, icon, regenTimer, regenAmount }) => {
   const percentage = Math.round((current / max) * 100);
   const barColor = label === 'HP' 
     ? 'from-green-500 to-green-400' 
@@ -205,7 +205,14 @@ const StatBar = ({ label, current, max, color, icon }) => {
     <div className="space-y-1">
       <div className="flex justify-between text-sm">
         <span className="text-gray-400">{icon} {label}</span>
-        <span className={color}>{current} / {max}</span>
+        <div className="flex items-center gap-2">
+          <span className={color}>{current} / {max}</span>
+          {regenTimer !== undefined && regenAmount > 0 && current < max && (
+            <span className="text-xs text-gray-500" title={`+${regenAmount} ${label} in ${regenTimer}s`}>
+              (+{regenAmount} in {regenTimer}s)
+            </span>
+          )}
+        </div>
       </div>
       <div className="h-3 bg-void-900 rounded-full overflow-hidden">
         <div 
@@ -382,6 +389,7 @@ const GamePage = () => {
   const [pendingStats, setPendingStats] = useState({ str: 0, agi: 0, dex: 0, int: 0, vit: 0 });
   const [isAllocating, setIsAllocating] = useState(false);
   const [isInTower, setIsInTower] = useState(false);
+  const [regenTimer, setRegenTimer] = useState(60); // Phase 9.7.2: Regen timer countdown
   const [showActivityLog, setShowActivityLog] = useState(true);
   const [gameLog, setGameLog] = useState([
     { type: 'system', message: 'Welcome to Awakened Protocol: Zero', timestamp: new Date() },
@@ -398,6 +406,21 @@ const GamePage = () => {
   useEffect(() => {
     const interval = setInterval(() => refreshCharacter(), 60000);
     return () => clearInterval(interval);
+  }, [refreshCharacter]);
+
+  // Phase 9.7.2: Regen timer countdown (resets every 60s when server regens HP/MP)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRegenTimer(prev => {
+        if (prev <= 1) {
+          // Timer hit 0, server should have regenerated - refresh character
+          refreshCharacter();
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
   }, [refreshCharacter]);
 
   // Sync isInTower state with character data
@@ -500,8 +523,24 @@ const GamePage = () => {
           </div>
 
           <div className="space-y-3 mb-6">
-            <StatBar label="HP" current={character.stats.hp} max={character.stats.maxHp + (derivedStats?.bonusHp || 0)} color="text-green-400" icon="❤️"/>
-            <StatBar label="MP" current={character.stats.mp} max={character.stats.maxMp + (derivedStats?.bonusMp || 0)} color="text-blue-400" icon="💎"/>
+            <StatBar 
+              label="HP" 
+              current={character.stats.hp} 
+              max={character.stats.maxHp + (derivedStats?.bonusHp || 0)} 
+              color="text-green-400" 
+              icon="❤️"
+              regenTimer={regenTimer}
+              regenAmount={derivedStats?.hpRegen || 0}
+            />
+            <StatBar 
+              label="MP" 
+              current={character.stats.mp} 
+              max={character.stats.maxMp + (derivedStats?.bonusMp || 0)} 
+              color="text-blue-400" 
+              icon="💎"
+              regenTimer={regenTimer}
+              regenAmount={derivedStats?.mpRegen || 0}
+            />
           </div>
 
           <div className="mb-6">
@@ -547,13 +586,6 @@ const GamePage = () => {
               ))}
             </div>
           )}
-
-          <button 
-            onClick={() => setShowCombatStats(true)}
-            className="w-full mb-2 py-2 text-sm bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-purple-300 transition-colors"
-          >
-            ⚔️ View Combat Stats
-          </button>
 
           <button 
             onClick={handleRest}
