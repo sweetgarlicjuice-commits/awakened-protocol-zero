@@ -7,6 +7,7 @@ import TavernPanel from '../components/TavernPanel';
 import InventoryPanel from '../components/InventoryPanel';
 import FriendsPanel from '../components/FriendsPanel';
 import DungeonBreakPanel from '../components/DungeonBreakPanel';
+import HelpRequestPanel from '../components/HelpRequestPanel';
 
 const CLASS_ICONS = {
   swordsman: '⚔️',
@@ -413,6 +414,7 @@ const GamePage = () => {
   const [showGuide, setShowGuide] = useState(false); // Phase 9.7.2: Game guide popup
   const [showFriends, setShowFriends] = useState(false); // Phase 9.8: Friends panel
   const [showDungeonBreak, setShowDungeonBreak] = useState(false); // Phase 9.9: Dungeon Break panel
+  const [showHelp, setShowHelp] = useState(false); // Phase 10: Co-op Help panel
   const [showActivityLog, setShowActivityLog] = useState(true);
   const [gameLog, setGameLog] = useState([
     { type: 'system', message: 'Welcome to Awakened Protocol: Zero', timestamp: new Date() },
@@ -522,6 +524,7 @@ const GamePage = () => {
           </div>
           <div className="flex items-center gap-4">
             <button onClick={() => setShowDungeonBreak(true)} className="text-gray-400 hover:text-red-400 transition-colors text-sm">🔥 Raid</button>
+            <button onClick={() => setShowHelp(true)} className="text-gray-400 hover:text-blue-400 transition-colors text-sm">🤝 Co-op</button>
             <button onClick={() => setShowFriends(true)} className="text-gray-400 hover:text-purple-400 transition-colors text-sm">👥 Friends</button>
             <button onClick={() => setShowGuide(true)} className="text-gray-400 hover:text-purple-400 transition-colors text-sm">📖 Guide</button>
             <button onClick={handleLogout} className="text-gray-400 hover:text-red-400 transition-colors text-sm">Logout</button>
@@ -1206,6 +1209,15 @@ const GamePage = () => {
         <DungeonBreakPanel 
           character={character}
           onClose={() => setShowDungeonBreak(false)} 
+          refreshCharacter={refreshCharacter}
+        />
+      )}
+
+      {/* Co-op Help Panel Modal */}
+      {showHelp && (
+        <HelpRequestPanel 
+          character={character}
+          onClose={() => setShowHelp(false)} 
           refreshCharacter={refreshCharacter}
         />
       )}
