@@ -265,6 +265,79 @@ export const gmAPI = {
 };
 
 // ============================================
+// FRIENDS API (Phase 9.8)
+// ============================================
+export const friendsAPI = {
+  // Get friend list with online status
+  getFriends: () => api.get('/friends'),
+  
+  // Get pending friend requests (sent and received)
+  getPending: () => api.get('/friends/pending'),
+  
+  // Search users by username
+  searchUsers: (query) => api.get(`/friends/search?q=${encodeURIComponent(query)}`),
+  
+  // Send friend request by username
+  sendRequest: (username) => api.post('/friends/request', { username }),
+  
+  // Accept friend request
+  acceptRequest: (friendshipId) => api.post(`/friends/accept/${friendshipId}`),
+  
+  // Decline friend request
+  declineRequest: (friendshipId) => api.post(`/friends/decline/${friendshipId}`),
+  
+  // Remove friend
+  removeFriend: (friendshipId) => api.delete(`/friends/${friendshipId}`),
+  
+  // Get friend's profile
+  getFriendProfile: (friendshipId) => api.get(`/friends/${friendshipId}/profile`),
+  
+  // Get friend count
+  getCount: () => api.get('/friends/count'),
+};
+
+// ============================================
+// DUNGEON BREAK API (Phase 9.8)
+// ============================================
+export const dungeonBreakAPI = {
+  // === Player Endpoints ===
+  
+  // Get active dungeon break event
+  getActive: () => api.get('/dungeon-break/active'),
+  
+  // Attack the boss (records damage)
+  attack: () => api.post('/dungeon-break/attack'),
+  
+  // Get damage leaderboard
+  getLeaderboard: (eventId = null) => 
+    api.get(`/dungeon-break/leaderboard${eventId ? `?eventId=${eventId}` : ''}`),
+  
+  // Claim rewards after event ends
+  claimRewards: (eventId) => api.post('/dungeon-break/claim', { eventId }),
+  
+  // Get past events history
+  getHistory: () => api.get('/dungeon-break/history'),
+  
+  // Get my participation history
+  getMyHistory: () => api.get('/dungeon-break/my-history'),
+  
+  // === GM Endpoints ===
+  
+  // Get available bosses
+  getBosses: () => api.get('/dungeon-break/bosses'),
+  
+  // Get available tiers
+  getTiers: () => api.get('/dungeon-break/tiers'),
+  
+  // Create new dungeon break event
+  createEvent: (bossId, tier = 'small', durationHours = 3) => 
+    api.post('/dungeon-break/create', { bossId, tier, durationHours }),
+  
+  // Cancel active event
+  cancelEvent: () => api.post('/dungeon-break/cancel'),
+};
+
+// ============================================
 // STORY API (if you have story mode)
 // ============================================
 export const storyAPI = {
