@@ -5,6 +5,7 @@ import { characterAPI } from '../services/api';
 import TowerPanel from '../components/TowerPanel';
 import TavernPanel from '../components/TavernPanel';
 import InventoryPanel from '../components/InventoryPanel';
+import FriendsPanel from '../components/FriendsPanel';
 
 const CLASS_ICONS = {
   swordsman: '⚔️',
@@ -409,6 +410,7 @@ const GamePage = () => {
   const [isInTower, setIsInTower] = useState(false);
   const [regenTimer, setRegenTimer] = useState(60); // Phase 9.7.2: Regen countdown timer
   const [showGuide, setShowGuide] = useState(false); // Phase 9.7.2: Game guide popup
+  const [showFriends, setShowFriends] = useState(false); // Phase 9.8: Friends panel
   const [showActivityLog, setShowActivityLog] = useState(true);
   const [gameLog, setGameLog] = useState([
     { type: 'system', message: 'Welcome to Awakened Protocol: Zero', timestamp: new Date() },
@@ -517,6 +519,7 @@ const GamePage = () => {
             <span className="hidden md:block text-gray-400 text-sm">Awakened Protocol: Zero</span>
           </div>
           <div className="flex items-center gap-4">
+            <button onClick={() => setShowFriends(true)} className="text-gray-400 hover:text-purple-400 transition-colors text-sm">👥 Friends</button>
             <button onClick={() => setShowGuide(true)} className="text-gray-400 hover:text-purple-400 transition-colors text-sm">📖 Guide</button>
             <button onClick={handleLogout} className="text-gray-400 hover:text-red-400 transition-colors text-sm">Logout</button>
           </div>
@@ -1188,6 +1191,11 @@ const GamePage = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Friends Panel Modal */}
+      {showFriends && (
+        <FriendsPanel onClose={() => setShowFriends(false)} />
       )}
     </div>
   );
