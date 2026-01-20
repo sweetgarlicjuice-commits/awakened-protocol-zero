@@ -1,7 +1,11 @@
 // ============================================================
 // EXPLORATION ROUTES - Tower Combat & Exploration
 // ============================================================
-// Phase 9.7: Refactored to use modular combat system
+// Phase 9.7.2: Balance fixes + Bug fixes
+// - Added BALANCE config for tunable EXP/gold values
+// - Fixed defeat handling (restore 50% HP/MP)
+// - Reduced EXP rewards to slow progression
+// - Steeper level curve (1.25x instead of 1.2x)
 // 
 // ARCHITECTURE:
 // - Skill data: ../data/skillDatabase.js (edit skills here)
@@ -47,6 +51,27 @@ import { ALL_SKILLS, formatSkillForDisplay } from '../data/skillDatabase.js';
 
 const router = express.Router();
 const ENERGY_PER_EXPLORATION = 5;
+
+// ============================================================
+// PHASE 9.7.2: BALANCE CONFIG
+// ============================================================
+// Tunable values for game balance. Edit these to adjust progression speed.
+const BALANCE = {
+  expBase: {
+    normal: 8,      // Was 15 - base EXP per normal enemy
+    elite: 25,      // Was 40 - base EXP per elite enemy
+    boss: 60        // Was 100 - base EXP per boss
+  },
+  goldBase: {
+    normal: { min: 3, max: 8 },    // Was { min: 5, max: 15 }
+    elite: { min: 8, max: 20 },    // Was { min: 15, max: 40 }
+    boss: { min: 25, max: 60 }     // Was { min: 50, max: 150 }
+  },
+  floorExpBonus: 0.05,      // +5% per floor (was 10%)
+  towerExpBonus: 0.25,      // +25% per tower (was 50%)
+  expCurveBase: 100,        // Base EXP needed for level 2
+  expCurveMultiplier: 1.25  // 25% more EXP needed per level (was 20%)
+};
 
 // ============================================================
 // SLOT MAPPING
@@ -126,12 +151,12 @@ function calculateCombatStats(character) {
 }
 
 // ============================================================
-// DROP RATES & LOOT
+// DROP RATES & LOOT (Phase 9.7.2: Updated gold values)
 // ============================================================
 const DROP_RATES = {
-  combat: { equipment: 0.07, material: 0.18, potion: 0.20, gold: { min: 5, max: 15 } },
-  elite: { equipment: 0.15, material: 0.30, potion: 0.20, gold: { min: 15, max: 40 } },
-  boss: { equipment: 0.25, hiddenScroll: 0.06, memoryCrystalFragment: 0.10, material: 0.50, potion: 0.20, gold: { min: 50, max: 150 } }
+  combat: { equipment: 0.05, material: 0.15, potion: 0.15, gold: BALANCE.goldBase.normal },
+  elite: { equipment: 0.12, material: 0.25, potion: 0.15, gold: BALANCE.goldBase.elite },
+  boss: { equipment: 0.20, hiddenScroll: 0.06, memoryCrystalFragment: 0.10, material: 0.40, potion: 0.15, gold: BALANCE.goldBase.boss }
 };
 
 function generateLootDrops(nodeType, towerId, floor, playerLevel, playerClass) {
@@ -267,20 +292,22 @@ function generateFloorMap(characterId, towerId, floor) {
 
 function generateEnemies(type, towerId, floor) {
   const enemies = [], towerEnemies = ENEMIES[`tower${towerId}`] || ENEMIES.tower1;
-  if (!towerEnemies) return [{ id: 'skeleton', name: 'Skeleton', icon: '💀', hp: 80, maxHp: 80, atk: 15, def: 6, expReward: 15, goldReward: { min: 5, max: 15 } }];
+  if (!towerEnemies) return [{ id: 'skeleton', name: 'Skeleton', icon: '💀', hp: 80, maxHp: 80, atk: 15, def: 6, expReward: BALANCE.expBase.normal, goldReward: BALANCE.goldBase.normal }];
   
   const floorScale = 1 + (floor - 1) * 0.15;
   if (type === 'boss' && towerEnemies.boss) {
     const b = { ...towerEnemies.boss };
     b.hp = Math.floor((b.baseHp || 800) * floorScale); b.maxHp = b.hp;
     b.atk = Math.floor((b.baseAtk || 50) * floorScale); b.def = Math.floor((b.baseDef || 20) * floorScale);
-    b.expReward = b.expReward || Math.floor(100 + floor * 20);
+    b.expReward = b.expReward || BALANCE.expBase.boss;
+    b.goldReward = b.goldReward || BALANCE.goldBase.boss;
     enemies.push(b);
   } else if (type === 'elite' && towerEnemies.elite?.length > 0) {
     const e = { ...towerEnemies.elite[Math.floor(Math.random() * towerEnemies.elite.length)] };
     e.hp = Math.floor((e.baseHp || 300) * floorScale); e.maxHp = e.hp;
     e.atk = Math.floor((e.baseAtk || 30) * floorScale); e.def = Math.floor((e.baseDef || 12) * floorScale);
-    e.expReward = e.expReward || Math.floor(40 + floor * 8);
+    e.expReward = e.expReward || BALANCE.expBase.elite;
+    e.goldReward = e.goldReward || BALANCE.goldBase.elite;
     enemies.push(e);
   } else if (towerEnemies.normal?.length > 0) {
     const count = 1 + Math.floor(Math.random() * 3);
@@ -289,7 +316,8 @@ function generateEnemies(type, towerId, floor) {
       const e = { ...t };
       e.hp = Math.floor((e.baseHp || 80) * floorScale); e.maxHp = e.hp;
       e.atk = Math.floor((e.baseAtk || 15) * floorScale); e.def = Math.floor((e.baseDef || 6) * floorScale);
-      e.expReward = e.expReward || Math.floor(15 + floor * 3);
+      e.expReward = e.expReward || BALANCE.expBase.normal;
+      e.goldReward = e.goldReward || BALANCE.goldBase.normal;
       e.instanceId = `${e.id}_${i}`;
       enemies.push(e);
     }
@@ -373,7 +401,7 @@ router.post('/combat/start', authenticate, async (req, res) => {
       name: e.name || 'Enemy', icon: e.icon || '👹',
       hp: e.hp || e.maxHp || 50, maxHp: e.maxHp || e.hp || 50,
       atk: e.atk || 10, def: e.def || 5, mDef: e.mDef || e.def || 5, element: e.element || 'none',
-      expReward: e.expReward || 15, goldReward: e.goldReward || { min: 5, max: 15 },
+      expReward: e.expReward || BALANCE.expBase.normal, goldReward: e.goldReward || BALANCE.goldBase.normal,
       isElite: e.isElite || false, isBoss: e.isBoss || false
     }));
     
@@ -568,16 +596,22 @@ router.post('/combat/action', authenticate, async (req, res) => {
     const stillAlive = combat.enemies.filter(e => e.hp > 0);
     
     if (stillAlive.length === 0) {
-      // Victory rewards
-      const baseExp = combat.enemies.reduce((s, e) => s + (e.expReward || 15), 0);
-      const baseGold = combat.enemies.reduce((s, e) => s + Math.floor((e.goldReward?.min || 5) + Math.random() * ((e.goldReward?.max || 15) - (e.goldReward?.min || 5))), 0);
-      const towerMultiplier = 1.0 + (floorMap.towerId - 1) * 0.5;
-      const floorMultiplier = 1.0 + (floorMap.floor - 1) * 0.1;
-      const nodeMultiplier = currentNode.type === 'boss' ? 3 : currentNode.type === 'elite' ? 2 : 1;
+      // ============================================================
+      // PHASE 9.7.2: Victory rewards with BALANCE config
+      // ============================================================
+      const baseExp = combat.enemies.reduce((s, e) => s + (e.expReward || BALANCE.expBase.normal), 0);
+      const baseGold = combat.enemies.reduce((s, e) => {
+        const goldRange = e.goldReward || BALANCE.goldBase.normal;
+        return s + Math.floor(goldRange.min + Math.random() * (goldRange.max - goldRange.min));
+      }, 0);
+      
+      const towerMultiplier = 1.0 + (floorMap.towerId - 1) * BALANCE.towerExpBonus;
+      const floorMultiplier = 1.0 + (floorMap.floor - 1) * BALANCE.floorExpBonus;
+      const nodeMultiplier = currentNode.type === 'boss' ? 2 : currentNode.type === 'elite' ? 1.5 : 1;
       
       const rewards = { 
         exp: Math.floor(baseExp * towerMultiplier * floorMultiplier * nodeMultiplier), 
-        gold: Math.floor(baseGold * towerMultiplier * floorMultiplier * (currentNode.type === 'boss' ? 2 : currentNode.type === 'elite' ? 1.5 : 1)), 
+        gold: Math.floor(baseGold * towerMultiplier * floorMultiplier * (currentNode.type === 'boss' ? 1.5 : currentNode.type === 'elite' ? 1.25 : 1)), 
         items: [] 
       };
       
@@ -606,12 +640,15 @@ router.post('/combat/action', authenticate, async (req, res) => {
       if (currentNode.type === 'boss') character.statistics.bossKills = (character.statistics.bossKills || 0) + 1;
       else if (currentNode.type === 'elite') character.statistics.eliteKills = (character.statistics.eliteKills || 0) + 1;
       
+      // ============================================================
+      // PHASE 9.7.2: Level up curve with BALANCE config
+      // ============================================================
       let leveledUp = false;
       while (character.experience >= character.experienceToNextLevel) {
         character.experience -= character.experienceToNextLevel;
         character.level++;
         character.statPoints += 5;
-        character.experienceToNextLevel = Math.floor(100 * Math.pow(1.2, character.level - 1));
+        character.experienceToNextLevel = Math.floor(BALANCE.expCurveBase * Math.pow(BALANCE.expCurveMultiplier, character.level - 1));
         character.stats.maxHp += 10 + character.stats.vit * 2;
         character.stats.maxMp += 5 + character.stats.int;
         character.stats.hp = character.stats.maxHp;
@@ -676,8 +713,13 @@ router.post('/combat/action', authenticate, async (req, res) => {
     
     combat.playerBuffs = tickBuffs(combat.playerBuffs);
     
+    // ============================================================
+    // PHASE 9.7.2: Defeat handling - restore 50% HP/MP
+    // ============================================================
     if (character.stats.hp <= 0) {
-      character.stats.hp = 0;
+      // Restore to 50% HP/MP on defeat
+      character.stats.hp = Math.floor(character.stats.maxHp * 0.5);
+      character.stats.mp = Math.floor(character.stats.maxMp * 0.5);
       character.statistics = character.statistics || {};
       character.statistics.deaths = (character.statistics.deaths || 0) + 1;
       character.isInTower = false;
@@ -685,8 +727,17 @@ router.post('/combat/action', authenticate, async (req, res) => {
       floorMap.markModified('activeCombat');
       await character.save();
       await floorMap.save();
-      newLogs.push({ actor: 'system', message: 'Defeated!', damage: 0, type: 'defeat' });
-      return res.json({ status: 'defeat', combatLog: [...(combat.combatLog || []), ...newLogs], character: { hp: 0, maxHp: character.stats.maxHp } });
+      newLogs.push({ actor: 'system', message: 'Defeated! Returned to town with 50% HP/MP.', damage: 0, type: 'defeat' });
+      return res.json({ 
+        status: 'defeat', 
+        combatLog: [...(combat.combatLog || []), ...newLogs], 
+        character: { 
+          hp: character.stats.hp, 
+          maxHp: character.stats.maxHp,
+          mp: character.stats.mp,
+          maxMp: character.stats.maxMp
+        } 
+      });
     }
     
     combat.turnCount++;
