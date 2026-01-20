@@ -286,7 +286,7 @@ router.post('/rest', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Cannot rest while inside a tower! Leave the tower first.' });
     }
     
-    const restCost = character.level * 250;
+    const restCost = character.level * 50;
     
     if (character.gold < restCost) {
       return res.status(400).json({ error: `Not enough gold. Rest costs ${restCost} gold.` });
