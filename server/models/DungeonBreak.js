@@ -4,14 +4,7 @@
 // Phase 9.9: Dungeon Break Events
 // Phase 9.9.1: Added boss combat stats & skills (boss counter-attacks!)
 // Phase 9.9.2: Raid Coins reward system (replaces direct set drops)
-// 
-// Features:
-// - GM-triggered limited time events (e.g., 3 hours)
-// - Massive boss with shared HP pool
-// - All players contribute damage
-// - Boss counter-attacks players!
-// - Raid Coins based on damage leaderboard rank
-// - Redeem coins for specific equipment pieces
+// Phase 9.9.2 FIX: Added fallback for coinLevel on old events
 // ============================================================
 
 import mongoose from 'mongoose';
@@ -111,7 +104,7 @@ const DUNGEON_BREAK_BOSSES = {
     levelReq: 5,
     baseHp: 5000,
     element: 'dark',
-    coinLevel: 'lv5',  // Phase 9.9.2: Coin type this boss gives
+    coinLevel: 'lv5',
     stats: {
       pDmg: 40,
       mDmg: 60,
@@ -266,6 +259,13 @@ const DUNGEON_BREAK_BOSSES = {
 };
 
 // ============================================================
+// HELPER: Get coin level from bossId (for old events without coinLevel)
+// ============================================================
+function getCoinLevelFromBossId(bossId) {
+  return BOSS_COIN_LEVELS[bossId] || 'lv5';
+}
+
+// ============================================================
 // PARTICIPANT SCHEMA
 // ============================================================
 const participantSchema = new mongoose.Schema({
@@ -288,7 +288,6 @@ const participantSchema = new mongoose.Schema({
   firstAttack: { type: Date, default: null },
   lastAttack: { type: Date, default: null },
   rewardsClaimed: { type: Boolean, default: false },
-  // Phase 9.9.2: Track coins earned
   coinsEarned: { type: Number, default: 0 }
 }, { _id: false });
 
@@ -310,7 +309,7 @@ const dungeonBreakSchema = new mongoose.Schema({
     description: String,
     levelReq: Number,
     element: String,
-    coinLevel: String,  // Phase 9.9.2: Which coin this boss gives
+    coinLevel: String,
     stats: {
       pDmg: Number,
       mDmg: Number,
@@ -378,7 +377,7 @@ const dungeonBreakSchema = new mongoose.Schema({
     setLevel: Number,
     goldBase: Number,
     expBase: Number,
-    coinLevel: String  // Phase 9.9.2
+    coinLevel: String
   }
   
 }, { timestamps: true });
@@ -388,7 +387,7 @@ const dungeonBreakSchema = new mongoose.Schema({
 // ============================================================
 
 /**
- * Phase 9.9.2: Calculate raid coins based on rank
+ * Calculate raid coins based on rank
  */
 dungeonBreakSchema.statics.calculateRaidCoins = function(rank) {
   if (rank === 1) return RAID_COIN_REWARDS[1];
@@ -432,7 +431,7 @@ dungeonBreakSchema.statics.createEvent = async function(gmUserId, bossId, tier =
       description: boss.description,
       levelReq: boss.levelReq,
       element: boss.element,
-      coinLevel: boss.coinLevel,  // Phase 9.9.2
+      coinLevel: boss.coinLevel,
       stats: boss.stats,
       skill: boss.skill
     },
@@ -456,7 +455,7 @@ dungeonBreakSchema.statics.createEvent = async function(gmUserId, bossId, tier =
       setLevel: boss.rewards.setLevel,
       goldBase: Math.floor(boss.rewards.goldBase * tierInfo.rewardMultiplier),
       expBase: Math.floor(boss.rewards.expBase * tierInfo.rewardMultiplier),
-      coinLevel: boss.coinLevel  // Phase 9.9.2
+      coinLevel: boss.coinLevel
     }
   });
 };
@@ -584,7 +583,7 @@ dungeonBreakSchema.statics.recordDamage = async function(eventId, userId, charac
     event.status = 'completed';
     event.completedAt = new Date();
     
-    // Phase 9.9.2: Calculate and store coins for all participants
+    // Calculate and store coins for all participants
     const sorted = [...event.participants].sort((a, b) => b.totalDamage - a.totalDamage);
     sorted.forEach((p, index) => {
       const rank = index + 1;
@@ -655,12 +654,13 @@ dungeonBreakSchema.statics.getLeaderboard = async function(eventId, limit = 100)
       damage: p.totalDamage,
       attacks: p.attackCount,
       damagePercent: ((p.totalDamage / event.stats.totalDamage) * 100).toFixed(2),
-      coinsEarned: p.coinsEarned || this.calculateRaidCoins(index + 1)  // Phase 9.9.2
+      coinsEarned: p.coinsEarned || this.calculateRaidCoins(index + 1)
     }));
 };
 
 /**
- * Phase 9.9.2: Calculate rewards (now gives coins instead of items)
+ * Calculate rewards (now gives coins instead of items)
+ * FIX: Added fallback for coinLevel on old events
  */
 dungeonBreakSchema.statics.calculateRewards = async function(eventId, userId) {
   const event = await this.findById(eventId);
@@ -677,12 +677,14 @@ dungeonBreakSchema.statics.calculateRewards = async function(eventId, userId) {
   const damagePercent = participant.totalDamage / event.stats.totalDamage;
   const coins = participant.coinsEarned || this.calculateRaidCoins(rank);
   
-  // Phase 9.9.2: Rewards now include coins instead of equipment
+  // FIX: Get coinLevel with fallback for old events
+  const coinLevel = event.bossData?.coinLevel || event.rewards?.coinLevel || getCoinLevelFromBossId(event.bossId);
+  
   const rewards = {
     gold: Math.floor(event.rewards.goldBase * damagePercent * 10),
     exp: Math.floor(event.rewards.expBase * damagePercent * 10),
     coins: coins,
-    coinLevel: event.bossData.coinLevel
+    coinLevel: coinLevel
   };
   
   // Bonus gold/exp for high ranks
@@ -734,7 +736,7 @@ dungeonBreakSchema.statics.getHistory = async function(limit = 20) {
   })
   .sort({ completedAt: -1 })
   .limit(limit)
-  .select('bossData status stats completedAt');
+  .select('bossId bossData status stats completedAt');
 };
 
 /**
