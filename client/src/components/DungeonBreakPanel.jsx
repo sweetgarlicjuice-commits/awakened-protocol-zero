@@ -2,11 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { dungeonBreakAPI } from '../services/api';
 
 // ============================================
-// DUNGEON BREAK PANEL - Player View (Phase 9.9)
+// DUNGEON BREAK PANEL - Player View (Phase 9.9.1)
 // ============================================
 // Features:
 // - See active dungeon break event
 // - Attack boss and deal damage
+// - Boss counter-attacks! (NEW)
+// - Player HP/MP display (NEW)
+// - Attack cooldown (NEW)
+// - Death state handling (NEW)
 // - View real-time leaderboard
 // - Claim rewards after event ends
 // - View participation history
@@ -15,14 +19,27 @@ import { dungeonBreakAPI } from '../services/api';
 const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
   const [activeEvent, setActiveEvent] = useState(null);
   const [myParticipation, setMyParticipation] = useState(null);
+  const [myStatus, setMyStatus] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAttacking, setIsAttacking] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
-  const [lastAttack, setLastAttack] = useState(null);
+  const [lastCombat, setLastCombat] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [activeTab, setActiveTab] = useState('event'); // event, leaderboard, history
+  const [cooldown, setCooldown] = useState(0);
+
+  // Cooldown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    
+    const timer = setInterval(() => {
+      setCooldown(prev => Math.max(0, prev - 100));
+    }, 100);
+    
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   // Fetch active event
   const fetchActiveEvent = useCallback(async () => {
@@ -30,6 +47,12 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
       const { data } = await dungeonBreakAPI.getActive();
       setActiveEvent(data.active ? data.event : null);
       setMyParticipation(data.myParticipation || null);
+      setMyStatus(data.myStatus || null);
+      
+      // Set initial cooldown if any
+      if (data.myParticipation?.cooldownRemaining > 0) {
+        setCooldown(data.myParticipation.cooldownRemaining);
+      }
       
       if (data.active && data.event?.id) {
         const lbData = await dungeonBreakAPI.getLeaderboard(data.event.id);
@@ -67,7 +90,7 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
 
   // Attack the boss
   const handleAttack = async () => {
-    if (!activeEvent || isAttacking) return;
+    if (!activeEvent || isAttacking || cooldown > 0) return;
     
     // Check level requirement
     if (character.level < activeEvent.boss?.levelReq) {
@@ -75,41 +98,88 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
       return;
     }
     
+    // Check if dead
+    if (myStatus?.isDead || myStatus?.hp <= 0) {
+      showMessage('error', '💀 You are dead! Use a potion to heal first.');
+      return;
+    }
+    
     setIsAttacking(true);
     try {
       const { data } = await dungeonBreakAPI.attack();
       
-      setLastAttack({
-        damage: data.damage,
-        isCrit: data.isCrit,
+      // Set cooldown
+      if (data.cooldownMs) {
+        setCooldown(data.cooldownMs);
+      }
+      
+      // Update combat result
+      setLastCombat({
+        playerAttack: data.playerAttack,
+        bossAttack: data.bossAttack,
         timestamp: Date.now()
       });
       
-      // Update local state
+      // Update player status
+      setMyStatus({
+        hp: data.player.hp,
+        maxHp: data.player.maxHp,
+        mp: data.player.mp,
+        maxMp: data.player.maxMp,
+        isDead: data.player.died
+      });
+      
+      // Update participation stats
       setMyParticipation(prev => ({
         ...prev,
-        totalDamage: data.myStats?.totalDamage || (prev?.totalDamage || 0) + data.damage,
+        totalDamage: data.myStats?.totalDamage || (prev?.totalDamage || 0) + data.playerAttack.damage,
         rank: data.myStats?.rank
       }));
       
-      // Show damage message
-      if (data.isCrit) {
-        showMessage('success', `💥 CRITICAL HIT! ${formatNumber(data.damage)} damage!`);
+      // Build message
+      let msg = '';
+      if (data.playerAttack.isCrit) {
+        msg += `💥 CRIT! You dealt ${formatNumber(data.playerAttack.damage)} damage! `;
       } else {
-        showMessage('success', `⚔️ ${formatNumber(data.damage)} damage dealt!`);
+        msg += `⚔️ You dealt ${formatNumber(data.playerAttack.damage)} damage! `;
       }
       
-      // Check if boss defeated
-      if (data.boss?.defeated) {
+      if (data.bossAttack) {
+        if (data.bossAttack.usedSkill) {
+          msg += `${data.bossAttack.skillIcon} Boss used ${data.bossAttack.skillName}! `;
+        }
+        if (data.bossAttack.isCrit) {
+          msg += `💥 Boss CRIT for ${formatNumber(data.bossAttack.damage)}!`;
+        } else {
+          msg += `Boss hit you for ${formatNumber(data.bossAttack.damage)}!`;
+        }
+      }
+      
+      if (data.player.died) {
+        showMessage('error', `${msg} 💀 YOU DIED! Heal to continue.`);
+      } else if (data.boss?.defeated) {
         showMessage('success', '🎉 BOSS DEFEATED! Claim your rewards!');
         fetchActiveEvent();
+      } else {
+        showMessage(data.bossAttack?.usedSkill ? 'warning' : 'success', msg);
       }
       
-      // Refresh character for any stat updates
+      // Refresh character for HP updates
       if (refreshCharacter) refreshCharacter();
       
     } catch (err) {
-      showMessage('error', err.response?.data?.error || 'Attack failed!');
+      const errorMsg = err.response?.data?.error || 'Attack failed!';
+      showMessage('error', errorMsg);
+      
+      // Handle cooldown error
+      if (err.response?.data?.cooldownRemaining) {
+        setCooldown(err.response.data.cooldownRemaining);
+      }
+      
+      // Handle dead state
+      if (err.response?.data?.isDead) {
+        setMyStatus(prev => ({ ...prev, isDead: true, hp: 0 }));
+      }
     }
     setIsAttacking(false);
   };
@@ -149,6 +219,8 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
   };
 
   const canParticipate = activeEvent && character.level >= (activeEvent.boss?.levelReq || 0);
+  const isDead = myStatus?.isDead || myStatus?.hp <= 0;
+  const isOnCooldown = cooldown > 0;
 
   if (isLoading) {
     return (
@@ -169,10 +241,59 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">×</button>
         </div>
 
+        {/* Player Status Bar (NEW in 9.9.1) */}
+        {myStatus && activeEvent && (
+          <div className="bg-void-800 px-4 py-2 border-b border-purple-500/30">
+            <div className="flex items-center gap-4">
+              {/* HP Bar */}
+              <div className="flex-1">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-red-400">❤️ HP</span>
+                  <span className={isDead ? 'text-red-500 font-bold' : 'text-gray-300'}>
+                    {isDead ? '💀 DEAD' : `${myStatus.hp} / ${myStatus.maxHp}`}
+                  </span>
+                </div>
+                <div className="h-3 bg-void-700 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-300 ${
+                      isDead ? 'bg-gray-600' : 
+                      (myStatus.hp / myStatus.maxHp) < 0.3 ? 'bg-red-600 animate-pulse' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${Math.max(0, (myStatus.hp / myStatus.maxHp) * 100)}%` }}
+                  />
+                </div>
+              </div>
+              
+              {/* MP Bar */}
+              <div className="flex-1">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-blue-400">💧 MP</span>
+                  <span className="text-gray-300">{myStatus.mp} / {myStatus.maxMp}</span>
+                </div>
+                <div className="h-3 bg-void-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-blue-500 transition-all duration-300"
+                    style={{ width: `${(myStatus.mp / myStatus.maxMp) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Dead Warning */}
+            {isDead && (
+              <div className="mt-2 p-2 bg-red-900/30 border border-red-500/50 rounded text-center">
+                <span className="text-red-400 text-sm">💀 You are dead! Use a potion from your inventory to heal.</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Message */}
         {message.text && (
           <div className={`p-3 text-center text-sm ${
-            message.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+            message.type === 'success' ? 'bg-green-500/20 text-green-400' : 
+            message.type === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
+            'bg-red-500/20 text-red-400'
           }`}>
             {message.text}
           </div>
@@ -213,81 +334,143 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
         </div>
 
         {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[60vh]">
-          
+        <div className="p-4 overflow-y-auto max-h-[50vh]">
           {/* Active Event Tab */}
           {activeTab === 'event' && (
             <>
               {activeEvent ? (
                 <div className="space-y-4">
-                  {/* Boss Info Card */}
-                  <div className="bg-gradient-to-br from-red-900/30 to-void-800 rounded-xl p-6 border border-red-500/30">
+                  {/* Boss Info */}
+                  <div className="bg-gradient-to-r from-red-900/30 to-purple-900/30 rounded-xl p-4 border border-red-500/30">
                     <div className="flex items-center gap-4 mb-4">
-                      <div className="text-6xl animate-pulse">{activeEvent.boss?.icon}</div>
+                      <span className="text-5xl">{activeEvent.boss?.icon}</span>
                       <div className="flex-1">
-                        <h3 className="text-2xl font-display text-white">{activeEvent.boss?.name}</h3>
+                        <h3 className="text-xl font-bold text-red-400">{activeEvent.boss?.name}</h3>
                         <p className="text-sm text-gray-400">{activeEvent.boss?.description}</p>
-                        <div className="flex gap-4 mt-2 text-xs">
-                          <span className="text-yellow-400">⭐ Lv.{activeEvent.boss?.levelReq}+</span>
-                          <span className="text-blue-400">🎯 {activeEvent.tier?.name}</span>
-                          <span className="text-purple-400">⏱️ {activeEvent.time?.remainingFormatted}</span>
+                        <div className="flex gap-2 mt-1">
+                          <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">
+                            Lv.{activeEvent.boss?.levelReq}+
+                          </span>
+                          <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">
+                            {activeEvent.tier?.name}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded">
+                            {activeEvent.boss?.element}
+                          </span>
                         </div>
+                        {/* Boss Skill Info */}
+                        {activeEvent.boss?.skill && (
+                          <div className="mt-2 text-xs text-gray-500">
+                            <span className="text-yellow-400">{activeEvent.boss.skill.icon} {activeEvent.boss.skill.name}</span>
+                            <span className="ml-2">({activeEvent.boss.skill.chance}% chance)</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* HP Bar */}
-                    <div className="mb-4">
+                    <div className="mb-3">
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-gray-400">Boss HP</span>
-                        <span className="text-red-400 font-bold">
+                        <span className="text-red-400">
                           {formatNumber(activeEvent.hp?.current)} / {formatNumber(activeEvent.hp?.max)}
                         </span>
                       </div>
-                      <div className="h-6 bg-void-900 rounded-full overflow-hidden border border-red-500/30">
+                      <div className="h-4 bg-void-800 rounded-full overflow-hidden border border-red-500/30">
                         <div 
-                          className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300 relative"
-                          style={{ width: `${activeEvent.hp?.percent || 0}%` }}
-                        >
-                          <div className="absolute inset-0 bg-white/20 animate-pulse" />
-                        </div>
+                          className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
+                          style={{ width: `${activeEvent.hp?.percent}%` }}
+                        />
                       </div>
-                      <div className="text-center text-xs text-gray-500 mt-1">
+                      <div className="text-right text-xs text-gray-500 mt-1">
                         {activeEvent.hp?.percent}% remaining
                       </div>
                     </div>
 
-                    {/* Level Check */}
-                    {!canParticipate && (
-                      <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-3 mb-4 text-center">
-                        <p className="text-yellow-400 text-sm">
-                          ⚠️ You need to be Level {activeEvent.boss?.levelReq} to participate!
-                        </p>
-                        <p className="text-gray-400 text-xs mt-1">Your level: {character.level}</p>
-                      </div>
-                    )}
+                    {/* Time Remaining */}
+                    <div className="text-center text-sm text-yellow-400">
+                      ⏱️ {activeEvent.time?.remainingFormatted} remaining
+                    </div>
+                  </div>
 
-                    {/* Attack Button */}
-                    {canParticipate && (
+                  {/* Attack Section */}
+                  <div className="bg-void-800 rounded-xl p-4 border border-purple-500/30">
+                    {!canParticipate ? (
+                      <div className="text-center py-4">
+                        <p className="text-red-400">
+                          ⚠️ Minimum level {activeEvent.boss?.levelReq} required
+                        </p>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Your level: {character.level}
+                        </p>
+                      </div>
+                    ) : (
                       <button
                         onClick={handleAttack}
-                        disabled={isAttacking}
-                        className="w-full py-4 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 rounded-xl font-display text-xl text-white shadow-lg shadow-red-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={isAttacking || isOnCooldown || isDead || activeEvent.status !== 'active'}
+                        className={`w-full py-4 rounded-lg font-bold text-lg transition-all ${
+                          isDead 
+                            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            : isOnCooldown
+                              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                              : isAttacking
+                                ? 'bg-yellow-600 text-white'
+                                : 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white transform hover:scale-[1.02]'
+                        }`}
                       >
-                        {isAttacking ? (
+                        {isDead ? (
+                          <span>💀 DEAD - Heal to Attack</span>
+                        ) : isAttacking ? (
                           <span className="animate-pulse">⚔️ Attacking...</span>
+                        ) : isOnCooldown ? (
+                          <span>⏳ Cooldown ({(cooldown / 1000).toFixed(1)}s)</span>
                         ) : (
                           <span>⚔️ ATTACK!</span>
                         )}
                       </button>
                     )}
 
-                    {/* Last Attack Result */}
-                    {lastAttack && (
-                      <div className={`mt-3 text-center p-2 rounded-lg ${
-                        lastAttack.isCrit ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'
-                      }`}>
-                        {lastAttack.isCrit ? '💥 CRIT! ' : ''}
-                        {formatNumber(lastAttack.damage)} damage dealt!
+                    {/* Cooldown Bar */}
+                    {isOnCooldown && !isDead && (
+                      <div className="mt-2">
+                        <div className="h-1 bg-void-700 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-yellow-500 transition-all"
+                            style={{ width: `${(cooldown / 3000) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Last Combat Result */}
+                    {lastCombat && (
+                      <div className="mt-3 space-y-2">
+                        {/* Player Attack */}
+                        <div className={`p-2 rounded-lg text-center ${
+                          lastCombat.playerAttack?.isCrit 
+                            ? 'bg-yellow-500/20 text-yellow-400' 
+                            : 'bg-green-500/20 text-green-400'
+                        }`}>
+                          {lastCombat.playerAttack?.isCrit ? '💥 CRIT! ' : '⚔️ '}
+                          You dealt {formatNumber(lastCombat.playerAttack?.damage)} damage!
+                        </div>
+                        
+                        {/* Boss Counter-Attack */}
+                        {lastCombat.bossAttack && (
+                          <div className={`p-2 rounded-lg text-center ${
+                            lastCombat.bossAttack?.usedSkill 
+                              ? 'bg-purple-500/20 text-purple-400' 
+                              : lastCombat.bossAttack?.isCrit
+                                ? 'bg-red-500/20 text-red-400'
+                                : 'bg-orange-500/20 text-orange-400'
+                          }`}>
+                            {lastCombat.bossAttack?.usedSkill && (
+                              <span>{lastCombat.bossAttack.skillIcon} {lastCombat.bossAttack.skillName}! </span>
+                            )}
+                            {lastCombat.bossAttack?.isCrit ? '💥 CRIT! ' : ''}
+                            Boss hit you for {formatNumber(lastCombat.bossAttack?.damage)}!
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -455,6 +638,7 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
         <div className="bg-void-800 p-3 border-t border-purple-500/30 flex justify-between items-center">
           <div className="text-xs text-gray-500">
             {activeEvent ? '🔴 Event Active' : '⚫ No Event'}
+            {isDead && activeEvent && <span className="ml-2 text-red-400">• 💀 Dead</span>}
           </div>
           <button
             onClick={fetchActiveEvent}
