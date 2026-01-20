@@ -173,7 +173,8 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         setFloorMap(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n) }));
         
         // PHASE 9.5 FIX: Update local character with EXP, gold, level, HP/MP for real-time UI
-        updateLocalCharacter?.({ 
+        // PHASE 9.7.2 FIX: Also update towerProgress for floor unlock
+        const updateData = { 
           stats: { 
             ...character.stats, 
             hp: data.character.hp, 
@@ -185,17 +186,26 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           level: data.character.level,
           experience: data.character.experience,
           experienceToNextLevel: data.character.experienceToNextLevel
-        });
+        };
         
         if (data.floorComplete) {
           const newFloor = (character.currentFloor || 1) + 1;
-          setHighestFloor(prev => Math.max(prev, newFloor));
+          // Update towerProgress locally so floor selector updates immediately
+          const towerKey = `tower_${selectedTower}`;
+          updateData.towerProgress = {
+            ...character.towerProgress,
+            [towerKey]: Math.max(character.towerProgress?.[towerKey] || 1, newFloor)
+          };
+          updateData.currentFloor = newFloor;
+          setHighestFloor(newFloor);
           setSelectedFloor(newFloor);
           addLog?.('success', `Floor cleared! Floor ${newFloor} unlocked!`);
           setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); onCharacterUpdate?.(); }, 2500);
         } else {
           setTimeout(() => { setView('map'); setCombat(null); setMessage(null); setPlayerBuffs([]); onCharacterUpdate?.(); }, 1500);
         }
+        
+        updateLocalCharacter?.(updateData);
         if (data.leveledUp) addLog?.('success', `Level up! Now level ${data.character.level}`);
       } else if (data.status === 'defeat') {
         setCombatLog(data.combatLog);
@@ -218,18 +228,31 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       setMessage({ type: 'success', text: data.message });
       addLog?.('success', data.message);
       setFloorMap(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n) }));
-      updateLocalCharacter?.({ stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp }, gold: data.character.gold });
+      
+      const updateData = { 
+        stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp }, 
+        gold: data.character.gold 
+      };
       
       // Check if floor was completed (exit node cleared)
       if (data.floorComplete) {
         const newFloor = (character.currentFloor || 1) + 1;
-        setHighestFloor(prev => Math.max(prev, newFloor));
+        // PHASE 9.7.2 FIX: Update towerProgress locally so floor selector updates immediately
+        const towerKey = `tower_${selectedTower}`;
+        updateData.towerProgress = {
+          ...character.towerProgress,
+          [towerKey]: Math.max(character.towerProgress?.[towerKey] || 1, newFloor)
+        };
+        updateData.currentFloor = newFloor;
+        setHighestFloor(newFloor);
         setSelectedFloor(newFloor);
         addLog?.('success', `Floor ${newFloor} unlocked!`);
         setTimeout(() => { setView('select'); setEventData(null); setMessage(null); onCharacterUpdate?.(); }, 2000);
       } else {
         setTimeout(() => { setView('map'); setEventData(null); setMessage(null); }, 1500);
       }
+      
+      updateLocalCharacter?.(updateData);
     } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
     setIsLoading(false);
   };
