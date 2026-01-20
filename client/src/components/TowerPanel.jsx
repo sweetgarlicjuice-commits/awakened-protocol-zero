@@ -193,6 +193,8 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const [playerBuffs, setPlayerBuffs] = useState([]);
   const [shrineBuffs, setShrineBuffs] = useState([]); // Floor-persistent shrine blessings
   const [playerSkills, setPlayerSkills] = useState([]);
+  const [usablePotions, setUsablePotions] = useState([]); // PHASE 9.7.3: Potions available in combat
+  const [showPotionMenu, setShowPotionMenu] = useState(false); // PHASE 9.7.3: Toggle potion menu
   const [selectedFloor, setSelectedFloor] = useState(character.currentFloor || 1);
   const [highestFloor, setHighestFloor] = useState(1);
   const [selectedTower, setSelectedTower] = useState(character.currentTower || 1);
@@ -276,6 +278,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       const { data } = await api.post('/exploration/move', { nodeId });
       setFloorMap(prev => ({ ...prev, currentNodeId: nodeId, nodes: prev.nodes.map(n => n.id === nodeId ? { ...n, visited: true } : n) }));
       updateLocalCharacter?.({ energy: data.energy });
+      if (data.shrineBuffs) setShrineBuffs(data.shrineBuffs);
       addLog?.('info', `Moved to ${NODE_ICONS[data.nodeType]} ${data.nodeType} node`);
       if (['combat', 'elite', 'boss'].includes(data.nodeType)) await startCombat();
       else if (['treasure', 'rest', 'shrine'].includes(data.nodeType)) await handleInteraction();
@@ -292,15 +295,18 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       setPlayerSkills(data.character.skills || []);
       setPlayerBuffs([]);
       if (data.shrineBuffs) setShrineBuffs(data.shrineBuffs);
+      if (data.usablePotions) setUsablePotions(data.usablePotions);
+      setShowPotionMenu(false);
       setSelectedTarget(0);
       setView('combat');
     } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
   };
 
-  const doCombatAction = async (action, skillId = null) => {
+  const doCombatAction = async (action, skillId = null, itemId = null) => {
     setIsLoading(true);
+    setShowPotionMenu(false); // Close potion menu on any action
     try {
-      const { data } = await api.post('/exploration/combat/action', { action, skillId, targetIndex: selectedTarget });
+      const { data } = await api.post('/exploration/combat/action', { action, skillId, targetIndex: selectedTarget, itemId });
       
       if (data.status === 'victory') {
         setCombatLog(data.combatLog);
@@ -336,9 +342,9 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           setHighestFloor(newFloor);
           setSelectedFloor(newFloor);
           addLog?.('success', `Floor cleared! Floor ${newFloor} unlocked!`);
-          setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); setShrineBuffs([]); onCharacterUpdate?.(); }, 2500);
+          setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); setShrineBuffs([]); setUsablePotions([]); onCharacterUpdate?.(); }, 2500);
         } else {
-          setTimeout(() => { setView('map'); setCombat(null); setMessage(null); setPlayerBuffs([]); onCharacterUpdate?.(); }, 1500);
+          setTimeout(() => { setView('map'); setCombat(null); setMessage(null); setPlayerBuffs([]); setUsablePotions([]); onCharacterUpdate?.(); }, 1500);
         }
         
         updateLocalCharacter?.(updateData);
@@ -346,12 +352,23 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       } else if (data.status === 'defeat') {
         setCombatLog(data.combatLog);
         setMessage({ type: 'error', text: 'Defeated! Returning to town...' });
-        setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); setShrineBuffs([]); onTowerStateChange?.(false); onCharacterUpdate?.(); }, 2000);
+        // PHASE 9.7.3 FIX: Update local character HP/MP immediately on defeat
+        updateLocalCharacter?.({ 
+          stats: { 
+            ...character.stats, 
+            hp: data.character.hp, 
+            mp: data.character.mp,
+            maxHp: data.character.maxHp,
+            maxMp: data.character.maxMp
+          }
+        });
+        setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); setShrineBuffs([]); setUsablePotions([]); onTowerStateChange?.(false); onCharacterUpdate?.(); }, 2000);
       } else {
         setCombat(data.combat);
         setCombatLog(data.combat.combatLog);
         setPlayerBuffs(data.playerBuffs || []);
         if (data.shrineBuffs) setShrineBuffs(data.shrineBuffs);
+        if (data.usablePotions) setUsablePotions(data.usablePotions);
         updateLocalCharacter?.({ stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp } });
       }
     } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
@@ -365,6 +382,9 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       setMessage({ type: 'success', text: data.message });
       addLog?.('success', data.message);
       setFloorMap(prev => ({ ...prev, nodes: prev.nodes.map(n => n.id === prev.currentNodeId ? { ...n, cleared: true } : n) }));
+      
+      // PHASE 9.7.3: Update shrine buffs from server
+      if (data.shrineBuffs) setShrineBuffs(data.shrineBuffs);
       
       const updateData = { 
         stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp }, 
@@ -397,7 +417,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const leaveTower = async () => {
     try {
       await api.post('/exploration/leave');
-      setView('select'); setFloorMap(null); setCombat(null); setMessage(null); setPlayerBuffs([]); setShrineBuffs([]);
+      setView('select'); setFloorMap(null); setCombat(null); setMessage(null); setPlayerBuffs([]); setShrineBuffs([]); setUsablePotions([]); setShowPotionMenu(false);
       onTowerStateChange?.(false);
       addLog?.('info', 'Left the tower');
       onCharacterUpdate?.();
@@ -717,11 +737,40 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         {/* Actions */}
         {aliveEnemies.length > 0 && (
           <div className="space-y-2">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <button onClick={() => doCombatAction('attack')} disabled={isLoading} className="btn-primary py-2 text-sm disabled:opacity-50">⚔️ Attack</button>
               <button onClick={() => doCombatAction('defend')} disabled={isLoading} className="btn-secondary py-2 text-sm disabled:opacity-50">🛡️ Defend</button>
+              <button onClick={() => setShowPotionMenu(!showPotionMenu)} disabled={isLoading || usablePotions.length === 0} 
+                className={`btn-secondary py-2 text-sm disabled:opacity-50 ${showPotionMenu ? 'ring-2 ring-green-400' : ''} ${usablePotions.length > 0 ? 'text-green-400' : 'text-gray-500'}`}>
+                🧪 Potion {usablePotions.length > 0 && `(${usablePotions.reduce((sum, p) => sum + p.quantity, 0)})`}
+              </button>
               <button onClick={leaveTower} disabled={isLoading} className="btn-secondary py-2 text-sm text-red-400 disabled:opacity-50">💨 Flee</button>
             </div>
+            
+            {/* PHASE 9.7.3: Potion Menu */}
+            {showPotionMenu && usablePotions.length > 0 && (
+              <div className="bg-green-900/30 rounded-lg p-2 border border-green-500/30">
+                <p className="text-green-400 text-xs mb-2">🧪 USE POTION (costs 1 turn)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {usablePotions.map((potion, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => doCombatAction('useItem', null, potion.itemId)}
+                      disabled={isLoading}
+                      className="p-2 rounded bg-green-900/50 hover:bg-green-900 border border-green-500/30 text-left text-xs transition-colors disabled:opacity-50"
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-white font-medium">{potion.icon} {potion.name}</span>
+                        <span className="text-gray-400">x{potion.quantity}</span>
+                      </div>
+                      <p className={potion.subtype === 'health_potion' ? 'text-red-400' : 'text-blue-400'}>
+                        {potion.subtype === 'health_potion' ? `+${potion.effect?.value || 100} HP` : `+${potion.effect?.value || 50} MP`}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {/* Skills */}
             <div className="bg-void-800/30 rounded-lg p-2">
