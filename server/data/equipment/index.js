@@ -5,7 +5,7 @@
 
 import { TOWER1 } from './towers/tower1.js';
 import { TOWER2 } from './towers/tower2.js';
-import { TOWER3 } from './towers/tower3.js';
+import { TOWER3 } from './towsers/tower3.js';
 import { TOWER4 } from './towers/tower4.js';
 import { TOWER5 } from './towers/tower5.js';
 // Future towers (6-10) - uncomment when ready
