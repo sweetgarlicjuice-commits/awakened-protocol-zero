@@ -185,8 +185,56 @@ router.post('/create', authenticate, async (req, res) => {
   }
 });
 
+// ============================================================
+// PHASE 9.9.4: Helper to check and remove expired VIP items
+// ============================================================
+async function checkAndRemoveExpiredItems(character) {
+  const now = new Date();
+  let hasExpired = false;
+  const expiredItems = [];
+
+  // Check inventory for expired items
+  character.inventory = character.inventory.filter(item => {
+    if (item.expiresAt && now > new Date(item.expiresAt)) {
+      expiredItems.push({ name: item.name, location: 'inventory' });
+      hasExpired = true;
+      return false; // Remove from inventory
+    }
+    return true;
+  });
+
+  // Check equipped items for expired items
+  const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
+  for (const slot of slots) {
+    const equipped = character.equipment[slot];
+    if (equipped && equipped.itemId && equipped.expiresAt && now > new Date(equipped.expiresAt)) {
+      expiredItems.push({ name: equipped.name, location: 'equipment', slot: slot });
+      // Clear the slot
+      character.equipment[slot] = {
+        itemId: null,
+        name: null,
+        icon: null,
+        type: null,
+        subtype: null,
+        rarity: null,
+        stats: null,
+        setId: null
+      };
+      hasExpired = true;
+    }
+  }
+
+  if (hasExpired) {
+    character.markModified('inventory');
+    character.markModified('equipment');
+  }
+
+  return { hasExpired, expiredItems };
+}
+
 // GET /api/character - Get current character
 // PHASE 9.3.9: Enrich inventory items with full data from equipment database
+// PHASE 9.9.4: Check and remove expired VIP items
 router.get('/', authenticate, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.userId });
@@ -194,6 +242,9 @@ router.get('/', authenticate, async (req, res) => {
     if (!character) {
       return res.status(404).json({ error: 'No character found. Please create one.' });
     }
+    
+    // PHASE 9.9.4: Check for expired VIP items
+    const { hasExpired, expiredItems } = await checkAndRemoveExpiredItems(character);
     
     // Update energy based on time passed
     character.updateEnergy();
@@ -208,10 +259,19 @@ router.get('/', authenticate, async (req, res) => {
       charObj.inventory = charObj.inventory.map(enrichInventoryItem);
     }
     
-    res.json({
+    // Build response
+    const response = {
       character: charObj,
       classInfo: CLASS_INFO[character.baseClass]
-    });
+    };
+    
+    // Include expired items info if any were removed
+    if (hasExpired && expiredItems.length > 0) {
+      response.expiredItems = expiredItems;
+      response.expiredMessage = 'Some VIP items have expired: ' + expiredItems.map(i => i.name).join(', ');
+    }
+    
+    res.json(response);
   } catch (error) {
     console.error('Get character error:', error);
     res.status(500).json({ error: 'Server error fetching character.' });
