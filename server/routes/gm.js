@@ -3,6 +3,8 @@ import Character from '../models/Character.js';
 import User from '../models/User.js';
 import HiddenClassOwnership from '../models/HiddenClassOwnership.js';
 import { authenticate, requireGM } from '../middleware/auth.js';
+// Phase 9.9.4: Import VIP Equipment
+import { VIP_EQUIPMENT, createVipInventoryItem, getAllVipItems } from '../data/equipment/vipEquipment.js';
 
 const router = express.Router();
 
@@ -213,6 +215,41 @@ async function buildItemDatabase() {
     console.log('[GM] Special items import error:', err.message);
   }
   
+  // ============================================================
+  // Phase 9.9.4: Add VIP Equipment to item database
+  // ============================================================
+  try {
+    const vipItems = getAllVipItems();
+    if (vipItems && vipItems.length > 0) {
+      vipItems.forEach(item => {
+        if (!items.find(i => i.id === item.itemId)) {
+          items.push({
+            id: item.itemId,
+            name: item.name,
+            type: 'vip_equipment',
+            subtype: item.subtype,
+            slot: item.subtype,
+            rarity: item.rarity || 'rare',
+            icon: item.icon || '⭐',
+            stats: item.stats || {},
+            levelReq: item.levelReq || 1,
+            vipOnly: true,
+            expirationType: item.expirationType,
+            expirationDays: item.expirationDays,
+            setId: item.setId,
+            stackable: false,
+            description: item.expirationType === 'permanent' 
+              ? 'VIP Equipment (Permanent)' 
+              : `VIP Equipment (${item.expirationDays}D after first equip)`
+          });
+        }
+      });
+      console.log(`[GM] Loaded ${vipItems.length} VIP equipment items`);
+    }
+  } catch (err) {
+    console.log('[GM] VIP Equipment import error:', err.message);
+  }
+  
   // Always add fallback materials if not already present
   const materials = [
     // Tower 1 - Crimson Spire
@@ -225,24 +262,8 @@ async function buildItemDatabase() {
     { id: 'frost_crystal', name: 'Frost Crystal', icon: '❄️', rarity: 'common' },
     { id: 'ice_shard', name: 'Ice Shard', icon: '🧊', rarity: 'common' },
     { id: 'frozen_heart', name: 'Frozen Heart', icon: '💙', rarity: 'rare' },
-    { id: 'permafrost_chunk', name: 'Permafrost Chunk', icon: '🏔️', rarity: 'uncommon' },
-    // Tower 3 - Shadow Keep
-    { id: 'shadow_essence', name: 'Shadow Essence', icon: '🌑', rarity: 'uncommon' },
-    { id: 'dark_crystal', name: 'Dark Crystal', icon: '🖤', rarity: 'rare' },
-    { id: 'nightmare_dust', name: 'Nightmare Dust', icon: '💭', rarity: 'uncommon' },
-    { id: 'void_fragment', name: 'Void Fragment', icon: '🌀', rarity: 'epic' },
-    // Tower 4 - Storm Bastion
-    { id: 'lightning_shard', name: 'Lightning Shard', icon: '⚡', rarity: 'uncommon' },
-    { id: 'storm_core', name: 'Storm Core', icon: '🌩️', rarity: 'rare' },
-    { id: 'thunder_essence', name: 'Thunder Essence', icon: '🔋', rarity: 'uncommon' },
-    // Tower 5 - Verdant Spire
-    { id: 'verdant_sap', name: 'Verdant Sap', icon: '🌿', rarity: 'uncommon' },
-    { id: 'ancient_bark', name: 'Ancient Bark', icon: '🌳', rarity: 'rare' },
-    { id: 'poison_gland', name: 'Poison Gland', icon: '🐍', rarity: 'uncommon' },
-    { id: 'life_essence', name: 'Life Essence', icon: '💚', rarity: 'rare' },
-    // Special
-    { id: 'memory_crystal_fragment', name: 'Memory Crystal Fragment', icon: '💠', rarity: 'epic' },
-    { id: 'memory_crystal', name: 'Memory Crystal', icon: '🔷', rarity: 'legendary' },
+    { id: 'yeti_fur', name: 'Yeti Fur', icon: '🦣', rarity: 'uncommon' },
+    { id: 'blizzard_essence', name: 'Blizzard Essence', icon: '🌨️', rarity: 'rare' }
   ];
   
   materials.forEach(mat => {
@@ -259,97 +280,66 @@ async function buildItemDatabase() {
     }
   });
   
-  // Always add fallback consumables
-  const basicConsumables = [
-    { id: 'small_health_potion', name: 'Small Health Potion', icon: '🧪', rarity: 'common', effect: { type: 'heal', value: 100 } },
-    { id: 'medium_health_potion', name: 'Medium Health Potion', icon: '🧪', rarity: 'uncommon', effect: { type: 'heal', value: 300 } },
-    { id: 'large_health_potion', name: 'Large Health Potion', icon: '🧪', rarity: 'rare', effect: { type: 'heal', value: 600 } },
-    { id: 'small_mana_potion', name: 'Small Mana Potion', icon: '💙', rarity: 'common', effect: { type: 'mana', value: 50 } },
-    { id: 'medium_mana_potion', name: 'Medium Mana Potion', icon: '💙', rarity: 'uncommon', effect: { type: 'mana', value: 150 } },
-    { id: 'large_mana_potion', name: 'Large Mana Potion', icon: '💙', rarity: 'rare', effect: { type: 'mana', value: 300 } },
-    { id: 'antidote', name: 'Antidote', icon: '💊', rarity: 'common', effect: { type: 'cure', value: 'poison' } },
-    { id: 'energy_drink', name: 'Energy Drink', icon: '⚡', rarity: 'uncommon', effect: { type: 'energy', value: 20 } },
-  ];
-  
-  basicConsumables.forEach(con => {
-    if (!items.find(i => i.id === con.id)) {
-      items.push({
-        id: con.id,
-        name: con.name,
-        type: 'consumable',
-        subtype: 'potion',
-        rarity: con.rarity,
-        icon: con.icon,
-        effect: con.effect,
-        stackable: true
-      });
-    }
-  });
-  
-  console.log(`[GM] Item database ready with ${items.length} total items`);
+  console.log(`[GM] Total items in database: ${items.length}`);
   return items;
 }
 
-// Get item database (lazy async initialization)
+// Get item database (lazy init)
 async function getItemDatabase() {
   if (itemDatabase) return itemDatabase;
+  if (dbInitPromise) return dbInitPromise;
   
-  if (!dbInitPromise) {
-    dbInitPromise = buildItemDatabase().then(db => {
-      itemDatabase = db;
-      return db;
-    });
-  }
+  dbInitPromise = buildItemDatabase().then(items => {
+    itemDatabase = items;
+    return items;
+  });
   
   return dbInitPromise;
 }
 
-// ============================================
-// ITEM SEARCH ROUTES
-// ============================================
-
-// GET /api/gm/items/search - Search all items
+// GET /api/gm/items/search?q=query
 router.get('/items/search', authenticate, requireGM, async (req, res) => {
   try {
     const { q } = req.query;
     const items = await getItemDatabase();
     
-    if (!q || q.length < 1) {
-      return res.json({ items: items.slice(0, 20) });
+    if (!q) {
+      return res.json({ items: items.slice(0, 50) });
     }
     
     const query = q.toLowerCase();
     const results = items.filter(item => 
       item.name.toLowerCase().includes(query) ||
       item.id.toLowerCase().includes(query) ||
-      (item.type && item.type.toLowerCase().includes(query))
+      (item.type && item.type.toLowerCase().includes(query)) ||
+      (item.subtype && item.subtype.toLowerCase().includes(query))
     );
     
-    res.json({ items: results.slice(0, 20) });
+    res.json({ items: results.slice(0, 100) });
   } catch (error) {
-    console.error('Item search error:', error);
+    console.error('Search items error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// GET /api/gm/items/all - Get all items (paginated)
+// GET /api/gm/items/all
 router.get('/items/all', authenticate, requireGM, async (req, res) => {
   try {
     const { page = 0, limit = 50, type } = req.query;
     let items = await getItemDatabase();
     
     if (type) {
-      items = items.filter(item => item.type === type);
+      items = items.filter(i => i.type === type);
     }
     
     const start = parseInt(page) * parseInt(limit);
-    const paginatedItems = items.slice(start, start + parseInt(limit));
+    const paginated = items.slice(start, start + parseInt(limit));
     
     res.json({ 
-      items: paginatedItems,
+      items: paginated,
       total: items.length,
       page: parseInt(page),
-      totalPages: Math.ceil(items.length / parseInt(limit))
+      pages: Math.ceil(items.length / parseInt(limit))
     });
   } catch (error) {
     console.error('Get all items error:', error);
@@ -357,9 +347,108 @@ router.get('/items/all', authenticate, requireGM, async (req, res) => {
   }
 });
 
-// ============================================
-// PLAYER MANAGEMENT ROUTES
-// ============================================
+// ============================================================
+// Phase 9.9.4: VIP EQUIPMENT ENDPOINTS
+// ============================================================
+
+// GET /api/gm/vip-items - Get all VIP items
+router.get('/vip-items', authenticate, requireGM, async (req, res) => {
+  try {
+    const items = getAllVipItems();
+    res.json({ items });
+  } catch (error) {
+    console.error('Get VIP items error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/gm/player/:id/add-vip-item - Add VIP item to player
+router.post('/player/:id/add-vip-item', authenticate, requireGM, async (req, res) => {
+  try {
+    const { itemId } = req.body;
+    const character = await Character.findOne({ userId: req.params.id });
+    
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+    
+    // Create VIP item with expiration tracking fields
+    const vipItem = createVipInventoryItem(itemId);
+    if (!vipItem) {
+      return res.status(400).json({ error: 'Invalid VIP item ID: ' + itemId });
+    }
+    
+    // Check inventory space
+    if (character.inventory.length >= character.inventorySize) {
+      return res.status(400).json({ error: 'Player inventory is full' });
+    }
+    
+    // Add to inventory
+    character.inventory.push(vipItem);
+    await character.save();
+    
+    res.json({ 
+      success: true, 
+      message: `Added ${vipItem.name} to ${character.name}'s inventory`,
+      item: vipItem,
+      inventory: character.inventory
+    });
+  } catch (error) {
+    console.error('Add VIP item error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/gm/player/:id/add-vip-set - Add entire VIP set to player
+router.post('/player/:id/add-vip-set', authenticate, requireGM, async (req, res) => {
+  try {
+    const { setId } = req.body;
+    const character = await Character.findOne({ userId: req.params.id });
+    
+    if (!character) {
+      return res.status(404).json({ error: 'Character not found' });
+    }
+    
+    // Find all items in the set
+    const vipItems = getAllVipItems();
+    const setItems = vipItems.filter(item => item.setId === setId);
+    
+    if (setItems.length === 0) {
+      return res.status(400).json({ error: 'Invalid set ID or no items in set: ' + setId });
+    }
+    
+    // Check inventory space
+    if (character.inventory.length + setItems.length > character.inventorySize) {
+      return res.status(400).json({ error: 'Not enough inventory space. Need ' + setItems.length + ' slots.' });
+    }
+    
+    // Add all set items
+    const addedItems = [];
+    for (const item of setItems) {
+      const vipItem = createVipInventoryItem(item.itemId);
+      if (vipItem) {
+        character.inventory.push(vipItem);
+        addedItems.push(vipItem.name);
+      }
+    }
+    
+    await character.save();
+    
+    res.json({ 
+      success: true, 
+      message: `Added ${addedItems.length} items to ${character.name}'s inventory`,
+      items: addedItems,
+      inventory: character.inventory
+    });
+  } catch (error) {
+    console.error('Add VIP set error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ============================================================
+// PLAYER MANAGEMENT ENDPOINTS
+// ============================================================
 
 // GET /api/gm/player/:id
 router.get('/player/:id', authenticate, requireGM, async (req, res) => {
@@ -368,6 +457,7 @@ router.get('/player/:id', authenticate, requireGM, async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     const character = await Character.findOne({ userId: user._id });
+    
     res.json({ user, character });
   } catch (error) {
     console.error('Get player error:', error);
@@ -380,22 +470,16 @@ router.post('/player/:id/edit-stats', authenticate, requireGM, async (req, res) 
   try {
     const { stats } = req.body;
     const character = await Character.findOne({ userId: req.params.id });
-    
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    if (stats.str !== undefined) character.stats.str = Math.max(1, stats.str);
-    if (stats.agi !== undefined) character.stats.agi = Math.max(1, stats.agi);
-    if (stats.dex !== undefined) character.stats.dex = Math.max(1, stats.dex);
-    if (stats.int !== undefined) character.stats.int = Math.max(1, stats.int);
-    if (stats.vit !== undefined) character.stats.vit = Math.max(1, stats.vit);
-    
-    character.stats.maxHp = character.stats.vit * 10 + 50;
-    character.stats.maxMp = character.stats.int * 8 + 20;
-    character.stats.hp = character.stats.maxHp;
-    character.stats.mp = character.stats.maxMp;
+    Object.entries(stats).forEach(([key, value]) => {
+      if (character.stats[key] !== undefined) {
+        character.stats[key] = value;
+      }
+    });
     
     await character.save();
-    res.json({ message: 'Stats updated successfully', character });
+    res.json({ message: 'Stats updated', stats: character.stats });
   } catch (error) {
     console.error('Edit stats error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -408,19 +492,23 @@ router.post('/player/:id/reset-stats', authenticate, requireGM, async (req, res)
     const character = await Character.findOne({ userId: req.params.id });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    const CLASS_BASE_STATS = {
-      swordsman: { hp: 150, mp: 50, str: 15, agi: 8, dex: 8, int: 5, vit: 14 },
-      thief: { hp: 100, mp: 70, str: 8, agi: 15, dex: 12, int: 7, vit: 8 },
-      archer: { hp: 110, mp: 60, str: 10, agi: 12, dex: 15, int: 6, vit: 7 },
-      mage: { hp: 80, mp: 120, str: 5, agi: 7, dex: 8, int: 15, vit: 5 }
+    const { CLASS_BASE_STATS } = await import('../models/Character.js');
+    const baseStats = CLASS_BASE_STATS[character.baseClass];
+    
+    character.stats = {
+      hp: baseStats.hp,
+      maxHp: baseStats.hp,
+      mp: baseStats.mp,
+      maxMp: baseStats.mp,
+      str: baseStats.str,
+      agi: baseStats.agi,
+      dex: baseStats.dex,
+      int: baseStats.int,
+      vit: baseStats.vit
     };
     
-    const baseStats = CLASS_BASE_STATS[character.baseClass];
-    character.stats = { ...baseStats, maxHp: baseStats.hp, maxMp: baseStats.mp };
-    character.statPoints = (character.level - 1) * 5;
-    
     await character.save();
-    res.json({ message: 'Stats reset successfully', character });
+    res.json({ message: 'Stats reset to base', stats: character.stats });
   } catch (error) {
     console.error('Reset stats error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -434,10 +522,8 @@ router.post('/player/:id/refresh-energy', authenticate, requireGM, async (req, r
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
     character.energy = 100;
-    character.lastEnergyUpdate = new Date();
     await character.save();
-    
-    res.json({ message: 'Energy refreshed to 100', energy: character.energy });
+    res.json({ message: 'Energy refreshed', energy: 100 });
   } catch (error) {
     console.error('Refresh energy error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -453,8 +539,7 @@ router.post('/player/:id/add-gold', authenticate, requireGM, async (req, res) =>
     
     character.gold = Math.max(0, character.gold + amount);
     await character.save();
-    
-    res.json({ message: `Gold ${amount >= 0 ? 'added' : 'removed'}: ${Math.abs(amount)}`, gold: character.gold });
+    res.json({ message: `Gold ${amount >= 0 ? 'added' : 'removed'}`, gold: character.gold });
   } catch (error) {
     console.error('Add gold error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -464,48 +549,26 @@ router.post('/player/:id/add-gold', authenticate, requireGM, async (req, res) =>
 // POST /api/gm/player/:id/add-item
 router.post('/player/:id/add-item', authenticate, requireGM, async (req, res) => {
   try {
-    const { itemId, name, type, rarity, quantity, stats, slot, icon, classReq, levelReq, effect, subtype, stackable, hiddenClass, baseClass, element } = req.body;
     const character = await Character.findOne({ userId: req.params.id });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    // Try to find item in database
-    const items = await getItemDatabase();
-    const dbItem = items.find(i => i.id === itemId);
-    
-    // Build item data
-    const itemData = {
-      itemId: itemId,
-      name: dbItem?.name || name,
-      type: dbItem?.type || type || 'item',
-      subtype: dbItem?.subtype || subtype,
-      rarity: dbItem?.rarity || rarity || 'common',
-      quantity: quantity || 1,
-      stats: dbItem?.stats || stats || {},
-      slot: dbItem?.slot || slot,
-      icon: dbItem?.icon || icon || '📦',
-      classReq: dbItem?.classReq || classReq,
-      levelReq: dbItem?.levelReq || levelReq,
-      effect: dbItem?.effect || effect,
-      stackable: dbItem?.stackable !== undefined ? dbItem.stackable : (stackable !== false && type !== 'equipment'),
-      // Hidden class scroll specific fields
-      hiddenClass: dbItem?.hiddenClass || hiddenClass,
-      baseClass: dbItem?.baseClass || baseClass,
-      element: dbItem?.element || element
-    };
-    
-    // Stack if possible
-    if (itemData.stackable) {
-      const existingIndex = character.inventory.findIndex(i => i.itemId === itemId);
-      if (existingIndex >= 0) {
-        character.inventory[existingIndex].quantity += itemData.quantity;
-        await character.save();
-        return res.json({ message: `Added ${itemData.quantity}x ${itemData.name} (stacked)`, inventory: character.inventory });
-      }
-    }
+    const { itemId, name, type, subtype, rarity, quantity, stats, icon } = req.body;
     
     if (character.inventory.length >= character.inventorySize) {
-      return res.status(400).json({ error: 'Inventory is full' });
+      return res.status(400).json({ error: 'Inventory full' });
     }
+    
+    const itemData = {
+      itemId: itemId || `custom_${Date.now()}`,
+      name: name || 'Custom Item',
+      icon: icon || '📦',
+      type: type || 'equipment',
+      subtype: subtype || null,
+      rarity: rarity || 'common',
+      quantity: quantity || 1,
+      stackable: type === 'material' || type === 'consumable',
+      stats: stats || {}
+    };
     
     character.inventory.push(itemData);
     await character.save();
