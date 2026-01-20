@@ -297,7 +297,7 @@ export const friendsAPI = {
 };
 
 // ============================================
-// DUNGEON BREAK API (Phase 9.8)
+// DUNGEON BREAK API (Phase 9.8 + 9.9.1 + 9.9.2)
 // ============================================
 export const dungeonBreakAPI = {
   // === Player Endpoints ===
@@ -305,14 +305,14 @@ export const dungeonBreakAPI = {
   // Get active dungeon break event
   getActive: () => api.get('/dungeon-break/active'),
   
-  // Attack the boss (records damage)
+  // Attack the boss (records damage, boss counter-attacks)
   attack: () => api.post('/dungeon-break/attack'),
   
   // Get damage leaderboard
   getLeaderboard: (eventId = null) => 
     api.get(`/dungeon-break/leaderboard${eventId ? `?eventId=${eventId}` : ''}`),
   
-  // Claim rewards after event ends
+  // Claim rewards after event ends (gives raid coins)
   claimRewards: (eventId) => api.post('/dungeon-break/claim', { eventId }),
   
   // Get past events history
@@ -320,6 +320,17 @@ export const dungeonBreakAPI = {
   
   // Get my participation history
   getMyHistory: () => api.get('/dungeon-break/my-history'),
+  
+  // === Phase 9.9.2: Raid Coins & Redeem ===
+  
+  // Get my raid coins balance
+  getMyCoins: () => api.get('/dungeon-break/my-coins'),
+  
+  // Get redeem shop (all sets with pieces)
+  getShop: () => api.get('/dungeon-break/shop'),
+  
+  // Redeem coins for equipment piece
+  redeem: (setId, pieceSlot) => api.post('/dungeon-break/redeem', { setId, pieceSlot }),
   
   // === GM Endpoints ===
   
