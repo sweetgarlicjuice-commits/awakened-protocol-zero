@@ -1,11 +1,10 @@
 // ============================================================
 // EXPLORATION ROUTES - Tower Combat & Exploration
 // ============================================================
-// Phase 9.7.2: Balance fixes + Bug fixes
-// - Added BALANCE config for tunable EXP/gold values
-// - Fixed defeat handling (restore 50% HP/MP)
-// - Reduced EXP rewards to slow progression
-// - Steeper level curve (1.25x instead of 1.2x)
+// Phase 9.7.3: Bug Fixes
+// - Fixed defeat handling (HP/MP now properly saved to DB)
+// - Added shrine blessing system (generates, stores, applies blessings)
+// - Added potion use in combat (useItem action)
 // 
 // ARCHITECTURE:
 // - Skill data: ../data/skillDatabase.js (edit skills here)
@@ -82,6 +81,23 @@ const BALANCE = {
 };
 
 // ============================================================
+// PHASE 9.7.3: SHRINE BLESSING SYSTEM
+// ============================================================
+const SHRINE_BLESSINGS = [
+  { id: 'strength', name: 'Blessing of Strength', icon: '⚔️', desc: '+15% ATK', stat: 'attack', value: 15 },
+  { id: 'iron', name: 'Blessing of Iron', icon: '🛡️', desc: '+15% DEF', stat: 'defense', value: 15 },
+  { id: 'precision', name: 'Blessing of Precision', icon: '🎯', desc: '+10% Crit', stat: 'critRate', value: 10 },
+  { id: 'vitality', name: 'Blessing of Vitality', icon: '❤️', desc: '+20% Max HP', stat: 'maxHp', value: 20 },
+  { id: 'wisdom', name: 'Blessing of Wisdom', icon: '💎', desc: '+20% Max MP', stat: 'maxMp', value: 20 },
+  { id: 'wind', name: 'Blessing of Wind', icon: '💨', desc: '+8% Evasion', stat: 'evasion', value: 8 },
+  { id: 'power', name: 'Blessing of Power', icon: '💥', desc: '+10% All DMG', stat: 'allDamage', value: 10 }
+];
+
+function getRandomBlessing() {
+  return SHRINE_BLESSINGS[Math.floor(Math.random() * SHRINE_BLESSINGS.length)];
+}
+
+// ============================================================
 // SLOT MAPPING
 // ============================================================
 const SLOT_MAPPING = {
@@ -120,7 +136,7 @@ function getEquipmentStatsFromCharacter(character) {
   return stats;
 }
 
-function calculateCombatStats(character) {
+function calculateCombatStats(character, shrineBuffs = []) {
   const stats = character.stats;
   const level = character.level || 1;
   const equippedIds = getEquippedItemIds(character);
@@ -144,15 +160,60 @@ function calculateCombatStats(character) {
   const totalVit = (stats.vit || 0) + (totalEquipBonus.vit || 0);
   const levelBonus = 1 + (level - 1) * 0.02;
   
+  // Base combat stats
+  let pDmg = Math.floor((5 + totalStr * 3 + (totalEquipBonus.pAtk || 0)) * levelBonus);
+  let mDmg = Math.floor((5 + totalInt * 4 + (totalEquipBonus.mAtk || 0)) * levelBonus);
+  let pDef = totalStr + totalVit * 2 + (totalEquipBonus.pDef || 0);
+  let mDef = totalVit + totalInt + (totalEquipBonus.mDef || 0);
+  let critRate = Math.min(5 + totalAgi * 0.5 + (totalEquipBonus.critRate || 0), 80);
+  let critDmg = 150 + totalDex + (totalEquipBonus.critDmg || 0);
+  let bonusHp = totalEquipBonus.hp || 0;
+  let bonusMp = totalEquipBonus.mp || 0;
+  let evasion = 0;
+  let allDamageBonus = 0;
+  
+  // ============================================================
+  // PHASE 9.7.3: Apply Shrine Blessings to combat stats
+  // ============================================================
+  for (const blessing of shrineBuffs) {
+    switch (blessing.stat) {
+      case 'attack':
+        pDmg = Math.floor(pDmg * (1 + blessing.value / 100));
+        mDmg = Math.floor(mDmg * (1 + blessing.value / 100));
+        break;
+      case 'defense':
+        pDef = Math.floor(pDef * (1 + blessing.value / 100));
+        mDef = Math.floor(mDef * (1 + blessing.value / 100));
+        break;
+      case 'critRate':
+        critRate = Math.min(critRate + blessing.value, 80);
+        break;
+      case 'maxHp':
+        bonusHp += Math.floor(stats.maxHp * blessing.value / 100);
+        break;
+      case 'maxMp':
+        bonusMp += Math.floor(stats.maxMp * blessing.value / 100);
+        break;
+      case 'evasion':
+        evasion += blessing.value;
+        break;
+      case 'allDamage':
+        allDamageBonus += blessing.value;
+        break;
+    }
+  }
+  
   return {
-    pDmg: Math.floor((5 + totalStr * 3 + (totalEquipBonus.pAtk || 0)) * levelBonus),
-    mDmg: Math.floor((5 + totalInt * 4 + (totalEquipBonus.mAtk || 0)) * levelBonus),
-    pDef: totalStr + totalVit * 2 + (totalEquipBonus.pDef || 0),
-    mDef: totalVit + totalInt + (totalEquipBonus.mDef || 0),
-    critRate: Math.min(5 + totalAgi * 0.5 + (totalEquipBonus.critRate || 0), 80),
-    critDmg: 150 + totalDex + (totalEquipBonus.critDmg || 0),
-    bonusHp: totalEquipBonus.hp || 0,
-    bonusMp: totalEquipBonus.mp || 0,
+    pDmg,
+    mDmg,
+    pDef,
+    mDef,
+    critRate,
+    critDmg,
+    bonusHp,
+    bonusMp,
+    evasion,
+    allDamageBonus,
     activeSets: setBonus,
     equipmentBonus: totalEquipBonus
   };
@@ -295,7 +356,8 @@ function generateFloorMap(characterId, towerId, floor) {
     });
   }
   
-  return { characterId, towerId, floor, nodes, currentNodeId: nodes[0].id, startNodeId: nodes[0].id, bossNodeId: nodes[nodes.length - 1].id };
+  // Initialize empty shrineBuffs array for the floor
+  return { characterId, towerId, floor, nodes, currentNodeId: nodes[0].id, startNodeId: nodes[0].id, bossNodeId: nodes[nodes.length - 1].id, shrineBuffs: [] };
 }
 
 function generateEnemies(type, towerId, floor) {
@@ -358,7 +420,16 @@ router.get('/map', authenticate, async (req, res) => {
     
     character.currentFloor = floor; character.isInTower = true; await character.save();
     const tower = TOWERS[towerId] || { id: towerId, name: `Tower ${towerId}` };
-    res.json({ map: floorMap, tower, floor, highestFloor, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, energy: character.energy } });
+    
+    // Return shrine buffs with the map
+    res.json({ 
+      map: floorMap, 
+      tower, 
+      floor, 
+      highestFloor, 
+      shrineBuffs: floorMap.shrineBuffs || [],
+      character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, energy: character.energy } 
+    });
   } catch (error) { console.error('Get map error:', error); res.status(500).json({ error: error.message }); }
 });
 
@@ -384,7 +455,7 @@ router.post('/move', authenticate, async (req, res) => {
     const idx = floorMap.nodes.findIndex(n => n.id === nodeId);
     if (idx >= 0) { floorMap.nodes[idx].visited = true; floorMap.markModified('nodes'); }
     await character.save(); await floorMap.save();
-    res.json({ success: true, node: targetNode, energy: character.energy, nodeType: targetNode.type });
+    res.json({ success: true, node: targetNode, energy: character.energy, nodeType: targetNode.type, shrineBuffs: floorMap.shrineBuffs || [] });
   } catch (error) { console.error('Move error:', error); res.status(500).json({ error: error.message }); }
 });
 
@@ -413,9 +484,16 @@ router.post('/combat/start', authenticate, async (req, res) => {
       isElite: e.isElite || false, isBoss: e.isBoss || false
     }));
     
+    // Build combat log with shrine blessings info
+    const combatLogs = [{ actor: 'system', message: `Combat started! Wave 1/${currentNode.waves}`, damage: 0, type: 'info' }];
+    if (floorMap.shrineBuffs && floorMap.shrineBuffs.length > 0) {
+      const blessingIcons = floorMap.shrineBuffs.map(b => b.icon).join(' ');
+      combatLogs.push({ actor: 'system', message: `Shrine blessings active: ${blessingIcons}`, damage: 0, type: 'blessing' });
+    }
+    
     floorMap.activeCombat = {
       nodeId: currentNode.id, wave: 1, enemies, turnCount: 0,
-      combatLog: [{ actor: 'system', message: `Combat started! Wave 1/${currentNode.waves}`, damage: 0, type: 'info' }],
+      combatLog: combatLogs,
       playerBuffs: [], playerDots: [], enemyDebuffs: [], enemyDots: []
     };
     floorMap.markModified('activeCombat'); await floorMap.save();
@@ -425,7 +503,20 @@ router.post('/combat/start', authenticate, async (req, res) => {
       return { skillId: s.skillId, name: skillData.name, mpCost: skillData.mpCost, type: skillData.type, element: skillData.element, elementIcon: ELEMENTS[skillData.element]?.icon || '', description: skillData.description, hits: skillData.hits || 1, scaling: skillData.scaling };
     });
     
-    res.json({ combat: floorMap.activeCombat, waves: currentNode.waves, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, skills: playerSkills } });
+    // Get usable potions from inventory for combat
+    const usablePotions = character.inventory.filter(item => 
+      item.type === 'consumable' && 
+      (item.subtype === 'health_potion' || item.subtype === 'mana_potion') &&
+      item.quantity > 0
+    );
+    
+    res.json({ 
+      combat: floorMap.activeCombat, 
+      waves: currentNode.waves, 
+      shrineBuffs: floorMap.shrineBuffs || [],
+      usablePotions,
+      character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, skills: playerSkills } 
+    });
   } catch (error) { console.error('Combat start error:', error); res.status(500).json({ error: error.message }); }
 });
 
@@ -434,7 +525,7 @@ router.post('/combat/start', authenticate, async (req, res) => {
 // ============================================================
 router.post('/combat/action', authenticate, async (req, res) => {
   try {
-    const { action, skillId, targetIndex } = req.body;
+    const { action, skillId, targetIndex, itemId } = req.body;
     const character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
@@ -451,11 +542,15 @@ router.post('/combat/action', authenticate, async (req, res) => {
     combat.enemyDebuffs = combat.enemyDebuffs || [];
     combat.enemyDots = combat.enemyDots || [];
     
-    // Calculate combat stats
-    const combatStats = calculateCombatStats(character);
+    // Get shrine buffs for combat stat calculation
+    const shrineBuffs = floorMap.shrineBuffs || [];
+    
+    // Calculate combat stats WITH shrine buffs applied
+    const combatStats = calculateCombatStats(character, shrineBuffs);
     
     // Apply buff bonuses
-    let damageMultiplier = 1.0, critBonus = 0, critDmgBonus = 0, defBonus = 0, evasionBonus = 0;
+    let damageMultiplier = 1.0 + (combatStats.allDamageBonus / 100);
+    let critBonus = 0, critDmgBonus = 0, defBonus = 0, evasionBonus = combatStats.evasion;
     combat.playerBuffs.forEach(b => {
       if (['pDmgUp', 'atkUp', 'attack', 'mDmgUp'].includes(b.type)) damageMultiplier += b.value / 100;
       if (['critRateUp', 'critRate'].includes(b.type)) critBonus += b.value;
@@ -474,8 +569,49 @@ router.post('/combat/action', authenticate, async (req, res) => {
     
     const aliveEnemies = combat.enemies.filter(e => e.hp > 0);
     
-    // PLAYER ACTION
-    if (action === 'attack') {
+    // ============================================================
+    // PHASE 9.7.3: USE ITEM ACTION (Potions in combat)
+    // ============================================================
+    if (action === 'useItem' && itemId) {
+      const inventoryItem = character.inventory.find(item => item.itemId === itemId);
+      if (!inventoryItem || inventoryItem.quantity <= 0) {
+        return res.status(400).json({ error: 'Item not found in inventory' });
+      }
+      
+      if (inventoryItem.type !== 'consumable') {
+        return res.status(400).json({ error: 'Item is not consumable' });
+      }
+      
+      const effect = inventoryItem.effect;
+      let effectMessage = '';
+      
+      if (inventoryItem.subtype === 'health_potion' && effect?.type === 'heal') {
+        const healAmount = effect.value || 100;
+        const actualHeal = Math.min(healAmount, character.stats.maxHp - character.stats.hp);
+        character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + healAmount);
+        effectMessage = `Used ${inventoryItem.name}! +${actualHeal} HP`;
+        newLogs.push({ actor: 'player', message: `🧪 ${effectMessage}`, damage: 0, type: 'heal' });
+      } else if (inventoryItem.subtype === 'mana_potion' && effect?.type === 'mana') {
+        const manaAmount = effect.value || 50;
+        const actualMana = Math.min(manaAmount, character.stats.maxMp - character.stats.mp);
+        character.stats.mp = Math.min(character.stats.maxMp, character.stats.mp + manaAmount);
+        effectMessage = `Used ${inventoryItem.name}! +${actualMana} MP`;
+        newLogs.push({ actor: 'player', message: `💙 ${effectMessage}`, damage: 0, type: 'mana' });
+      } else {
+        return res.status(400).json({ error: 'Cannot use this item in combat' });
+      }
+      
+      // Reduce item quantity
+      inventoryItem.quantity -= 1;
+      if (inventoryItem.quantity <= 0) {
+        character.inventory = character.inventory.filter(item => item.itemId !== itemId);
+      }
+      character.markModified('inventory');
+      
+      // Using an item counts as your turn - enemies still attack
+      
+    // PLAYER ACTION - ATTACK
+    } else if (action === 'attack') {
       let target = combat.enemies[targetIndex || 0];
       if (!target || target.hp <= 0) target = aliveEnemies[0];
       if (!target) return res.status(400).json({ error: 'No targets' });
@@ -534,7 +670,6 @@ router.post('/combat/action', authenticate, async (req, res) => {
             character.stats.hp = Math.max(1, character.stats.hp - effect.value);
             newLogs.push({ actor: 'player', message: effect.message, damage: effect.value, type: 'self_damage' });
           } else if (effect.type === 'control') {
-            combat.enemyDebuffs.push({ type: effect.controlType, duration: effect.duration, skipTurn: true });
             newLogs.push({ actor: 'player', message: effect.message, damage: 0, type: 'control' });
           }
         }
@@ -686,6 +821,10 @@ router.post('/combat/action', authenticate, async (req, res) => {
         floorMap.completed = true;
         character.isInTower = false;
         floorComplete = true;
+        
+        // Clear shrine buffs on floor completion
+        floorMap.shrineBuffs = [];
+        floorMap.markModified('shrineBuffs');
       }
       
       await character.save();
@@ -722,7 +861,7 @@ router.post('/combat/action', authenticate, async (req, res) => {
     combat.playerBuffs = tickBuffs(combat.playerBuffs);
     
     // ============================================================
-    // PHASE 9.7.2: Defeat handling - restore 50% HP/MP
+    // PHASE 9.7.3: Defeat handling - restore 50% HP/MP AND SAVE PROPERLY
     // ============================================================
     if (character.stats.hp <= 0) {
       // Restore to 50% HP/MP on defeat
@@ -731,10 +870,20 @@ router.post('/combat/action', authenticate, async (req, res) => {
       character.statistics = character.statistics || {};
       character.statistics.deaths = (character.statistics.deaths || 0) + 1;
       character.isInTower = false;
+      
+      // Clear shrine buffs on defeat
+      floorMap.shrineBuffs = [];
+      floorMap.markModified('shrineBuffs');
       floorMap.activeCombat = undefined;
       floorMap.markModified('activeCombat');
+      
+      // Mark stats as modified to ensure HP/MP are saved
+      character.markModified('stats');
+      character.markModified('statistics');
+      
       await character.save();
       await floorMap.save();
+      
       newLogs.push({ actor: 'system', message: 'Defeated! Returned to town with 50% HP/MP.', damage: 0, type: 'defeat' });
       return res.json({ 
         status: 'defeat', 
@@ -751,16 +900,36 @@ router.post('/combat/action', authenticate, async (req, res) => {
     combat.turnCount++;
     combat.combatLog = [...(combat.combatLog || []), ...newLogs];
     floorMap.markModified('activeCombat');
+    
+    // Mark stats as modified to ensure HP/MP changes are saved
+    character.markModified('stats');
     await character.save();
     await floorMap.save();
     
-    res.json({ status: 'ongoing', combat: floorMap.activeCombat, playerBuffs: combat.playerBuffs || [], character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } });
+    // Get updated usable potions
+    const usablePotions = character.inventory.filter(item => 
+      item.type === 'consumable' && 
+      (item.subtype === 'health_potion' || item.subtype === 'mana_potion') &&
+      item.quantity > 0
+    );
+    
+    res.json({ 
+      status: 'ongoing', 
+      combat: floorMap.activeCombat, 
+      playerBuffs: combat.playerBuffs || [], 
+      shrineBuffs: floorMap.shrineBuffs || [],
+      usablePotions,
+      character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } 
+    });
   } catch (error) {
     console.error('Combat action error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
+// ============================================================
+// INTERACT - Treasure, Rest, Shrine, Mystery
+// ============================================================
 router.post('/interact', authenticate, async (req, res) => {
   try {
     const { choice } = req.body;
@@ -790,7 +959,36 @@ router.post('/interact', authenticate, async (req, res) => {
       character.stats.mp = Math.min(character.stats.maxMp, character.stats.mp + mpH);
       result.message = `Rested! +${hpH} HP, +${mpH} MP`;
     } else if (currentNode.type === 'shrine') {
-      result.message = 'The shrine blesses you!';
+      // ============================================================
+      // PHASE 9.7.3: SHRINE BLESSING SYSTEM
+      // ============================================================
+      const blessing = getRandomBlessing();
+      
+      // Initialize shrineBuffs array if it doesn't exist
+      if (!floorMap.shrineBuffs) floorMap.shrineBuffs = [];
+      
+      // Check if player already has this blessing (stacking at 50% effectiveness)
+      const existingBlessing = floorMap.shrineBuffs.find(b => b.id === blessing.id);
+      if (existingBlessing) {
+        // Stack at 50% effectiveness
+        const stackValue = Math.floor(blessing.value * 0.5);
+        existingBlessing.value += stackValue;
+        existingBlessing.desc = `+${existingBlessing.value}% ${blessing.stat === 'attack' ? 'ATK' : blessing.stat === 'defense' ? 'DEF' : blessing.stat === 'critRate' ? 'Crit' : blessing.stat === 'maxHp' ? 'Max HP' : blessing.stat === 'maxMp' ? 'Max MP' : blessing.stat === 'evasion' ? 'Evasion' : 'All DMG'}`;
+        result.message = `The shrine strengthens ${blessing.name}! ${blessing.icon} +${stackValue}% (Total: +${existingBlessing.value}%)`;
+      } else {
+        // Add new blessing
+        floorMap.shrineBuffs.push({
+          id: blessing.id,
+          name: blessing.name,
+          icon: blessing.icon,
+          desc: blessing.desc,
+          stat: blessing.stat,
+          value: blessing.value
+        });
+        result.message = `The shrine grants ${blessing.name}! ${blessing.icon} ${blessing.desc}`;
+      }
+      
+      floorMap.markModified('shrineBuffs');
     } else if (currentNode.type === 'mystery') {
       if (['open', 'pray', 'drink'].includes(choice)) {
         if (Math.random() < 0.6) {
@@ -828,13 +1026,24 @@ router.post('/interact', authenticate, async (req, res) => {
       floorMap.completed = true;
       character.isInTower = false;
       floorComplete = true;
+      
+      // Clear shrine buffs on floor completion
+      floorMap.shrineBuffs = [];
+      floorMap.markModified('shrineBuffs');
+      
       result.message += ` Floor cleared! Floor ${character.currentFloor} unlocked!`;
     }
     
     await character.save();
     await floorMap.save();
     
-    res.json({ success: true, ...result, floorComplete, character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, gold: character.gold } });
+    res.json({ 
+      success: true, 
+      ...result, 
+      floorComplete, 
+      shrineBuffs: floorMap.shrineBuffs || [],
+      character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, gold: character.gold } 
+    });
   } catch (error) {
     console.error('Interact error:', error);
     res.status(500).json({ error: error.message });
@@ -845,6 +1054,14 @@ router.post('/leave', authenticate, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
+    
+    // Clear shrine buffs when leaving
+    const floorMap = await FloorMap.findOne({ characterId: character._id, completed: false });
+    if (floorMap) {
+      floorMap.shrineBuffs = [];
+      floorMap.markModified('shrineBuffs');
+      await floorMap.save();
+    }
     
     await FloorMap.deleteMany({ characterId: character._id, completed: false });
     character.isInTower = false;
