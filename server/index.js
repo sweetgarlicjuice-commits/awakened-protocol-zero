@@ -53,6 +53,52 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ============================================================
+// ONE-TIME MIGRATION: Add social fields to existing characters
+// DELETE THIS AFTER RUNNING ONCE!
+// Usage: GET /api/migrate-social-fields?secret=apz2026
+// ============================================================
+app.get('/api/migrate-social-fields', async (req, res) => {
+  try {
+    // Simple security check
+    if (req.query.secret !== 'apz2026') {
+      return res.status(403).json({ error: 'Invalid secret' });
+    }
+    
+    const result = await mongoose.connection.db.collection('characters').updateMany(
+      { helperPoints: { $exists: false } },
+      { 
+        $set: { 
+          helperPoints: 10,
+          maxHelperPoints: 30,
+          lastOnline: new Date(),
+          isOnline: false,
+          currentActivity: 'idle',
+          socialStats: {
+            helpsGiven: 0,
+            helpsReceived: 0,
+            dungeonBreaksParticipated: 0,
+            totalDungeonDamage: 0
+          },
+          titles: [],
+          activeTitle: null
+        } 
+      }
+    );
+    
+    console.log(`Migration complete: ${result.modifiedCount} characters updated`);
+    res.json({ 
+      success: true, 
+      message: `Migration complete!`,
+      charactersUpdated: result.modifiedCount,
+      note: 'DELETE this endpoint from index.js now!'
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: 'Migration failed', details: error.message });
+  }
+});
+
 // Game info endpoint
 app.get('/api/info', (req, res) => {
   res.json({
