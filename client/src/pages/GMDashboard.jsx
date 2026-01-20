@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI, gmAPI, tavernAPI } from '../services/api';
+import DungeonBreakGMPanel from '../components/DungeonBreakGMPanel';
 
 const GMDashboard = () => {
   const { user, logout, isAdmin } = useAuth();
@@ -418,6 +419,9 @@ const GMDashboard = () => {
             <button onClick={() => setActiveTab('trading')} className={'px-4 py-2 rounded-lg ' + (activeTab === 'trading' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
               🔄 Trading
             </button>
+            <button onClick={() => setActiveTab('dungeonbreak')} className={'px-4 py-2 rounded-lg ' + (activeTab === 'dungeonbreak' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
+              🔥 Dungeon Break
+            </button>
             <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 rounded-lg bg-green-600 text-white">➕ Create Account</button>
           </div>
 
@@ -774,6 +778,10 @@ const GMDashboard = () => {
                 🔄 Refresh
               </button>
             </div>
+          )}
+
+          {activeTab === 'dungeonbreak' && (
+            <DungeonBreakGMPanel />
           )}
         </div>
       </div>
