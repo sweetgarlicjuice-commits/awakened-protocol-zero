@@ -752,22 +752,31 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
               <div className="bg-green-900/30 rounded-lg p-2 border border-green-500/30">
                 <p className="text-green-400 text-xs mb-2">🧪 USE POTION (costs 1 turn)</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {usablePotions.map((potion, i) => (
-                    <button 
-                      key={i} 
-                      onClick={() => doCombatAction('useItem', null, potion.itemId)}
-                      disabled={isLoading}
-                      className="p-2 rounded bg-green-900/50 hover:bg-green-900 border border-green-500/30 text-left text-xs transition-colors disabled:opacity-50"
-                    >
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-white font-medium">{potion.icon} {potion.name}</span>
-                        <span className="text-gray-400">x{potion.quantity}</span>
-                      </div>
-                      <p className={potion.subtype === 'health_potion' ? 'text-red-400' : 'text-blue-400'}>
-                        {potion.subtype === 'health_potion' ? `+${potion.effect?.value || 100} HP` : `+${potion.effect?.value || 50} MP`}
-                      </p>
-                    </button>
-                  ))}
+                  {usablePotions.map((potion, i) => {
+                    // Determine if health or mana potion based on effect.type or name
+                    const isHealthPotion = 
+                      potion.effect?.type === 'heal_hp' || 
+                      potion.effect?.type === 'heal' ||
+                      potion.subtype === 'health_potion' ||
+                      potion.name?.toLowerCase().includes('health');
+                    
+                    return (
+                      <button 
+                        key={i} 
+                        onClick={() => doCombatAction('useItem', null, potion.itemId)}
+                        disabled={isLoading}
+                        className="p-2 rounded bg-green-900/50 hover:bg-green-900 border border-green-500/30 text-left text-xs transition-colors disabled:opacity-50"
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-white font-medium">{potion.icon} {potion.name}</span>
+                          <span className="text-gray-400">x{potion.quantity}</span>
+                        </div>
+                        <p className={isHealthPotion ? 'text-red-400' : 'text-blue-400'}>
+                          {isHealthPotion ? `+${potion.effect?.value || 50} HP` : `+${potion.effect?.value || 30} MP`}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
