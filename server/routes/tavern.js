@@ -1115,8 +1115,10 @@ router.delete('/inventory/:itemId', authenticate, async function(req, res) {
 
 // ============ EQUIPMENT ROUTES ============
 
+
 // POST /api/tavern/equip - Equip item
 // PHASE 9.3.2 FIX: Complete rewrite with proper slot determination
+// PHASE 9.9.4: Added VIP item expiration handling
 router.post('/equip', authenticate, async function(req, res) {
   try {
     var itemId = req.body.itemId;
@@ -1129,6 +1131,20 @@ router.post('/equip', authenticate, async function(req, res) {
       return res.status(400).json({ error: 'Item not in inventory' });
     }
     var invItem = character.inventory[invIndex];
+    
+    // ============================================================
+    // PHASE 9.9.4: Check if VIP item is expired
+    // ============================================================
+    if (invItem.expiresAt && new Date() > new Date(invItem.expiresAt)) {
+      // Remove expired item from inventory
+      character.inventory.splice(invIndex, 1);
+      await character.save();
+      return res.status(400).json({ 
+        error: 'This VIP item has expired and has been removed.',
+        expired: true,
+        itemName: invItem.name
+      });
+    }
 
     // Get item data from DB (has slot field) or inventory
     var itemData = getItemById(itemId);
@@ -1172,9 +1188,33 @@ router.post('/equip', authenticate, async function(req, res) {
         rarity: currentDbItem ? currentDbItem.rarity : currentEquip.rarity,
         stats: currentDbItem ? currentDbItem.stats : currentEquip.stats,
         setId: currentDbItem ? currentDbItem.setId : (currentEquip.setId || null),
-        stackable: false
+        stackable: false,
+        // Preserve VIP expiration fields when unequipping
+        vipOnly: currentEquip.vipOnly || false,
+        expirationType: currentEquip.expirationType || null,
+        expirationDays: currentEquip.expirationDays || null,
+        firstEquippedAt: currentEquip.firstEquippedAt || null,
+        expiresAt: currentEquip.expiresAt || null
       };
       addItemToInventory(character, currentEquip.itemId, 1, currentItemData);
+    }
+    
+    // ============================================================
+    // PHASE 9.9.4: Start expiration countdown on FIRST equip for VIP items
+    // ============================================================
+    var firstEquippedAt = invItem.firstEquippedAt || null;
+    var expiresAt = invItem.expiresAt || null;
+    
+    if (invItem.expirationType === 'on_first_equip' && !invItem.firstEquippedAt) {
+      // This is the FIRST time equipping - start the countdown!
+      var now = new Date();
+      var expirationDays = invItem.expirationDays || 7;
+      var expirationMs = expirationDays * 24 * 60 * 60 * 1000;
+      
+      firstEquippedAt = now;
+      expiresAt = new Date(now.getTime() + expirationMs);
+      
+      console.log('[VIP] Started expiration for ' + invItem.name + ': expires at ' + expiresAt);
     }
 
     // Equip new item
@@ -1186,7 +1226,13 @@ router.post('/equip', authenticate, async function(req, res) {
       subtype: subtype,
       rarity: (itemData && itemData.rarity) || invItem.rarity,
       stats: (itemData && itemData.stats) || invItem.stats || {},
-      setId: (itemData && itemData.setId) || invItem.setId || null
+      setId: (itemData && itemData.setId) || invItem.setId || null,
+      // PHASE 9.9.4: Store VIP expiration info on equipped item
+      vipOnly: invItem.vipOnly || false,
+      expirationType: invItem.expirationType || null,
+      expirationDays: invItem.expirationDays || null,
+      firstEquippedAt: firstEquippedAt,
+      expiresAt: expiresAt
     };
 
     // Remove from inventory
@@ -1197,11 +1243,22 @@ router.post('/equip', authenticate, async function(req, res) {
     }
 
     await character.save();
+    
+    // Build response message
+    var message = 'Equipped ' + ((itemData && itemData.name) || invItem.name);
+    if (expiresAt && !invItem.firstEquippedAt) {
+      // Just started countdown
+      var daysRemaining = invItem.expirationDays || 7;
+      message += ' (Expires in ' + daysRemaining + ' days)';
+    }
 
     res.json({
-      message: 'Equipped ' + ((itemData && itemData.name) || invItem.name),
+      message: message,
       equipment: character.equipment,
-      inventory: character.inventory
+      inventory: character.inventory,
+      // Include expiration info in response
+      expirationStarted: !invItem.firstEquippedAt && expiresAt ? true : false,
+      expiresAt: expiresAt
     });
   } catch (error) {
     console.error('Equip error:', error);
