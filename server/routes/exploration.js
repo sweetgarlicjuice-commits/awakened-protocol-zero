@@ -52,32 +52,32 @@ const router = express.Router();
 const ENERGY_PER_EXPLORATION = 5;
 
 // ============================================================
-// PHASE 9.7.2: BALANCE CONFIG
+// PHASE 9.7.3: BALANCE CONFIG - Further reduced EXP
 // ============================================================
 // Tunable values for game balance. Edit these to adjust progression speed.
 // 
 // Target Progression:
-// Tower 1 (F1-15): Level 1 → 8
-// Tower 2 (F1-15): Level 8 → 16
-// Tower 3 (F1-15): Level 16 → 24
-// Tower 4 (F1-15): Level 24 → 32
-// Tower 5 (F1-15): Level 32 → 40
+// Tower 1 (F1-15): Level 1 → 4
+// Tower 2 (F1-15): Level 4 → 8
+// Tower 3 (F1-15): Level 8 → 12
+// Tower 4 (F1-15): Level 12 → 16
+// Tower 5 (F1-15): Level 16 → 20
 // 
 const BALANCE = {
   expBase: {
-    normal: 6,      // Reduced from 8 - base EXP per normal enemy
-    elite: 18,      // Reduced from 25 - base EXP per elite enemy
-    boss: 45        // Reduced from 60 - base EXP per boss
+    normal: 3,      // Reduced from 6 - base EXP per normal enemy
+    elite: 10,      // Reduced from 18 - base EXP per elite enemy
+    boss: 25        // Reduced from 45 - base EXP per boss
   },
   goldBase: {
     normal: { min: 3, max: 8 },
     elite: { min: 8, max: 18 },
     boss: { min: 20, max: 50 }
   },
-  floorExpBonus: 0.03,      // +3% per floor (was 5%) - slower floor scaling
-  towerExpBonus: 0.20,      // +20% per tower (was 25%) - slower tower scaling
+  floorExpBonus: 0.02,      // +2% per floor (was 3%) - slower floor scaling
+  towerExpBonus: 0.15,      // +15% per tower (was 20%) - slower tower scaling
   expCurveBase: 100,        // Base EXP needed for level 2
-  expCurveMultiplier: 1.30  // 30% more EXP needed per level (was 25%) - steeper curve
+  expCurveMultiplier: 1.35  // 35% more EXP needed per level (was 30%) - steeper curve
 };
 
 // ============================================================
@@ -503,12 +503,19 @@ router.post('/combat/start', authenticate, async (req, res) => {
       return { skillId: s.skillId, name: skillData.name, mpCost: skillData.mpCost, type: skillData.type, element: skillData.element, elementIcon: ELEMENTS[skillData.element]?.icon || '', description: skillData.description, hits: skillData.hits || 1, scaling: skillData.scaling };
     });
     
-    // Get usable potions from inventory for combat
-    const usablePotions = character.inventory.filter(item => 
-      item.type === 'consumable' && 
-      (item.subtype === 'health_potion' || item.subtype === 'mana_potion') &&
-      item.quantity > 0
-    );
+    // Get usable potions from inventory for combat (flexible check)
+    const usablePotions = character.inventory.filter(item => {
+      if (item.type !== 'consumable' || item.quantity <= 0) return false;
+      // Check by subtype
+      if (item.subtype === 'health_potion' || item.subtype === 'mana_potion') return true;
+      // Check by effect type
+      if (item.effect?.type === 'heal' || item.effect?.type === 'health' || 
+          item.effect?.type === 'mana' || item.effect?.type === 'mp') return true;
+      // Check by name pattern
+      if (item.name?.toLowerCase().includes('health') || item.name?.toLowerCase().includes('hp')) return true;
+      if (item.name?.toLowerCase().includes('mana') || item.name?.toLowerCase().includes('mp')) return true;
+      return false;
+    });
     
     res.json({ 
       combat: floorMap.activeCombat, 
@@ -584,20 +591,28 @@ router.post('/combat/action', authenticate, async (req, res) => {
       
       const effect = inventoryItem.effect;
       let effectMessage = '';
+      let usedItem = false;
       
-      if (inventoryItem.subtype === 'health_potion' && effect?.type === 'heal') {
-        const healAmount = effect.value || 100;
+      // Health potion - check subtype OR effect type
+      if (inventoryItem.subtype === 'health_potion' || effect?.type === 'heal' || effect?.type === 'health') {
+        const healAmount = effect?.value || 100;
         const actualHeal = Math.min(healAmount, character.stats.maxHp - character.stats.hp);
         character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + healAmount);
         effectMessage = `Used ${inventoryItem.name}! +${actualHeal} HP`;
         newLogs.push({ actor: 'player', message: `🧪 ${effectMessage}`, damage: 0, type: 'heal' });
-      } else if (inventoryItem.subtype === 'mana_potion' && effect?.type === 'mana') {
-        const manaAmount = effect.value || 50;
+        usedItem = true;
+      } 
+      // Mana potion - check subtype OR effect type
+      else if (inventoryItem.subtype === 'mana_potion' || effect?.type === 'mana' || effect?.type === 'mp') {
+        const manaAmount = effect?.value || 50;
         const actualMana = Math.min(manaAmount, character.stats.maxMp - character.stats.mp);
         character.stats.mp = Math.min(character.stats.maxMp, character.stats.mp + manaAmount);
         effectMessage = `Used ${inventoryItem.name}! +${actualMana} MP`;
         newLogs.push({ actor: 'player', message: `💙 ${effectMessage}`, damage: 0, type: 'mana' });
-      } else {
+        usedItem = true;
+      }
+      
+      if (!usedItem) {
         return res.status(400).json({ error: 'Cannot use this item in combat' });
       }
       
@@ -906,12 +921,16 @@ router.post('/combat/action', authenticate, async (req, res) => {
     await character.save();
     await floorMap.save();
     
-    // Get updated usable potions
-    const usablePotions = character.inventory.filter(item => 
-      item.type === 'consumable' && 
-      (item.subtype === 'health_potion' || item.subtype === 'mana_potion') &&
-      item.quantity > 0
-    );
+    // Get updated usable potions (flexible check)
+    const usablePotions = character.inventory.filter(item => {
+      if (item.type !== 'consumable' || item.quantity <= 0) return false;
+      if (item.subtype === 'health_potion' || item.subtype === 'mana_potion') return true;
+      if (item.effect?.type === 'heal' || item.effect?.type === 'health' || 
+          item.effect?.type === 'mana' || item.effect?.type === 'mp') return true;
+      if (item.name?.toLowerCase().includes('health') || item.name?.toLowerCase().includes('hp')) return true;
+      if (item.name?.toLowerCase().includes('mana') || item.name?.toLowerCase().includes('mp')) return true;
+      return false;
+    });
     
     res.json({ 
       status: 'ongoing', 
