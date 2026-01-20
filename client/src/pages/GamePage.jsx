@@ -517,7 +517,7 @@ const GamePage = () => {
   if (!character) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
   // Calculate rest cost
-  const restCost = character.level * 250;
+  const restCost = character.level * 50;
 
   return (
     <div className="min-h-screen flex flex-col">
