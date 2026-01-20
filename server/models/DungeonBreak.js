@@ -2,11 +2,13 @@
 // DUNGEON BREAK MODEL - Limited Time Event System
 // ============================================================
 // Phase 9.9+: Dungeon Break Events
+// Phase 9.9.1: Added boss combat stats & skills (boss counter-attacks!)
 // 
 // Features:
 // - GM-triggered limited time events (e.g., 3 hours)
 // - Massive boss with shared HP pool
 // - All players contribute damage
+// - Boss counter-attacks players! (NEW)
 // - Rewards based on damage % contribution
 // - Exclusive equipment sets from dungeon break bosses
 // ============================================================
@@ -71,7 +73,7 @@ const DUNGEON_BREAK_TIERS = {
 // DUNGEON BREAK BOSS DATA
 // ============================================================
 // Base HP values - multiply by tier for actual HP
-// Example: Boss 1 (5,000 base) x Small Tier (5x) = 25,000 HP
+// Phase 9.9.1: Added combat stats and skills for counter-attacks
 
 const DUNGEON_BREAK_BOSSES = {
   1: {
@@ -80,11 +82,26 @@ const DUNGEON_BREAK_BOSSES = {
     icon: '👤',
     description: 'A fragment of the Shadow Monarch\'s power has escaped into our world.',
     levelReq: 5,
-    baseHp: 5000,          // Solo: 5K, Small: 25K, Medium: 75K, Large: 250K, Massive: 1M
-    atk: 50,
-    def: 15,
-    mDef: 15,
+    baseHp: 5000,
     element: 'dark',
+    // Combat stats for counter-attacks
+    stats: {
+      pDmg: 40,
+      mDmg: 60,
+      pDef: 15,
+      mDef: 20,
+      critRate: 10,
+      critDmg: 150
+    },
+    // Boss skill
+    skill: {
+      name: 'Arise',
+      icon: '💀',
+      description: 'Summons shadow soldiers to attack',
+      damageMultiplier: 1.8,  // 180% of normal attack
+      chance: 20,             // 20% chance to use
+      element: 'dark'
+    },
     rewards: {
       setId: 'shadow_monarch_set',
       setLevel: 20,
@@ -98,11 +115,24 @@ const DUNGEON_BREAK_BOSSES = {
     icon: '👹',
     description: 'The Demon King has breached the gate. All hunters must respond!',
     levelReq: 10,
-    baseHp: 15000,         // Solo: 15K, Small: 75K, Medium: 225K, Large: 750K, Massive: 3M
-    atk: 80,
-    def: 25,
-    mDef: 25,
+    baseHp: 15000,
     element: 'fire',
+    stats: {
+      pDmg: 70,
+      mDmg: 90,
+      pDef: 25,
+      mDef: 30,
+      critRate: 12,
+      critDmg: 160
+    },
+    skill: {
+      name: 'Hellfire Breath',
+      icon: '🔥',
+      description: 'Unleashes a devastating fire breath',
+      damageMultiplier: 2.0,
+      chance: 18,
+      element: 'fire'
+    },
     rewards: {
       setId: 'demon_king_set',
       setLevel: 30,
@@ -116,11 +146,24 @@ const DUNGEON_BREAK_BOSSES = {
     icon: '🐉',
     description: 'An ancient ice dragon has awakened from its slumber.',
     levelReq: 20,
-    baseHp: 50000,         // Solo: 50K, Small: 250K, Medium: 750K, Large: 2.5M, Massive: 10M
-    atk: 120,
-    def: 40,
-    mDef: 50,
+    baseHp: 50000,
     element: 'ice',
+    stats: {
+      pDmg: 100,
+      mDmg: 140,
+      pDef: 45,
+      mDef: 55,
+      critRate: 15,
+      critDmg: 170
+    },
+    skill: {
+      name: 'Absolute Zero',
+      icon: '❄️',
+      description: 'Freezes the air, dealing massive ice damage',
+      damageMultiplier: 2.2,
+      chance: 15,
+      element: 'ice'
+    },
     rewards: {
       setId: 'ice_dragon_set',
       setLevel: 40,
@@ -134,11 +177,24 @@ const DUNGEON_BREAK_BOSSES = {
     icon: '🏛️',
     description: 'The Architect who designed the dungeons has emerged.',
     levelReq: 30,
-    baseHp: 150000,        // Solo: 150K, Small: 750K, Medium: 2.25M, Large: 7.5M, Massive: 30M
-    atk: 180,
-    def: 60,
-    mDef: 70,
+    baseHp: 150000,
     element: 'holy',
+    stats: {
+      pDmg: 150,
+      mDmg: 200,
+      pDef: 65,
+      mDef: 80,
+      critRate: 18,
+      critDmg: 180
+    },
+    skill: {
+      name: 'System Collapse',
+      icon: '💫',
+      description: 'Warps reality to crush all hunters',
+      damageMultiplier: 2.5,
+      chance: 12,
+      element: 'holy'
+    },
     rewards: {
       setId: 'architect_set',
       setLevel: 50,
@@ -152,11 +208,24 @@ const DUNGEON_BREAK_BOSSES = {
     icon: '✨',
     description: 'The creator of all. This is the ultimate challenge.',
     levelReq: 40,
-    baseHp: 500000,        // Solo: 500K, Small: 2.5M, Medium: 7.5M, Large: 25M, Massive: 100M
-    atk: 300,
-    def: 100,
-    mDef: 100,
+    baseHp: 500000,
     element: 'none',
+    stats: {
+      pDmg: 250,
+      mDmg: 350,
+      pDef: 100,
+      mDef: 120,
+      critRate: 25,
+      critDmg: 200
+    },
+    skill: {
+      name: 'Divine Judgment',
+      icon: '⚡',
+      description: 'The ultimate attack that judges all existence',
+      damageMultiplier: 3.0,
+      chance: 10,
+      element: 'holy'
+    },
     rewards: {
       setId: 'absolute_being_set',
       setLevel: 60,
@@ -211,7 +280,7 @@ const participantSchema = new mongoose.Schema({
     default: null
   },
   
-  // Last attack time
+  // Last attack time (used for cooldown)
   lastAttack: {
     type: Date,
     default: null
@@ -243,7 +312,24 @@ const dungeonBreakSchema = new mongoose.Schema({
     icon: String,
     description: String,
     levelReq: Number,
-    element: String
+    element: String,
+    // Phase 9.9.1: Store boss combat stats
+    stats: {
+      pDmg: Number,
+      mDmg: Number,
+      pDef: Number,
+      mDef: Number,
+      critRate: Number,
+      critDmg: Number
+    },
+    skill: {
+      name: String,
+      icon: String,
+      description: String,
+      damageMultiplier: Number,
+      chance: Number,
+      element: String
+    }
   },
   
   // Tier selection (determines HP and rewards)
@@ -329,67 +415,47 @@ const dungeonBreakSchema = new mongoose.Schema({
     setLevel: Number,
     goldBase: Number,
     expBase: Number,
-    // Top X players get guaranteed set piece
-    guaranteedRewardTop: { type: Number, default: 10 }
+    guaranteedRewardTop: { type: Number, default: 3 }  // Top 3 get guaranteed drops
   }
-}, {
-  timestamps: true
-});
-
-// ============================================================
-// INDEXES
-// ============================================================
-
-dungeonBreakSchema.index({ status: 1 });
-dungeonBreakSchema.index({ endsAt: 1 });
-dungeonBreakSchema.index({ 'participants.userId': 1 });
-dungeonBreakSchema.index({ createdAt: -1 });
+  
+}, { timestamps: true });
 
 // ============================================================
 // STATIC METHODS
 // ============================================================
 
 /**
- * Create a new dungeon break event (GM only)
- * @param {ObjectId} gmUserId - GM's user ID
- * @param {Number} bossId - Boss ID (1-5)
- * @param {String} tier - Tier: 'solo', 'small', 'medium', 'large', 'massive'
- * @param {Number} durationHours - Event duration in hours (default: 3)
- * @param {Date} scheduledStart - Optional scheduled start time
+ * Create a new Dungeon Break event
  */
 dungeonBreakSchema.statics.createEvent = async function(gmUserId, bossId, tier = 'small', durationHours = 3, scheduledStart = null) {
+  // Check for existing active event
+  const existingActive = await this.findOne({ status: 'active' });
+  if (existingActive) {
+    throw new Error('There is already an active Dungeon Break event');
+  }
+  
   const boss = DUNGEON_BREAK_BOSSES[bossId];
-  const tierInfo = DUNGEON_BREAK_TIERS[tier];
-  
   if (!boss) {
-    throw new Error(`Invalid boss ID: ${bossId}. Valid: 1-5`);
+    throw new Error('Invalid boss ID');
   }
   
+  const tierInfo = DUNGEON_BREAK_TIERS[tier];
   if (!tierInfo) {
-    throw new Error(`Invalid tier: ${tier}. Valid: solo, small, medium, large, massive`);
+    throw new Error('Invalid tier');
   }
   
-  // Check if there's already an active event
-  const activeEvent = await this.findOne({ 
-    status: { $in: ['scheduled', 'active'] } 
-  });
-  
-  if (activeEvent) {
-    throw new Error('There is already an active or scheduled event');
-  }
-  
-  const startTime = scheduledStart || new Date();
+  const calculatedHp = boss.baseHp * tierInfo.hpMultiplier;
   const durationMs = durationHours * 60 * 60 * 1000;
+  const startTime = scheduledStart ? new Date(scheduledStart) : new Date();
   const endTime = new Date(startTime.getTime() + durationMs);
   
-  // Calculate HP based on tier
-  const calculatedHp = boss.baseHp * tierInfo.hpMultiplier;
-  
-  // Calculate rewards based on tier
+  // Apply tier reward multiplier
   const adjustedRewards = {
-    ...boss.rewards,
+    setId: boss.rewards.setId,
+    setLevel: boss.rewards.setLevel,
     goldBase: Math.floor(boss.rewards.goldBase * tierInfo.rewardMultiplier),
-    expBase: Math.floor(boss.rewards.expBase * tierInfo.rewardMultiplier)
+    expBase: Math.floor(boss.rewards.expBase * tierInfo.rewardMultiplier),
+    guaranteedRewardTop: 3
   };
   
   return await this.create({
@@ -400,7 +466,10 @@ dungeonBreakSchema.statics.createEvent = async function(gmUserId, bossId, tier =
       icon: boss.icon,
       description: boss.description,
       levelReq: boss.levelReq,
-      element: boss.element
+      element: boss.element,
+      // Phase 9.9.1: Include combat stats
+      stats: boss.stats,
+      skill: boss.skill
     },
     tier,
     tierData: {
@@ -463,7 +532,49 @@ dungeonBreakSchema.statics.cancelEvent = async function(eventId, gmUserId) {
 };
 
 /**
- * Record damage from a player
+ * Phase 9.9.1: Calculate boss counter-attack damage
+ */
+dungeonBreakSchema.statics.calculateBossAttack = function(bossData, playerDerivedStats) {
+  const bossStats = bossData.stats;
+  const skill = bossData.skill;
+  
+  // Determine if boss uses skill
+  const useSkill = Math.random() * 100 < skill.chance;
+  
+  // Base damage (mix of physical and magical)
+  let baseDamage = bossStats.pDmg + bossStats.mDmg;
+  
+  // Apply skill multiplier if using skill
+  if (useSkill) {
+    baseDamage = Math.floor(baseDamage * skill.damageMultiplier);
+  }
+  
+  // Add variance (90-110%)
+  const variance = 0.9 + (Math.random() * 0.2);
+  baseDamage = Math.floor(baseDamage * variance);
+  
+  // Check for crit
+  const isCrit = Math.random() * 100 < bossStats.critRate;
+  if (isCrit) {
+    baseDamage = Math.floor(baseDamage * (bossStats.critDmg / 100));
+  }
+  
+  // Apply player defense reduction (pDef + mDef average)
+  const playerDefense = (playerDerivedStats.pDef + playerDerivedStats.mDef) / 2;
+  const defenseReduction = playerDefense / (playerDefense + 100); // Diminishing returns
+  const finalDamage = Math.max(1, Math.floor(baseDamage * (1 - defenseReduction)));
+  
+  return {
+    damage: finalDamage,
+    isCrit,
+    usedSkill: useSkill,
+    skillName: useSkill ? skill.name : null,
+    skillIcon: useSkill ? skill.icon : null
+  };
+};
+
+/**
+ * Record damage from a player (Updated with counter-attack)
  */
 dungeonBreakSchema.statics.recordDamage = async function(eventId, userId, characterId, characterInfo, damage) {
   const event = await this.findById(eventId);
