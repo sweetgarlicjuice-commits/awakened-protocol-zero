@@ -10,6 +10,8 @@ import characterRoutes from './routes/character.js';
 import gmRoutes from './routes/gm.js';
 import tavernRoutes from './routes/tavern.js';
 import explorationRoutes from './routes/exploration.js';
+import friendsRoutes from './routes/friends.js';           // Phase 9.8: Friends
+import dungeonBreakRoutes from './routes/dungeon-break.js'; // Phase 9.8: Dungeon Break
 
 // Import models
 import User from './models/User.js';
@@ -38,6 +40,8 @@ app.use('/api/character', characterRoutes);
 app.use('/api/gm', gmRoutes);
 app.use('/api/tavern', tavernRoutes);
 app.use('/api/exploration', explorationRoutes);
+app.use('/api/friends', friendsRoutes);           // Phase 9.8: Friends
+app.use('/api/dungeon-break', dungeonBreakRoutes); // Phase 9.8: Dungeon Break
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -45,7 +49,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok', 
     game: 'Awakened Protocol: Zero',
     version: '1.0.0-alpha',
-    phase: '9.7'
+    phase: '9.8'
   });
 });
 
@@ -55,13 +59,16 @@ app.get('/api/info', (req, res) => {
     name: 'Awakened Protocol: Zero',
     description: 'A Solo Leveling inspired text-based turn-based RPG',
     version: '1.0.0-alpha',
-    phase: '9.7',
+    phase: '9.8',
     features: {
       towers: 10,
       baseClasses: 4,
       hiddenClasses: 20,
       maxLevel: 100,
-      skills: 96
+      skills: 96,
+      // Phase 9.8 features
+      friendSystem: true,
+      dungeonBreak: true
     }
   });
 });
@@ -133,8 +140,9 @@ async function startServer() {
 ║              Server Started                           ║
 ║                                                       ║
 ║        Port: ${PORT}                                    ║
-║        Phase: 9.7 - Modular Combat                    ║
-║        Exploration: ENABLED                           ║
+║        Phase: 9.8 - Social Features                   ║
+║        Friends: ENABLED                               ║
+║        Dungeon Break: ENABLED                         ║
 ║                                                       ║
 ╚═══════════════════════════════════════════════════════╝
       `);
