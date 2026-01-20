@@ -21,175 +21,190 @@ const CLASS_COLORS = {
 };
 
 // ============================================================
-// PHASE 7: Complete Skill Database for Display
+// PHASE 9.7.2: Complete Skill Database with Clear Player Info
+// Shows: Damage Type (P.DMG/M.DMG), Scaling %, DoT values, Effect details
 // ============================================================
 const SKILL_DATABASE = {
   // ==================== BASE SWORDSMAN ====================
-  slash: { name: 'Slash', mpCost: 5, damage: 1.2, element: 'none', desc: 'Quick slash attack. Low cost, decent DMG.' },
-  heavyStrike: { name: 'Heavy Strike', mpCost: 12, damage: 1.8, element: 'none', desc: 'Powerful overhead strike. High single-target DMG.' },
-  shieldBash: { name: 'Shield Bash', mpCost: 8, damage: 1.0, element: 'none', desc: 'Bash with shield. Reduces enemy ATK by 15%.', effect: '-15% ATK' },
-  warCry: { name: 'War Cry', mpCost: 15, damage: 0, element: 'none', desc: 'Battle cry. +25% P.DMG for 3 turns.', effect: '+25% P.DMG' },
+  slash: { name: 'Slash', mpCost: 5, damage: 1.2, damageType: 'physical', element: 'none', desc: 'Quick slash attack.', details: '120% P.DMG' },
+  heavyStrike: { name: 'Heavy Strike', mpCost: 12, damage: 1.8, damageType: 'physical', element: 'none', desc: 'Powerful overhead strike.', details: '180% P.DMG' },
+  shieldBash: { name: 'Shield Bash', mpCost: 8, damage: 1.0, damageType: 'physical', element: 'none', desc: 'Bash with shield.', details: '100% P.DMG | -15% ATK (3t)' },
+  warCry: { name: 'War Cry', mpCost: 15, damage: 0, damageType: 'buff', element: 'none', desc: 'Battle cry buff.', details: '+25% P.DMG (3t)' },
   
   // ==================== BASE THIEF ====================
-  backstab: { name: 'Backstab', mpCost: 8, damage: 2.0, element: 'none', desc: 'Strike from behind. +30% crit chance.', effect: '+30% crit' },
-  poisonBlade: { name: 'Poison Blade', mpCost: 10, damage: 1.0, element: 'nature', desc: 'Poisoned attack. DoT for 3 turns.', effect: 'poison' },
-  smokeScreen: { name: 'Smoke Screen', mpCost: 12, damage: 0, element: 'none', desc: 'Create smoke. +40% evasion for 2 turns.', effect: '+40% evasion' },
-  steal: { name: 'Steal', mpCost: 5, damage: 0, element: 'none', desc: 'Attempt to steal 5-15% gold from enemy.', effect: 'gold steal' },
+  backstab: { name: 'Backstab', mpCost: 8, damage: 2.0, damageType: 'physical', element: 'none', desc: 'Strike from behind.', details: '200% P.DMG | +30% Crit' },
+  poisonBlade: { name: 'Poison Blade', mpCost: 10, damage: 1.0, damageType: 'physical', element: 'nature', desc: 'Poisoned attack.', details: '100% P.DMG | Poison 20% P.DMG/t (3t)' },
+  smokeScreen: { name: 'Smoke Screen', mpCost: 12, damage: 0, damageType: 'buff', element: 'none', desc: 'Create smoke cover.', details: '+40% Evasion (2t)' },
+  steal: { name: 'Steal', mpCost: 5, damage: 0, damageType: 'utility', element: 'none', desc: 'Steal enemy gold.', details: 'Steal 5-15% Gold' },
   
   // ==================== BASE ARCHER ====================
-  preciseShot: { name: 'Precise Shot', mpCost: 6, damage: 1.5, element: 'none', desc: 'Aimed shot. Never misses, bonus DMG.' },
-  multiShot: { name: 'Multi Shot', mpCost: 14, damage: 0.6, hits: 3, element: 'none', desc: 'Fire 3 arrows at once.' },
-  eagleEye: { name: 'Eagle Eye', mpCost: 10, damage: 0, element: 'none', desc: 'Focus aim. +25% crit, +20% crit DMG for 3 turns.', effect: '+25% crit' },
-  arrowRain: { name: 'Arrow Rain', mpCost: 20, damage: 2.2, element: 'none', desc: 'Rain of arrows. High DMG attack.' },
+  preciseShot: { name: 'Precise Shot', mpCost: 6, damage: 1.5, damageType: 'physical', element: 'none', desc: 'Aimed shot. Never misses.', details: '150% P.DMG | 100% Hit' },
+  multiShot: { name: 'Multi Shot', mpCost: 14, damage: 0.6, hits: 3, damageType: 'physical', element: 'none', desc: 'Fire multiple arrows.', details: '60% P.DMG x3 Hits' },
+  eagleEye: { name: 'Eagle Eye', mpCost: 10, damage: 0, damageType: 'buff', element: 'none', desc: 'Focus your aim.', details: '+25% Crit | +20% Crit DMG (3t)' },
+  arrowRain: { name: 'Arrow Rain', mpCost: 20, damage: 2.2, damageType: 'physical', element: 'none', desc: 'Rain of arrows.', details: '220% P.DMG' },
   
   // ==================== BASE MAGE ====================
-  fireball: { name: 'Fireball', mpCost: 10, damage: 1.6, element: 'fire', desc: 'Hurl a fireball. Burns for 3 turns.', effect: 'burn' },
-  iceSpear: { name: 'Ice Spear', mpCost: 12, damage: 1.4, element: 'ice', desc: 'Ice projectile. -20% enemy ATK.', effect: '-20% ATK' },
-  manaShield: { name: 'Mana Shield', mpCost: 15, damage: 0, element: 'none', desc: 'Create shield equal to 50% of current MP.', effect: 'shield' },
-  thunderbolt: { name: 'Thunderbolt', mpCost: 18, damage: 2.0, element: 'lightning', desc: 'Lightning strike. High magic DMG.' },
+  fireball: { name: 'Fireball', mpCost: 10, damage: 1.6, damageType: 'magical', element: 'fire', desc: 'Hurl a fireball.', details: '160% M.DMG | Burn 25% M.DMG/t (3t)' },
+  iceSpear: { name: 'Ice Spear', mpCost: 12, damage: 1.4, damageType: 'magical', element: 'ice', desc: 'Ice projectile.', details: '140% M.DMG | -20% ATK (2t)' },
+  manaShield: { name: 'Mana Shield', mpCost: 15, damage: 0, damageType: 'buff', element: 'none', desc: 'Create MP shield.', details: 'Shield = 50% Current MP' },
+  thunderbolt: { name: 'Thunderbolt', mpCost: 18, damage: 2.0, damageType: 'magical', element: 'lightning', desc: 'Lightning strike.', details: '200% M.DMG' },
   
   // ==================== FLAMEBLADE (Swordsman) ====================
-  flameSlash: { name: 'Flame Slash', mpCost: 15, damage: 1.8, element: 'fire', desc: 'Fire-infused slash. Applies burn.', effect: 'burn' },
-  infernoStrike: { name: 'Inferno Strike', mpCost: 25, damage: 2.8, element: 'fire', desc: 'Powerful fire strike. High single-target DMG.' },
-  fireAura: { name: 'Fire Aura', mpCost: 20, damage: 0, element: 'fire', desc: '+30% P.DMG, reflect 15% DMG for 3 turns.', effect: '+30% P.DMG' },
-  volcanicRage: { name: 'Volcanic Rage', mpCost: 40, damage: 3.5, element: 'fire', desc: 'Massive fire eruption + burn.', effect: 'burn' },
+  flameSlash: { name: 'Flame Slash', mpCost: 15, damage: 1.8, damageType: 'physical', element: 'fire', desc: 'Fire-infused slash.', details: '180% P.DMG | Burn 20% P.DMG/t (3t)' },
+  infernoStrike: { name: 'Inferno Strike', mpCost: 25, damage: 2.8, damageType: 'physical', element: 'fire', desc: 'Powerful fire strike.', details: '280% P.DMG' },
+  fireAura: { name: 'Fire Aura', mpCost: 20, damage: 0, damageType: 'buff', element: 'fire', desc: 'Surround in flames.', details: '+30% P.DMG | Reflect 15% (3t)' },
+  volcanicRage: { name: 'Volcanic Rage', mpCost: 40, damage: 3.5, damageType: 'physical', element: 'fire', desc: 'Massive fire eruption.', details: '350% P.DMG | Burn 35% P.DMG/t (3t)' },
   
   // ==================== BERSERKER (Swordsman) ====================
-  rageSlash: { name: 'Rage Slash', mpCost: 10, damage: 2.0, element: 'none', desc: 'Furious slash. Costs 5% HP.', effect: '-5% HP' },
-  bloodFury: { name: 'Blood Fury', mpCost: 20, damage: 0, element: 'none', desc: '+50% P.DMG, -20% DEF for 3 turns.', effect: '+50% P.DMG' },
-  recklessCharge: { name: 'Reckless Charge', mpCost: 15, damage: 2.5, element: 'none', desc: 'Charging attack. Costs 10% HP.', effect: '-10% HP' },
-  deathwish: { name: 'Deathwish', mpCost: 35, damage: 4.0, element: 'none', desc: 'Ultimate attack. Costs 20% HP.', effect: '-20% HP' },
+  rageSlash: { name: 'Rage Slash', mpCost: 10, damage: 2.0, damageType: 'physical', element: 'none', desc: 'Furious slash.', details: '200% P.DMG | Cost 5% HP' },
+  bloodFury: { name: 'Blood Fury', mpCost: 20, damage: 0, damageType: 'buff', element: 'none', desc: 'Enter blood rage.', details: '+50% P.DMG | -20% DEF (3t)' },
+  recklessCharge: { name: 'Reckless Charge', mpCost: 15, damage: 2.5, damageType: 'physical', element: 'none', desc: 'Charging attack.', details: '250% P.DMG | Cost 10% HP' },
+  deathwish: { name: 'Deathwish', mpCost: 35, damage: 4.0, damageType: 'physical', element: 'none', desc: 'Ultimate attack.', details: '400% P.DMG | Cost 20% HP' },
   
   // ==================== PALADIN (Swordsman) ====================
-  holyStrike: { name: 'Holy Strike', mpCost: 12, damage: 1.6, element: 'holy', desc: 'Holy-infused attack. Bonus vs undead.' },
-  divineShield: { name: 'Divine Shield', mpCost: 18, damage: 0, element: 'holy', desc: 'Shield = 200% P.DEF.', effect: 'shield' },
-  healingLight: { name: 'Healing Light', mpCost: 20, damage: 0, element: 'holy', desc: 'Heal 35% of max HP.', effect: 'heal 35%' },
-  judgment: { name: 'Judgment', mpCost: 35, damage: 3.0, element: 'holy', desc: 'Divine judgment. Removes debuffs.', effect: 'purify' },
+  holyStrike: { name: 'Holy Strike', mpCost: 12, damage: 1.6, damageType: 'physical', element: 'holy', desc: 'Holy-infused attack.', details: '160% P.DMG | +50% vs Undead' },
+  divineShield: { name: 'Divine Shield', mpCost: 18, damage: 0, damageType: 'buff', element: 'holy', desc: 'Divine protection.', details: 'Shield = 200% P.DEF' },
+  healingLight: { name: 'Healing Light', mpCost: 20, damage: 0, damageType: 'heal', element: 'holy', desc: 'Healing magic.', details: 'Heal 35% Max HP' },
+  judgment: { name: 'Judgment', mpCost: 35, damage: 3.0, damageType: 'physical', element: 'holy', desc: 'Divine judgment.', details: '300% P.DMG | Purify Debuffs' },
   
   // ==================== EARTHSHAKER (Swordsman) ====================
-  groundSlam: { name: 'Ground Slam', mpCost: 12, damage: 1.5, element: 'earth', desc: 'Slam ground. -20% enemy DEF.', effect: '-20% DEF' },
-  stoneSkin: { name: 'Stone Skin', mpCost: 15, damage: 0, element: 'earth', desc: '+50% P.DEF for 3 turns.', effect: '+50% P.DEF' },
-  earthquake: { name: 'Earthquake', mpCost: 25, damage: 2.2, element: 'earth', desc: 'Massive quake. -30% enemy DEF.', effect: '-30% DEF' },
-  titansWrath: { name: "Titan's Wrath", mpCost: 40, damage: 3.2, element: 'earth', desc: 'Ultimate earth attack + stun.', effect: 'stun' },
+  groundSlam: { name: 'Ground Slam', mpCost: 12, damage: 1.5, damageType: 'physical', element: 'earth', desc: 'Slam the ground.', details: '150% P.DMG | -20% DEF (2t)' },
+  stoneSkin: { name: 'Stone Skin', mpCost: 15, damage: 0, damageType: 'buff', element: 'earth', desc: 'Harden skin.', details: '+50% P.DEF (3t)' },
+  earthquake: { name: 'Earthquake', mpCost: 25, damage: 2.2, damageType: 'physical', element: 'earth', desc: 'Massive quake.', details: '220% P.DMG | -30% DEF (2t)' },
+  titansWrath: { name: "Titan's Wrath", mpCost: 40, damage: 3.2, damageType: 'physical', element: 'earth', desc: 'Ultimate earth attack.', details: '320% P.DMG | Stun (1t)' },
   
   // ==================== FROSTGUARD (Swordsman) ====================
-  frostStrike: { name: 'Frost Strike', mpCost: 12, damage: 1.4, element: 'ice', desc: 'Ice slash. -15% enemy ATK.', effect: '-15% ATK' },
-  iceBarrier: { name: 'Ice Barrier', mpCost: 18, damage: 0, element: 'ice', desc: 'Ice shield = 150% P.DEF, reflect 20%.', effect: 'shield' },
-  frozenBlade: { name: 'Frozen Blade', mpCost: 22, damage: 2.0, element: 'ice', desc: 'Powerful ice slash. 30% freeze.', effect: 'freeze' },
-  glacialFortress: { name: 'Glacial Fortress', mpCost: 35, damage: 0, element: 'ice', desc: '+100% DEF, immune to debuffs 2 turns.', effect: '+100% DEF' },
+  frostStrike: { name: 'Frost Strike', mpCost: 12, damage: 1.4, damageType: 'physical', element: 'ice', desc: 'Ice-infused slash.', details: '140% P.DMG | -15% ATK (2t)' },
+  iceBarrier: { name: 'Ice Barrier', mpCost: 18, damage: 0, damageType: 'buff', element: 'ice', desc: 'Ice shield.', details: 'Shield 150% P.DEF | Reflect 20%' },
+  frozenBlade: { name: 'Frozen Blade', mpCost: 22, damage: 2.0, damageType: 'physical', element: 'ice', desc: 'Powerful ice slash.', details: '200% P.DMG | 30% Freeze (1t)' },
+  glacialFortress: { name: 'Glacial Fortress', mpCost: 35, damage: 0, damageType: 'buff', element: 'ice', desc: 'Ice fortress.', details: '+100% DEF | Debuff Immune (2t)' },
   
   // ==================== SHADOW DANCER (Thief) ====================
-  shadowStrike: { name: 'Shadow Strike', mpCost: 12, damage: 2.2, element: 'dark', desc: 'Strike from shadows. +40% crit.', effect: '+40% crit' },
-  vanish: { name: 'Vanish', mpCost: 20, damage: 0, element: 'dark', desc: 'Invisible. Next attack auto-crits.', effect: 'stealth' },
-  deathMark: { name: 'Death Mark', mpCost: 18, damage: 1.2, element: 'dark', desc: 'Mark target. +30% DMG taken.', effect: '+30% vuln' },
-  shadowDance: { name: 'Shadow Dance', mpCost: 35, damage: 0.8, hits: 5, element: 'dark', desc: '5-hit combo from the shadows.' },
+  shadowStrike: { name: 'Shadow Strike', mpCost: 12, damage: 2.2, damageType: 'physical', element: 'dark', desc: 'Strike from shadows.', details: '220% P.DMG | +40% Crit' },
+  vanish: { name: 'Vanish', mpCost: 20, damage: 0, damageType: 'buff', element: 'dark', desc: 'Become invisible.', details: 'Stealth | Next Attack Auto-Crit' },
+  deathMark: { name: 'Death Mark', mpCost: 18, damage: 1.2, damageType: 'physical', element: 'dark', desc: 'Mark target.', details: '120% P.DMG | Target +30% DMG Taken (3t)' },
+  shadowDance: { name: 'Shadow Dance', mpCost: 35, damage: 0.8, hits: 5, damageType: 'physical', element: 'dark', desc: '5-hit shadow combo.', details: '80% P.DMG x5 Hits' },
   
   // ==================== VENOMANCER (Thief) ====================
-  toxicStrike: { name: 'Toxic Strike', mpCost: 10, damage: 1.4, element: 'nature', desc: 'Poison strike. Strong DoT.', effect: 'poison' },
-  venomCoat: { name: 'Venom Coat', mpCost: 15, damage: 0, element: 'nature', desc: 'Coat weapons with poison. +25% poison DMG.', effect: '+25% poison' },
-  plague: { name: 'Plague', mpCost: 22, damage: 0.8, element: 'nature', desc: 'Poison cloud. Heavy DoT.', effect: 'poison' },
-  pandemic: { name: 'Pandemic', mpCost: 38, damage: 2.5, element: 'nature', desc: 'Massive poison explosion.', effect: 'poison' },
+  toxicStrike: { name: 'Toxic Strike', mpCost: 10, damage: 1.4, damageType: 'physical', element: 'nature', desc: 'Poison strike.', details: '140% P.DMG | Poison 25% P.DMG/t (3t)' },
+  venomCoat: { name: 'Venom Coat', mpCost: 15, damage: 0, damageType: 'buff', element: 'nature', desc: 'Coat weapons.', details: '+25% Poison DMG (3t)' },
+  plague: { name: 'Plague', mpCost: 22, damage: 0.8, damageType: 'physical', element: 'nature', desc: 'Poison cloud.', details: '80% P.DMG | Poison 35% P.DMG/t (4t)' },
+  pandemic: { name: 'Pandemic', mpCost: 38, damage: 2.5, damageType: 'physical', element: 'nature', desc: 'Massive poison.', details: '250% P.DMG | Poison 40% P.DMG/t (3t)' },
   
   // ==================== ASSASSIN (Thief) ====================
-  exposeWeakness: { name: 'Expose Weakness', mpCost: 12, damage: 1.2, element: 'none', desc: 'Find weakness. +30% DMG on target.', effect: '+30% vuln' },
-  markForDeath: { name: 'Mark for Death', mpCost: 18, damage: 0, element: 'dark', desc: '+50% crit chance on target.', effect: '+50% crit' },
-  execute: { name: 'Execute', mpCost: 25, damage: 3.0, element: 'none', desc: 'Execute <25% HP. +100% crit DMG.', effect: 'execute' },
-  assassination: { name: 'Assassination', mpCost: 40, damage: 4.0, element: 'dark', desc: 'Ultimate kill. Massive single-target DMG.' },
+  exposeWeakness: { name: 'Expose Weakness', mpCost: 12, damage: 1.2, damageType: 'physical', element: 'none', desc: 'Find weakness.', details: '120% P.DMG | Target +30% DMG Taken (3t)' },
+  markForDeath: { name: 'Mark for Death', mpCost: 18, damage: 0, damageType: 'debuff', element: 'dark', desc: 'Mark for death.', details: 'Target +50% Crit Taken (3t)' },
+  execute: { name: 'Execute', mpCost: 25, damage: 3.0, damageType: 'physical', element: 'none', desc: 'Execute low HP.', details: '300% P.DMG | +100% Crit DMG if <25% HP' },
+  assassination: { name: 'Assassination', mpCost: 40, damage: 4.0, damageType: 'physical', element: 'dark', desc: 'Ultimate kill.', details: '400% P.DMG' },
   
   // ==================== PHANTOM (Thief) ====================
-  haunt: { name: 'Haunt', mpCost: 12, damage: 1.8, element: 'dark', desc: 'Ghostly attack. Ignores 30% DEF.', effect: 'armor pierce' },
-  nightmare: { name: 'Nightmare', mpCost: 15, damage: 0, element: 'dark', desc: 'Terrify enemy. -30% ATK for 2 turns.', effect: '-30% ATK' },
-  soulDrain: { name: 'Soul Drain', mpCost: 20, damage: 1.5, element: 'dark', desc: 'Drain HP and MP from enemy.', effect: 'lifesteal' },
-  dread: { name: 'Dread', mpCost: 35, damage: 3.0, element: 'dark', desc: 'Massive dark explosion. Fear effect.' },
+  haunt: { name: 'Haunt', mpCost: 12, damage: 1.8, damageType: 'physical', element: 'dark', desc: 'Ghostly attack.', details: '180% P.DMG | Ignores 30% DEF' },
+  nightmare: { name: 'Nightmare', mpCost: 15, damage: 0, damageType: 'debuff', element: 'dark', desc: 'Terrify enemy.', details: '-30% ATK (2t)' },
+  soulDrain: { name: 'Soul Drain', mpCost: 20, damage: 1.5, damageType: 'magical', element: 'dark', desc: 'Drain life force.', details: '150% M.DMG | Heal 30% Dealt' },
+  dread: { name: 'Dread', mpCost: 35, damage: 3.0, damageType: 'magical', element: 'dark', desc: 'Dark explosion.', details: '300% M.DMG | Fear (1t)' },
   
   // ==================== BLOODREAPER (Thief) ====================
-  bloodlet: { name: 'Bloodlet', mpCost: 10, damage: 1.8, element: 'none', desc: 'Slash that heals 20% DMG dealt.', effect: 'lifesteal' },
-  sanguineBlade: { name: 'Sanguine Blade', mpCost: 15, damage: 0, element: 'none', desc: 'Attacks heal 25% for 3 turns.', effect: 'lifesteal' },
-  crimsonSlash: { name: 'Crimson Slash', mpCost: 22, damage: 2.2, element: 'none', desc: '220% P.DMG + Lifesteal 35%.', effect: 'lifesteal' },
-  exsanguinate: { name: 'Exsanguinate', mpCost: 40, damage: 3.5, element: 'none', desc: 'Massive attack. Heal 50% DMG.', effect: 'lifesteal' },
+  bloodlet: { name: 'Bloodlet', mpCost: 10, damage: 1.8, damageType: 'physical', element: 'none', desc: 'Vampiric slash.', details: '180% P.DMG | Heal 20% Dealt' },
+  sanguineBlade: { name: 'Sanguine Blade', mpCost: 15, damage: 0, damageType: 'buff', element: 'none', desc: 'Blood-coat weapons.', details: 'Attacks Heal 25% (3t)' },
+  crimsonSlash: { name: 'Crimson Slash', mpCost: 22, damage: 2.2, damageType: 'physical', element: 'none', desc: 'Bloody slash.', details: '220% P.DMG | Heal 35% Dealt' },
+  exsanguinate: { name: 'Exsanguinate', mpCost: 40, damage: 3.5, damageType: 'physical', element: 'none', desc: 'Drain all blood.', details: '350% P.DMG | Heal 50% Dealt' },
   
   // ==================== STORM RANGER (Archer) ====================
-  lightningArrow: { name: 'Lightning Arrow', mpCost: 14, damage: 2.0, element: 'lightning', desc: 'Electric arrow. High DMG.', effect: 'shock' },
-  chainLightning: { name: 'Chain Lightning', mpCost: 22, damage: 0.7, hits: 3, element: 'lightning', desc: 'Lightning chains 3 times.' },
-  stormEye: { name: 'Storm Eye', mpCost: 18, damage: 0, element: 'lightning', desc: '+50% accuracy, +30% crit.', effect: '+30% crit' },
-  thunderstorm: { name: 'Thunderstorm', mpCost: 45, damage: 0.8, hits: 4, element: 'lightning', desc: '4-hit lightning storm.' },
+  lightningArrow: { name: 'Lightning Arrow', mpCost: 14, damage: 2.0, damageType: 'physical', element: 'lightning', desc: 'Electric arrow.', details: '200% P.DMG' },
+  chainLightning: { name: 'Chain Lightning', mpCost: 22, damage: 0.7, hits: 3, damageType: 'magical', element: 'lightning', desc: 'Chained lightning.', details: '70% M.DMG x3 Hits' },
+  stormEye: { name: 'Storm Eye', mpCost: 18, damage: 0, damageType: 'buff', element: 'lightning', desc: 'Storm focus.', details: '+50% Accuracy | +30% Crit (3t)' },
+  thunderstorm: { name: 'Thunderstorm', mpCost: 45, damage: 0.8, hits: 4, damageType: 'magical', element: 'lightning', desc: 'Lightning storm.', details: '80% M.DMG x4 Hits' },
   
   // ==================== PYRO ARCHER (Archer) ====================
-  fireArrow: { name: 'Fire Arrow', mpCost: 12, damage: 1.7, element: 'fire', desc: 'Flaming arrow. Burns 20%/t (3t).', effect: 'burn' },
-  explosiveShot: { name: 'Explosive Shot', mpCost: 18, damage: 2.3, element: 'fire', desc: '230% P.DMG (🔥).', effect: 'burn' },
-  ignite: { name: 'Ignite', mpCost: 15, damage: 0, element: 'fire', desc: 'Attacks add Burn 15%/t (3t).', effect: 'burn' },
-  meteorArrow: { name: 'Meteor Arrow', mpCost: 40, damage: 3.5, element: 'fire', desc: '350% P.DMG (🔥) + Burn 40%/t (3t).' },
+  fireArrow: { name: 'Fire Arrow', mpCost: 12, damage: 1.7, damageType: 'physical', element: 'fire', desc: 'Flaming arrow.', details: '170% P.DMG | Burn 20% P.DMG/t (3t)' },
+  explosiveShot: { name: 'Explosive Shot', mpCost: 18, damage: 2.3, damageType: 'physical', element: 'fire', desc: 'Explosive arrow.', details: '230% P.DMG | Burn 25% P.DMG/t (2t)' },
+  ignite: { name: 'Ignite', mpCost: 15, damage: 0, damageType: 'buff', element: 'fire', desc: 'Ignite attacks.', details: 'All Attacks Burn 15%/t (3t)' },
+  meteorArrow: { name: 'Meteor Arrow', mpCost: 40, damage: 3.5, damageType: 'physical', element: 'fire', desc: 'Meteor strike.', details: '350% P.DMG | Burn 40% P.DMG/t (3t)' },
   
   // ==================== FROST SNIPER (Archer) ====================
-  iceArrow: { name: 'Ice Arrow', mpCost: 12, damage: 1.5, element: 'ice', desc: 'Freezing arrow. Slows enemy.', effect: 'slow' },
-  frozenAim: { name: 'Frozen Aim', mpCost: 18, damage: 0, element: 'ice', desc: '+40% crit, +50% crit DMG for 2 turns.', effect: '+40% crit' },
-  piercingCold: { name: 'Piercing Cold', mpCost: 22, damage: 2.2, element: 'ice', desc: 'Armor-piercing ice shot.', effect: 'armor pierce' },
-  absoluteShot: { name: 'Absolute Shot', mpCost: 42, damage: 4.2, element: 'ice', desc: '420% P.DMG (❄️) + Freeze (1t).', effect: 'freeze' },
+  iceArrow: { name: 'Ice Arrow', mpCost: 12, damage: 1.5, damageType: 'physical', element: 'ice', desc: 'Freezing arrow.', details: '150% P.DMG | Slow -20% SPD (2t)' },
+  frozenAim: { name: 'Frozen Aim', mpCost: 18, damage: 0, damageType: 'buff', element: 'ice', desc: 'Cold focus.', details: '+40% Crit | +50% Crit DMG (2t)' },
+  piercingCold: { name: 'Piercing Cold', mpCost: 22, damage: 2.2, damageType: 'physical', element: 'ice', desc: 'Armor-piercing ice.', details: '220% P.DMG | Ignores 40% DEF' },
+  absoluteShot: { name: 'Absolute Shot', mpCost: 42, damage: 4.2, damageType: 'physical', element: 'ice', desc: 'Ultimate ice arrow.', details: '420% P.DMG | Freeze (1t)' },
   
   // ==================== NATURE WARDEN (Archer) ====================
-  thornArrow: { name: 'Thorn Arrow', mpCost: 10, damage: 1.5, element: 'nature', desc: '150% P.DMG (🌿) + Poison 15%/t (3t).', effect: 'poison' },
-  naturesGift: { name: "Nature's Gift", mpCost: 20, damage: 0, element: 'nature', desc: 'Heal 25% HP, +20% DEF.', effect: 'heal' },
-  vineTrap: { name: 'Vine Trap', mpCost: 15, damage: 0.8, element: 'nature', desc: 'Root enemy. -30% evasion.', effect: 'root' },
-  overgrowth: { name: 'Overgrowth', mpCost: 40, damage: 0.7, hits: 5, element: 'nature', desc: '5 nature arrows.' },
+  thornArrow: { name: 'Thorn Arrow', mpCost: 10, damage: 1.5, damageType: 'physical', element: 'nature', desc: 'Thorn-covered arrow.', details: '150% P.DMG | Poison 15% P.DMG/t (3t)' },
+  naturesGift: { name: "Nature's Gift", mpCost: 20, damage: 0, damageType: 'heal', element: 'nature', desc: "Nature's blessing.", details: 'Heal 25% HP | +20% DEF (2t)' },
+  vineTrap: { name: 'Vine Trap', mpCost: 15, damage: 0.8, damageType: 'physical', element: 'nature', desc: 'Root with vines.', details: '80% P.DMG | Root -30% Evasion (2t)' },
+  overgrowth: { name: 'Overgrowth', mpCost: 40, damage: 0.7, hits: 5, damageType: 'physical', element: 'nature', desc: 'Nature barrage.', details: '70% P.DMG x5 Hits' },
   
   // ==================== VOID HUNTER (Archer) ====================
-  voidArrow: { name: 'Void Arrow', mpCost: 15, damage: 1.8, element: 'dark', desc: 'Dark arrow. Ignores 40% DEF.', effect: 'armor pierce' },
-  nullZone: { name: 'Null Zone', mpCost: 20, damage: 0, element: 'dark', desc: 'Nullify enemy buffs.', effect: 'dispel' },
-  darkVolley: { name: 'Dark Volley', mpCost: 28, damage: 0.6, hits: 4, element: 'dark', desc: '4 void arrows.' },
-  oblivion: { name: 'Oblivion', mpCost: 45, damage: 3.5, element: 'dark', desc: 'Ultimate void attack. Massive DMG.' },
+  voidArrow: { name: 'Void Arrow', mpCost: 15, damage: 1.8, damageType: 'physical', element: 'dark', desc: 'Dark void arrow.', details: '180% P.DMG | Ignores 40% DEF' },
+  nullZone: { name: 'Null Zone', mpCost: 20, damage: 0, damageType: 'debuff', element: 'dark', desc: 'Nullify buffs.', details: 'Dispel All Enemy Buffs' },
+  darkVolley: { name: 'Dark Volley', mpCost: 28, damage: 0.6, hits: 4, damageType: 'physical', element: 'dark', desc: 'Void volley.', details: '60% P.DMG x4 Hits' },
+  oblivion: { name: 'Oblivion', mpCost: 45, damage: 3.5, damageType: 'physical', element: 'dark', desc: 'Ultimate void.', details: '350% P.DMG | Ignores 50% DEF' },
   
   // ==================== FROST WEAVER (Mage) ====================
-  frostBolt: { name: 'Frost Bolt', mpCost: 12, damage: 1.5, element: 'ice', desc: '150% M.DMG (❄️) + -25% ATK (2t).', effect: 'slow' },
-  blizzard: { name: 'Blizzard', mpCost: 28, damage: 2.0, element: 'ice', desc: '200% M.DMG (❄️) + -30% DEF (2t).', effect: 'slow' },
-  iceArmor: { name: 'Ice Armor', mpCost: 20, damage: 0, element: 'ice', desc: '+40% P.DEF, +20% M.DEF (3t).', effect: '+40% P.DEF' },
-  absoluteZero: { name: 'Absolute Zero', mpCost: 50, damage: 4.0, element: 'ice', desc: '400% M.DMG (❄️) + Freeze (1t).', effect: 'freeze' },
+  frostBolt: { name: 'Frost Bolt', mpCost: 12, damage: 1.5, damageType: 'magical', element: 'ice', desc: 'Ice magic bolt.', details: '150% M.DMG | -25% ATK (2t)' },
+  blizzard: { name: 'Blizzard', mpCost: 28, damage: 2.0, damageType: 'magical', element: 'ice', desc: 'Ice storm.', details: '200% M.DMG | -30% DEF (2t)' },
+  iceArmor: { name: 'Ice Armor', mpCost: 20, damage: 0, damageType: 'buff', element: 'ice', desc: 'Ice armor.', details: '+40% P.DEF | +20% M.DEF (3t)' },
+  absoluteZero: { name: 'Absolute Zero', mpCost: 50, damage: 4.0, damageType: 'magical', element: 'ice', desc: 'Ultimate ice magic.', details: '400% M.DMG | Freeze (1t)' },
   
   // ==================== PYROMANCER (Mage) ====================
-  flameBurst: { name: 'Flame Burst', mpCost: 14, damage: 1.8, element: 'fire', desc: 'Fire explosion. Burns.', effect: 'burn' },
-  combustion: { name: 'Combustion', mpCost: 22, damage: 2.2, element: 'fire', desc: 'Spontaneous combustion. High DMG.' },
-  inferno: { name: 'Inferno', mpCost: 35, damage: 1.5, element: 'fire', desc: 'AoE fire wave. Burns all.', effect: 'burn' },
-  hellfire: { name: 'Hellfire', mpCost: 50, damage: 3.8, element: 'fire', desc: 'Ultimate fire magic. Massive DMG.' },
+  flameBurst: { name: 'Flame Burst', mpCost: 14, damage: 1.8, damageType: 'magical', element: 'fire', desc: 'Fire explosion.', details: '180% M.DMG | Burn 20% M.DMG/t (3t)' },
+  combustion: { name: 'Combustion', mpCost: 22, damage: 2.2, damageType: 'magical', element: 'fire', desc: 'Spontaneous fire.', details: '220% M.DMG' },
+  inferno: { name: 'Inferno', mpCost: 35, damage: 1.5, damageType: 'magical', element: 'fire', desc: 'AoE fire wave.', details: '150% M.DMG | Burn 30% M.DMG/t (3t)' },
+  hellfire: { name: 'Hellfire', mpCost: 50, damage: 3.8, damageType: 'magical', element: 'fire', desc: 'Ultimate fire magic.', details: '380% M.DMG' },
   
   // ==================== STORMCALLER (Mage) ====================
-  shock: { name: 'Shock', mpCost: 10, damage: 1.4, element: 'lightning', desc: 'Electric shock.', effect: 'shock' },
-  lightningBolt: { name: 'Lightning Bolt', mpCost: 18, damage: 2.0, element: 'lightning', desc: 'Powerful lightning strike.' },
-  thunderChain: { name: 'Thunder Chain', mpCost: 28, damage: 0.8, hits: 4, element: 'lightning', desc: '4-chain lightning.' },
-  tempest: { name: 'Tempest', mpCost: 48, damage: 1.4, element: 'lightning', desc: 'AoE lightning storm. Massive DMG.' },
+  shock: { name: 'Shock', mpCost: 10, damage: 1.4, damageType: 'magical', element: 'lightning', desc: 'Electric shock.', details: '140% M.DMG' },
+  lightningBolt: { name: 'Lightning Bolt', mpCost: 18, damage: 2.0, damageType: 'magical', element: 'lightning', desc: 'Lightning strike.', details: '200% M.DMG' },
+  thunderChain: { name: 'Thunder Chain', mpCost: 28, damage: 0.8, hits: 4, damageType: 'magical', element: 'lightning', desc: 'Chained lightning.', details: '80% M.DMG x4 Hits' },
+  tempest: { name: 'Tempest', mpCost: 48, damage: 1.4, damageType: 'magical', element: 'lightning', desc: 'AoE lightning.', details: '140% M.DMG (AoE)' },
   
   // ==================== NECROMANCER (Mage) ====================
-  lifeDrain: { name: 'Life Drain', mpCost: 12, damage: 1.4, element: 'dark', desc: '140% M.DMG (🌑) + Heal 30% dealt.', effect: 'lifesteal' },
-  curse: { name: 'Curse', mpCost: 15, damage: 0, element: 'dark', desc: 'Enemy -25% all stats (3t).', effect: 'curse' },
-  soulRend: { name: 'Soul Rend', mpCost: 25, damage: 2.2, element: 'dark', desc: '220% M.DMG (🌑) + Heal 40% dealt.', effect: 'lifesteal' },
-  deathPact: { name: 'Death Pact', mpCost: 42, damage: 3.5, element: 'dark', desc: '350% M.DMG (🌑) + Heal 50% dealt.', effect: 'lifesteal' },
+  lifeDrain: { name: 'Life Drain', mpCost: 12, damage: 1.4, damageType: 'magical', element: 'dark', desc: 'Drain life.', details: '140% M.DMG | Heal 30% Dealt' },
+  curse: { name: 'Curse', mpCost: 15, damage: 0, damageType: 'debuff', element: 'dark', desc: 'Dark curse.', details: '-25% All Stats (3t)' },
+  soulRend: { name: 'Soul Rend', mpCost: 25, damage: 2.2, damageType: 'magical', element: 'dark', desc: 'Rend soul.', details: '220% M.DMG | Heal 40% Dealt' },
+  deathPact: { name: 'Death Pact', mpCost: 42, damage: 3.5, damageType: 'magical', element: 'dark', desc: 'Ultimate dark magic.', details: '350% M.DMG | Heal 50% Dealt' },
   
   // ==================== ARCANIST (Mage) ====================
-  arcaneMissile: { name: 'Arcane Missile', mpCost: 10, damage: 1.6, element: 'holy', desc: '160% M.DMG (✨).', hits: 1 },
-  empower: { name: 'Empower', mpCost: 18, damage: 0, element: 'holy', desc: '+35% M.DMG (3t).', effect: '+35% M.DMG' },
-  arcaneBurst: { name: 'Arcane Burst', mpCost: 28, damage: 2.8, element: 'holy', desc: '280% M.DMG (✨).' },
-  transcendence: { name: 'Transcendence', mpCost: 45, damage: 0, element: 'holy', desc: '+50% All DMG, +30% Crit Rate (3t).', effect: '+50% DMG' }
+  arcaneMissile: { name: 'Arcane Missile', mpCost: 10, damage: 1.6, damageType: 'magical', element: 'holy', desc: 'Pure arcane bolt.', details: '160% M.DMG' },
+  empower: { name: 'Empower', mpCost: 18, damage: 0, damageType: 'buff', element: 'holy', desc: 'Arcane power.', details: '+35% M.DMG (3t)' },
+  arcaneBurst: { name: 'Arcane Burst', mpCost: 28, damage: 2.8, damageType: 'magical', element: 'holy', desc: 'Arcane explosion.', details: '280% M.DMG' },
+  transcendence: { name: 'Transcendence', mpCost: 45, damage: 0, damageType: 'buff', element: 'holy', desc: 'Ultimate buff.', details: '+50% All DMG | +30% Crit (3t)' }
 };
 
-// Component for skill cards - reusable
+// Element icons for display
+const ELEMENT_ICONS = {
+  fire: '🔥', ice: '❄️', lightning: '⚡', nature: '🌿', 
+  dark: '🌑', holy: '✨', earth: '🪨', none: ''
+};
+
+// Damage type colors
+const DAMAGE_TYPE_COLORS = {
+  physical: 'text-orange-400',
+  magical: 'text-cyan-400',
+  buff: 'text-blue-400',
+  debuff: 'text-red-400',
+  heal: 'text-green-400',
+  utility: 'text-yellow-400'
+};
+
+// Component for skill cards - reusable with clear info
 const SkillCard = ({ skill, skillData }) => {
   if (!skillData) return null;
+  
+  const elementIcon = ELEMENT_ICONS[skillData.element] || '';
+  const dmgTypeColor = DAMAGE_TYPE_COLORS[skillData.damageType] || 'text-gray-400';
   
   return (
     <div className="p-3 bg-void-800/50 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-colors">
       <div className="flex justify-between items-start mb-1">
-        <span className="font-medium text-purple-300">{skillData.name}</span>
-        <span className="text-xs text-blue-400">{skillData.mpCost} MP</span>
+        <span className="font-medium text-purple-300">
+          {elementIcon} {skillData.name}
+        </span>
+        <span className="text-xs text-blue-400 font-medium">{skillData.mpCost} MP</span>
       </div>
-      <p className="text-xs text-gray-400 mb-1">{skillData.desc}</p>
-      <div className="flex gap-2 text-xs">
-        {skillData.damage > 0 && (
-          <span className="text-red-400">
-            {skillData.hits ? `${Math.round(skillData.damage * 100)}% x${skillData.hits}` : `${Math.round(skillData.damage * 100)}%`}
-          </span>
-        )}
-        {skillData.effect && <span className="text-green-400">{skillData.effect}</span>}
-        {skillData.element !== 'none' && (
-          <span className="text-amber-400 capitalize">{skillData.element}</span>
-        )}
+      <p className="text-xs text-gray-400 mb-2">{skillData.desc}</p>
+      {/* Clear damage/effect info */}
+      <div className={`text-xs font-medium ${dmgTypeColor} bg-void-900/50 rounded px-2 py-1`}>
+        {skillData.details}
       </div>
     </div>
   );
@@ -208,9 +223,7 @@ const StatBar = ({ label, current, max, color, icon, regenTimer, regenAmount }) 
         <div className="flex items-center gap-2">
           <span className={color}>{current} / {max}</span>
           {regenTimer !== undefined && regenAmount > 0 && current < max && (
-            <span className="text-xs text-gray-500" title={`+${regenAmount} ${label} in ${regenTimer}s`}>
-              (+{regenAmount} in {regenTimer}s)
-            </span>
+            <span className="text-xs text-gray-500">(+{regenAmount} in {regenTimer}s)</span>
           )}
         </div>
       </div>
@@ -224,11 +237,16 @@ const StatBar = ({ label, current, max, color, icon, regenTimer, regenAmount }) 
   );
 };
 
-const EnergyBar = ({ energy }) => (
+const EnergyBar = ({ energy, regenTimer }) => (
   <div className="space-y-1">
     <div className="flex justify-between text-sm">
       <span className="text-gray-400">⚡ ENERGY</span>
-      <span className="text-amber-400">{energy} / 100</span>
+      <div className="flex items-center gap-2">
+        <span className="text-amber-400">{energy} / 100</span>
+        {regenTimer !== undefined && energy < 100 && (
+          <span className="text-xs text-gray-500">(+1 in {regenTimer}s)</span>
+        )}
+      </div>
     </div>
     <div className="h-2 bg-void-900 rounded-full overflow-hidden">
       <div className="h-full bg-gradient-to-r from-amber-500 to-amber-400 stat-bar transition-all duration-500" style={{ width: energy + '%' }}></div>
@@ -389,7 +407,7 @@ const GamePage = () => {
   const [pendingStats, setPendingStats] = useState({ str: 0, agi: 0, dex: 0, int: 0, vit: 0 });
   const [isAllocating, setIsAllocating] = useState(false);
   const [isInTower, setIsInTower] = useState(false);
-  const [regenTimer, setRegenTimer] = useState(60); // Phase 9.7.2: Regen timer countdown
+  const [regenTimer, setRegenTimer] = useState(60); // Phase 9.7.2: Regen countdown timer
   const [showActivityLog, setShowActivityLog] = useState(true);
   const [gameLog, setGameLog] = useState([
     { type: 'system', message: 'Welcome to Awakened Protocol: Zero', timestamp: new Date() },
@@ -408,13 +426,12 @@ const GamePage = () => {
     return () => clearInterval(interval);
   }, [refreshCharacter]);
 
-  // Phase 9.7.2: Regen timer countdown (resets every 60s when server regens HP/MP)
+  // Phase 9.7.2: Regen timer countdown (server regens HP/MP/Energy every 60s)
   useEffect(() => {
     const timer = setInterval(() => {
       setRegenTimer(prev => {
         if (prev <= 1) {
-          // Timer hit 0, server should have regenerated - refresh character
-          refreshCharacter();
+          refreshCharacter(); // Refresh when timer hits 0
           return 60;
         }
         return prev - 1;
@@ -523,28 +540,12 @@ const GamePage = () => {
           </div>
 
           <div className="space-y-3 mb-6">
-            <StatBar 
-              label="HP" 
-              current={character.stats.hp} 
-              max={character.stats.maxHp + (derivedStats?.bonusHp || 0)} 
-              color="text-green-400" 
-              icon="❤️"
-              regenTimer={regenTimer}
-              regenAmount={derivedStats?.hpRegen || 0}
-            />
-            <StatBar 
-              label="MP" 
-              current={character.stats.mp} 
-              max={character.stats.maxMp + (derivedStats?.bonusMp || 0)} 
-              color="text-blue-400" 
-              icon="💎"
-              regenTimer={regenTimer}
-              regenAmount={derivedStats?.mpRegen || 0}
-            />
+            <StatBar label="HP" current={character.stats.hp} max={character.stats.maxHp + (derivedStats?.bonusHp || 0)} color="text-green-400" icon="❤️" regenTimer={regenTimer} regenAmount={derivedStats?.hpRegen || 0}/>
+            <StatBar label="MP" current={character.stats.mp} max={character.stats.maxMp + (derivedStats?.bonusMp || 0)} color="text-blue-400" icon="💎" regenTimer={regenTimer} regenAmount={derivedStats?.mpRegen || 0}/>
           </div>
 
           <div className="mb-6">
-            <EnergyBar energy={character.energy}/>
+            <EnergyBar energy={character.energy} regenTimer={regenTimer}/>
           </div>
 
           <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-4">
@@ -586,6 +587,13 @@ const GamePage = () => {
               ))}
             </div>
           )}
+
+          <button 
+            onClick={() => setShowCombatStats(true)}
+            className="w-full mb-2 py-2 text-sm bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-purple-300 transition-colors"
+          >
+            ⚔️ View Combat Stats
+          </button>
 
           <button 
             onClick={handleRest}
