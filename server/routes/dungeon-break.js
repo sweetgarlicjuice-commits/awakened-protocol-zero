@@ -2,10 +2,11 @@
 // DUNGEON BREAK ROUTES - Limited Time Event System
 // ============================================================
 // Phase 9.9: Dungeon Break Events
+// Phase 9.9.1: Added boss counter-attack combat system
 // 
 // Player Endpoints:
 // GET    /api/dungeon-break/active       - Get active event
-// POST   /api/dungeon-break/attack       - Record attack damage
+// POST   /api/dungeon-break/attack       - Record attack damage (boss fights back!)
 // GET    /api/dungeon-break/leaderboard  - Get rankings
 // POST   /api/dungeon-break/claim        - Claim rewards
 // GET    /api/dungeon-break/history      - Get past events
@@ -26,6 +27,11 @@ import Character from '../models/Character.js';
 const router = express.Router();
 
 // ============================================================
+// CONSTANTS
+// ============================================================
+const ATTACK_COOLDOWN_MS = 3000;  // 3 second cooldown between attacks
+
+// ============================================================
 // GET /api/dungeon-break/active - Get active event
 // ============================================================
 router.get('/active', authenticate, async (req, res) => {
@@ -36,6 +42,9 @@ router.get('/active', authenticate, async (req, res) => {
       return res.json({ active: false, event: null });
     }
     
+    // Get player's character for HP display
+    const character = await Character.findOne({ userId: req.user._id });
+    
     // Get player's participation data
     const participant = event.participants.find(
       p => p.userId.toString() === req.user._id.toString()
@@ -44,6 +53,13 @@ router.get('/active', authenticate, async (req, res) => {
     // Calculate time remaining
     const now = new Date();
     const timeRemaining = Math.max(0, event.endsAt - now);
+    
+    // Calculate cooldown remaining
+    let cooldownRemaining = 0;
+    if (participant?.lastAttack) {
+      const timeSinceLastAttack = now - new Date(participant.lastAttack);
+      cooldownRemaining = Math.max(0, ATTACK_COOLDOWN_MS - timeSinceLastAttack);
+    }
     
     res.json({
       active: true,
@@ -72,7 +88,16 @@ router.get('/active', authenticate, async (req, res) => {
         totalDamage: participant.totalDamage,
         attackCount: participant.attackCount,
         highestHit: participant.highestHit,
-        rank: DungeonBreak.getPlayerRank(event, req.user._id)
+        rank: DungeonBreak.getPlayerRank(event, req.user._id),
+        cooldownRemaining
+      } : { cooldownRemaining: 0 },
+      // Phase 9.9.1: Include player HP/MP for display
+      myStatus: character ? {
+        hp: character.stats.hp,
+        maxHp: character.stats.maxHp,
+        mp: character.stats.mp,
+        maxMp: character.stats.maxMp,
+        isDead: character.stats.hp <= 0
       } : null
     });
   } catch (error) {
@@ -83,6 +108,7 @@ router.get('/active', authenticate, async (req, res) => {
 
 // ============================================================
 // POST /api/dungeon-break/attack - Record attack damage
+// Phase 9.9.1: Now includes boss counter-attack!
 // ============================================================
 router.post('/attack', authenticate, async (req, res) => {
   try {
@@ -99,6 +125,18 @@ router.post('/attack', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Character not found' });
     }
     
+    // ============================================================
+    // Phase 9.9.1: CHECK IF PLAYER IS DEAD
+    // ============================================================
+    if (character.stats.hp <= 0) {
+      return res.status(400).json({ 
+        error: 'You are dead! Use a potion or rest to recover HP before attacking.',
+        isDead: true,
+        hp: 0,
+        maxHp: character.stats.maxHp
+      });
+    }
+    
     // Check level requirement
     if (character.level < event.bossData.levelReq) {
       return res.status(400).json({ 
@@ -106,27 +144,47 @@ router.post('/attack', authenticate, async (req, res) => {
       });
     }
     
-    // Calculate damage based on character stats
+    // ============================================================
+    // Phase 9.9.1: CHECK COOLDOWN
+    // ============================================================
+    const participant = event.participants.find(
+      p => p.userId.toString() === req.user._id.toString()
+    );
+    
+    if (participant?.lastAttack) {
+      const timeSinceLastAttack = Date.now() - new Date(participant.lastAttack).getTime();
+      if (timeSinceLastAttack < ATTACK_COOLDOWN_MS) {
+        const remaining = Math.ceil((ATTACK_COOLDOWN_MS - timeSinceLastAttack) / 1000);
+        return res.status(400).json({ 
+          error: `Cooldown! Wait ${remaining}s before attacking again.`,
+          cooldownRemaining: ATTACK_COOLDOWN_MS - timeSinceLastAttack
+        });
+      }
+    }
+    
+    // ============================================================
+    // CALCULATE PLAYER DAMAGE
+    // ============================================================
     const derivedStats = Character.calculateDerivedStats(character);
     
-    // Base damage formula (can be adjusted)
-    let baseDamage = derivedStats.pDmg + derivedStats.mDmg;
+    // Base damage formula
+    let playerBaseDamage = derivedStats.pDmg + derivedStats.mDmg;
     
     // Add some randomness (90-110% of base)
     const variance = 0.9 + (Math.random() * 0.2);
-    baseDamage = Math.floor(baseDamage * variance);
+    playerBaseDamage = Math.floor(playerBaseDamage * variance);
     
-    // Check for crit
-    const critRoll = Math.random() * 100;
-    let isCrit = critRoll < derivedStats.critRate;
-    if (isCrit) {
-      baseDamage = Math.floor(baseDamage * (derivedStats.critDmg / 100));
+    // Check for player crit
+    const playerCritRoll = Math.random() * 100;
+    let playerIsCrit = playerCritRoll < derivedStats.critRate;
+    if (playerIsCrit) {
+      playerBaseDamage = Math.floor(playerBaseDamage * (derivedStats.critDmg / 100));
     }
     
     // Minimum damage of 1
-    const finalDamage = Math.max(1, baseDamage);
+    const playerFinalDamage = Math.max(1, playerBaseDamage);
     
-    // Record the damage
+    // Record the damage to boss
     const result = await DungeonBreak.recordDamage(
       event._id,
       req.user._id,
@@ -137,27 +195,73 @@ router.post('/attack', authenticate, async (req, res) => {
         baseClass: character.baseClass,
         hiddenClass: character.hiddenClass
       },
-      finalDamage
+      playerFinalDamage
     );
+    
+    // ============================================================
+    // Phase 9.9.1: BOSS COUNTER-ATTACK (if boss not defeated)
+    // ============================================================
+    let bossAttack = null;
+    let playerDied = false;
+    
+    if (!result.bossDefeated && event.bossData.stats) {
+      // Calculate boss damage to player
+      bossAttack = DungeonBreak.calculateBossAttack(event.bossData, derivedStats);
+      
+      // Apply damage to player
+      character.stats.hp = Math.max(0, character.stats.hp - bossAttack.damage);
+      
+      // Check if player died
+      playerDied = character.stats.hp <= 0;
+      
+      // Save character HP
+      await character.save();
+    }
     
     // Update character's activity
     character.currentActivity = 'in_dungeon_break';
     character.lastOnline = new Date();
     await character.save();
     
+    // ============================================================
+    // BUILD RESPONSE
+    // ============================================================
     res.json({
-      damage: finalDamage,
-      isCrit,
+      // Player attack info
+      playerAttack: {
+        damage: playerFinalDamage,
+        isCrit: playerIsCrit
+      },
+      // Boss counter-attack info (if any)
+      bossAttack: bossAttack ? {
+        damage: bossAttack.damage,
+        isCrit: bossAttack.isCrit,
+        usedSkill: bossAttack.usedSkill,
+        skillName: bossAttack.skillName,
+        skillIcon: bossAttack.skillIcon
+      } : null,
+      // Boss status
       boss: {
         currentHp: result.bossHp,
         maxHp: result.bossMaxHp,
         percent: ((result.bossHp / result.bossMaxHp) * 100).toFixed(1),
         defeated: result.bossDefeated
       },
+      // Player status
+      player: {
+        hp: character.stats.hp,
+        maxHp: character.stats.maxHp,
+        mp: character.stats.mp,
+        maxMp: character.stats.maxMp,
+        died: playerDied
+      },
+      // My stats
       myStats: {
         totalDamage: result.yourTotalDamage,
         rank: result.yourRank
-      }
+      },
+      // Cooldown
+      cooldownMs: ATTACK_COOLDOWN_MS
     });
   } catch (error) {
     console.error('Attack error:', error);
@@ -328,6 +432,8 @@ router.get('/bosses', authenticate, requireGM, async (req, res) => {
       levelReq: boss.levelReq,
       baseHp: boss.baseHp,
       element: boss.element,
+      stats: boss.stats,     // Phase 9.9.1: Include combat stats
+      skill: boss.skill,     // Phase 9.9.1: Include skill info
       rewards: boss.rewards
     }));
     
