@@ -20,6 +20,20 @@ import { HIDDEN_CLASS_SCROLLS, HIDDEN_CLASS_SCROLL_HELPERS } from './special_ite
 import { CONSUMABLES } from './consumables.js';
 
 // ============================================================
+// PHASE 9.9.4: VIP EQUIPMENT IMPORTS
+// VIP items are GM-only granted, not dropped from towers
+// ============================================================
+import { 
+  VIP_EQUIPMENT, 
+  VIP_SETS, 
+  getVipItemById, 
+  getVipSetById,
+  getAllVipItems,
+  getAllVipSets,
+  getVipSetPieces
+} from './vipEquipment.js';
+
+// ============================================================
 // ALL TOWERS
 // ============================================================
 
@@ -134,13 +148,31 @@ export const MATERIALS = buildMaterialsDatabase();
 
 /**
  * Get equipment by ID
+ * PHASE 9.9.4: Now also checks VIP equipment
  */
-export const getEquipmentById = (id) => EQUIPMENT[id] || null;
+export const getEquipmentById = (id) => {
+  // Check regular equipment first
+  if (EQUIPMENT[id]) return EQUIPMENT[id];
+  
+  // Check VIP equipment
+  if (VIP_EQUIPMENT[id]) return VIP_EQUIPMENT[id];
+  
+  return null;
+};
 
 /**
  * Get set by ID
+ * PHASE 9.9.4: Now also checks VIP sets
  */
-export const getSetById = (id) => SETS[id] || null;
+export const getSetById = (id) => {
+  // Check regular sets first
+  if (SETS[id]) return SETS[id];
+  
+  // Check VIP sets
+  if (VIP_SETS[id]) return VIP_SETS[id];
+  
+  return null;
+};
 
 /**
  * Get tower data by ID
@@ -258,6 +290,7 @@ export const getBaseClass = (hiddenClass) => {
 
 /**
  * Get random equipment drop
+ * NOTE: VIP equipment is NOT included in random drops
  */
 export const getRandomEquipment = (towerId, floor, playerLevel, playerClass = null, forcedRarity = null) => {
   let pool = getEquipmentForFloor(towerId, floor, playerLevel, playerClass);
@@ -286,17 +319,26 @@ export const getRandomEquipment = (towerId, floor, playerLevel, playerClass = nu
 
 /**
  * Calculate total stats from equipped items
+ * PHASE 9.9.4: Now supports percentage stats
  */
 export const calculateEquipmentStats = (equippedItemIds) => {
   const stats = {
+    // Flat stats
     pAtk: 0, mAtk: 0, pDef: 0, mDef: 0,
     hp: 0, mp: 0,
     str: 0, agi: 0, dex: 0, int: 0, vit: 0,
-    critRate: 0, critDmg: 0
+    critRate: 0, critDmg: 0,
+    // Percentage stats (PHASE 9.9.4)
+    pAtkPercent: 0, mAtkPercent: 0, pDefPercent: 0, mDefPercent: 0,
+    hpPercent: 0, mpPercent: 0,
+    critRatePercent: 0, critDmgPercent: 0,
+    // Special bonuses
+    expBonus: 0, goldBonus: 0
   };
   
   equippedItemIds.forEach(itemId => {
-    const item = EQUIPMENT[itemId];
+    // Check both regular and VIP equipment
+    const item = getEquipmentById(itemId);
     if (item?.stats) {
       Object.keys(item.stats).forEach(stat => {
         if (stats.hasOwnProperty(stat)) {
@@ -321,10 +363,12 @@ export const calculateEquipmentStats = (equippedItemIds) => {
 
 /**
  * Calculate active set bonuses
+ * PHASE 9.9.4: Now also checks VIP sets
  */
 export const calculateSetBonuses = (equippedItemIds) => {
   const result = {};
   
+  // Check regular sets
   Object.values(SETS).forEach(set => {
     const matchingPieces = set.pieces.filter(pieceId => equippedItemIds.includes(pieceId));
     const count = matchingPieces.length;
@@ -355,6 +399,40 @@ export const calculateSetBonuses = (equippedItemIds) => {
         activeDescriptions,
         class: set.class,
         tower: set.tower
+      };
+    }
+  });
+  
+  // PHASE 9.9.4: Check VIP sets
+  Object.values(VIP_SETS).forEach(set => {
+    const matchingPieces = set.pieces.filter(pieceId => equippedItemIds.includes(pieceId));
+    const count = matchingPieces.length;
+    
+    if (count >= 2 && set.setBonus) {
+      const activeBonuses = {};
+      const activeDescriptions = [];
+      
+      Object.keys(set.setBonus).forEach(threshold => {
+        if (count >= parseInt(threshold)) {
+          const bonus = set.setBonus[threshold];
+          Object.keys(bonus).forEach(key => {
+            if (key !== 'description') {
+              activeBonuses[key] = (activeBonuses[key] || 0) + bonus[key];
+            } else {
+              activeDescriptions.push(`(${threshold}pc) ${bonus.description}`);
+            }
+          });
+        }
+      });
+      
+      result[set.id] = {
+        name: set.name,
+        icon: '🎁',
+        pieces: count,
+        totalPieces: set.pieces.length,
+        activeBonuses,
+        activeDescriptions,
+        isVIP: true
       };
     }
   });
@@ -403,7 +481,15 @@ export {
   CLASSES,
   HIDDEN_CLASS_SCROLLS,
   HIDDEN_CLASS_SCROLL_HELPERS,
-  CONSUMABLES
+  CONSUMABLES,
+  // PHASE 9.9.4: VIP Equipment exports
+  VIP_EQUIPMENT,
+  VIP_SETS,
+  getVipItemById,
+  getVipSetById,
+  getAllVipItems,
+  getAllVipSets,
+  getVipSetPieces
 };
 
 export default {
@@ -415,5 +501,8 @@ export default {
   SLOTS,
   TOWER_CONFIGS,
   HIDDEN_CLASS_SCROLLS,
-  CONSUMABLES
+  CONSUMABLES,
+  // PHASE 9.9.4: VIP exports
+  VIP_EQUIPMENT,
+  VIP_SETS
 };
