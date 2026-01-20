@@ -168,20 +168,20 @@ awakened-protocol-zero/
 - [x] Dark, Solo Leveling-inspired UI
 
 ### Phase 2 (Next)
-- [ ] Tower system with 2 towers
-- [ ] Turn-based combat system
-- [ ] Enemy encounters
-- [ ] Floor progression
-- [ ] Boss battles
-- [ ] Loot drops
+- [x] Tower system with 2 towers
+- [x] Turn-based combat system
+- [x] Enemy encounters
+- [x] Floor progression
+- [x] Boss battles
+- [x] Loot drops
 
 ### Phase 3 (Future)
-- [ ] Hidden class scroll drops
-- [ ] Hidden class quests
-- [ ] Class evolution system
-- [ ] Equipment system
-- [ ] Inventory management
-- [ ] Shop/trading
+- [x] Hidden class scroll drops
+- [x] Hidden class quests
+- [x] Class evolution system
+- [x] Equipment system
+- [x] Inventory management
+- [x] Shop/trading
 
 ### Phase 4 (Later)
 - [ ] Additional towers
