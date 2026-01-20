@@ -338,6 +338,32 @@ export const dungeonBreakAPI = {
 };
 
 // ============================================
+// HELP API (Phase 10 - Co-op Boss Help)
+// ============================================
+export const helpAPI = {
+  // Get my active help request
+  getActive: () => api.get('/help/active'),
+  
+  // Create help request (from boss floor)
+  createRequest: (towerId, floor) => api.post('/help/request', { towerId, floor }),
+  
+  // Cancel my help request
+  cancel: (requestId) => api.delete(`/help/cancel/${requestId}`),
+  
+  // Get available requests from friends
+  getAvailable: () => api.get('/help/available'),
+  
+  // Accept and help a friend (simulated combat)
+  accept: (requestId) => api.post(`/help/accept/${requestId}`),
+  
+  // Get help history
+  getHistory: () => api.get('/help/history'),
+  
+  // Get my helper stats
+  getStats: () => api.get('/help/stats'),
+};
+
+// ============================================
 // STORY API (if you have story mode)
 // ============================================
 export const storyAPI = {
