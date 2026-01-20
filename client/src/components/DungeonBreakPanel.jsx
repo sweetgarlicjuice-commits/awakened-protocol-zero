@@ -2,18 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { dungeonBreakAPI } from '../services/api';
 
 // ============================================
-// DUNGEON BREAK PANEL - Player View (Phase 9.9.1)
-// ============================================
-// Features:
-// - See active dungeon break event
-// - Attack boss and deal damage
-// - Boss counter-attacks! (NEW)
-// - Player HP/MP display (NEW)
-// - Attack cooldown (NEW)
-// - Death state handling (NEW)
-// - View real-time leaderboard
-// - Claim rewards after event ends
-// - View participation history
+// DUNGEON BREAK PANEL - Player View (Phase 9.9.2)
 // ============================================
 
 const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
@@ -22,63 +11,65 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
   const [myStatus, setMyStatus] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [history, setHistory] = useState([]);
+  const [myCoins, setMyCoins] = useState(null);
+  const [shop, setShop] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAttacking, setIsAttacking] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
   const [lastCombat, setLastCombat] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [activeTab, setActiveTab] = useState('event'); // event, leaderboard, history
+  const [activeTab, setActiveTab] = useState('event');
   const [cooldown, setCooldown] = useState(0);
+  const [selectedSet, setSelectedSet] = useState(null);
 
-  // Cooldown timer
   useEffect(() => {
     if (cooldown <= 0) return;
-    
-    const timer = setInterval(() => {
-      setCooldown(prev => Math.max(0, prev - 100));
-    }, 100);
-    
+    const timer = setInterval(() => setCooldown(prev => Math.max(0, prev - 100)), 100);
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  // Fetch active event
   const fetchActiveEvent = useCallback(async () => {
     try {
       const { data } = await dungeonBreakAPI.getActive();
       setActiveEvent(data.active ? data.event : null);
       setMyParticipation(data.myParticipation || null);
       setMyStatus(data.myStatus || null);
-      
-      // Set initial cooldown if any
-      if (data.myParticipation?.cooldownRemaining > 0) {
-        setCooldown(data.myParticipation.cooldownRemaining);
-      }
-      
+      if (data.myParticipation?.cooldownRemaining > 0) setCooldown(data.myParticipation.cooldownRemaining);
       if (data.active && data.event?.id) {
         const lbData = await dungeonBreakAPI.getLeaderboard(data.event.id);
         setLeaderboard(lbData.data?.leaderboard || []);
       }
-    } catch (err) {
-      console.error('Failed to fetch event:', err);
-    }
+    } catch (err) { console.error('Failed to fetch event:', err); }
     setIsLoading(false);
   }, []);
 
-  // Fetch history
   const fetchHistory = async () => {
     try {
       const { data } = await dungeonBreakAPI.getMyHistory();
       setHistory(data.history || []);
-    } catch (err) {
-      console.error('Failed to fetch history:', err);
-    }
+    } catch (err) { console.error('Failed to fetch history:', err); }
+  };
+
+  const fetchCoins = async () => {
+    try {
+      const { data } = await dungeonBreakAPI.getMyCoins();
+      setMyCoins(data);
+    } catch (err) { console.error('Failed to fetch coins:', err); }
+  };
+
+  const fetchShop = async () => {
+    try {
+      const { data } = await dungeonBreakAPI.getShop();
+      setShop(data.shop || []);
+    } catch (err) { console.error('Failed to fetch shop:', err); }
   };
 
   useEffect(() => {
     fetchActiveEvent();
     fetchHistory();
-    
-    // Poll for updates every 5 seconds during active event
+    fetchCoins();
+    fetchShop();
     const interval = setInterval(fetchActiveEvent, 5000);
     return () => clearInterval(interval);
   }, [fetchActiveEvent]);
@@ -88,17 +79,12 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
     setTimeout(() => setMessage({ type: '', text: '' }), 4000);
   };
 
-  // Attack the boss
   const handleAttack = async () => {
     if (!activeEvent || isAttacking || cooldown > 0) return;
-    
-    // Check level requirement
     if (character.level < activeEvent.boss?.levelReq) {
       showMessage('error', `You need to be level ${activeEvent.boss.levelReq} to participate!`);
       return;
     }
-    
-    // Check if dead
     if (myStatus?.isDead || myStatus?.hp <= 0) {
       showMessage('error', '💀 You are dead! Use a potion to heal first.');
       return;
@@ -107,99 +93,49 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
     setIsAttacking(true);
     try {
       const { data } = await dungeonBreakAPI.attack();
+      if (data.cooldownMs) setCooldown(data.cooldownMs);
+      setLastCombat({ playerAttack: data.playerAttack, bossAttack: data.bossAttack, timestamp: Date.now() });
+      setMyStatus({ hp: data.player.hp, maxHp: data.player.maxHp, mp: data.player.mp, maxMp: data.player.maxMp, isDead: data.player.died });
+      setMyParticipation(prev => ({ ...prev, totalDamage: data.myStats?.totalDamage, rank: data.myStats?.rank }));
       
-      // Set cooldown
-      if (data.cooldownMs) {
-        setCooldown(data.cooldownMs);
-      }
-      
-      // Update combat result
-      setLastCombat({
-        playerAttack: data.playerAttack,
-        bossAttack: data.bossAttack,
-        timestamp: Date.now()
-      });
-      
-      // Update player status
-      setMyStatus({
-        hp: data.player.hp,
-        maxHp: data.player.maxHp,
-        mp: data.player.mp,
-        maxMp: data.player.maxMp,
-        isDead: data.player.died
-      });
-      
-      // Update participation stats
-      setMyParticipation(prev => ({
-        ...prev,
-        totalDamage: data.myStats?.totalDamage || (prev?.totalDamage || 0) + data.playerAttack.damage,
-        rank: data.myStats?.rank
-      }));
-      
-      // Build message
-      let msg = '';
-      if (data.playerAttack.isCrit) {
-        msg += `💥 CRIT! You dealt ${formatNumber(data.playerAttack.damage)} damage! `;
-      } else {
-        msg += `⚔️ You dealt ${formatNumber(data.playerAttack.damage)} damage! `;
-      }
-      
+      let msg = data.playerAttack.isCrit ? `💥 CRIT! ${formatNumber(data.playerAttack.damage)} dmg! ` : `⚔️ ${formatNumber(data.playerAttack.damage)} dmg! `;
       if (data.bossAttack) {
-        if (data.bossAttack.usedSkill) {
-          msg += `${data.bossAttack.skillIcon} Boss used ${data.bossAttack.skillName}! `;
-        }
-        if (data.bossAttack.isCrit) {
-          msg += `💥 Boss CRIT for ${formatNumber(data.bossAttack.damage)}!`;
-        } else {
-          msg += `Boss hit you for ${formatNumber(data.bossAttack.damage)}!`;
-        }
+        if (data.bossAttack.usedSkill) msg += `${data.bossAttack.skillIcon} ${data.bossAttack.skillName}! `;
+        msg += `Boss: ${formatNumber(data.bossAttack.damage)} dmg`;
       }
       
-      if (data.player.died) {
-        showMessage('error', `${msg} 💀 YOU DIED! Heal to continue.`);
-      } else if (data.boss?.defeated) {
-        showMessage('success', '🎉 BOSS DEFEATED! Claim your rewards!');
-        fetchActiveEvent();
-      } else {
-        showMessage(data.bossAttack?.usedSkill ? 'warning' : 'success', msg);
-      }
+      if (data.player.died) showMessage('error', `${msg} 💀 YOU DIED!`);
+      else if (data.boss?.defeated) { showMessage('success', '🎉 BOSS DEFEATED!'); fetchActiveEvent(); }
+      else showMessage(data.bossAttack?.usedSkill ? 'warning' : 'success', msg);
       
-      // Refresh character for HP updates
       if (refreshCharacter) refreshCharacter();
-      
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Attack failed!';
-      showMessage('error', errorMsg);
-      
-      // Handle cooldown error
-      if (err.response?.data?.cooldownRemaining) {
-        setCooldown(err.response.data.cooldownRemaining);
-      }
-      
-      // Handle dead state
-      if (err.response?.data?.isDead) {
-        setMyStatus(prev => ({ ...prev, isDead: true, hp: 0 }));
-      }
+      showMessage('error', err.response?.data?.error || 'Attack failed!');
+      if (err.response?.data?.cooldownRemaining) setCooldown(err.response.data.cooldownRemaining);
     }
     setIsAttacking(false);
   };
 
-  // Claim rewards
   const handleClaimRewards = async (eventId) => {
     setIsClaiming(true);
     try {
       const { data } = await dungeonBreakAPI.claimRewards(eventId);
-      
-      showMessage('success', `🎁 Claimed! +${data.rewards.gold}g, +${data.rewards.exp} EXP`);
-      
-      // Refresh data
-      fetchHistory();
+      showMessage('success', `🎁 +${data.rewards.coins} ${data.rewards.coinName}, +${data.rewards.gold}g, +${data.rewards.exp} EXP`);
+      fetchHistory(); fetchCoins();
       if (refreshCharacter) refreshCharacter();
-      
-    } catch (err) {
-      showMessage('error', err.response?.data?.error || 'Failed to claim rewards');
-    }
+    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed to claim'); }
     setIsClaiming(false);
+  };
+
+  const handleRedeem = async (setId, pieceSlot) => {
+    setIsRedeeming(true);
+    try {
+      const { data } = await dungeonBreakAPI.redeem(setId, pieceSlot);
+      showMessage('success', `🎉 ${data.message}`);
+      fetchCoins(); fetchShop();
+      if (refreshCharacter) refreshCharacter();
+    } catch (err) { showMessage('error', err.response?.data?.error || 'Failed to redeem'); }
+    setIsRedeeming(false);
   };
 
   const formatNumber = (num) => {
@@ -208,14 +144,13 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
     return num?.toLocaleString() || '0';
   };
 
-  const formatTime = (ms) => {
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-    
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    if (minutes > 0) return `${minutes}m ${seconds}s`;
-    return `${seconds}s`;
+  const getRarityColor = (rarity) => {
+    switch(rarity) {
+      case 'legendary': return 'text-orange-400 border-orange-500/50';
+      case 'mythic': return 'text-pink-400 border-pink-500/50';
+      case 'epic': return 'text-purple-400 border-purple-500/50';
+      default: return 'text-gray-400 border-gray-500/50';
+    }
   };
 
   const canParticipate = activeEvent && character.level >= (activeEvent.boss?.levelReq || 0);
@@ -225,409 +160,324 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
   if (isLoading) {
     return (
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="text-purple-400 text-lg">Loading Dungeon Break...</div>
+        <div className="text-purple-400 text-lg">Loading...</div>
       </div>
     );
   }
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
-      <div className="bg-void-900 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden neon-border">
+      <div className="bg-void-900 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden neon-border">
         {/* Header */}
         <div className="bg-gradient-to-r from-red-900/50 to-purple-900/50 p-4 border-b border-red-500/30 flex justify-between items-center">
-          <h2 className="font-display text-xl text-red-400 flex items-center gap-2">
-            🔥 Dungeon Break
-          </h2>
+          <h2 className="font-display text-xl text-red-400">🔥 Dungeon Break</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-2xl">×</button>
         </div>
 
-        {/* Player Status Bar (NEW in 9.9.1) */}
+        {/* Player HP Bar (during event) */}
         {myStatus && activeEvent && (
           <div className="bg-void-800 px-4 py-2 border-b border-purple-500/30">
             <div className="flex items-center gap-4">
-              {/* HP Bar */}
               <div className="flex-1">
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-red-400">❤️ HP</span>
                   <span className={isDead ? 'text-red-500 font-bold' : 'text-gray-300'}>
-                    {isDead ? '💀 DEAD' : `${myStatus.hp} / ${myStatus.maxHp}`}
+                    {isDead ? '💀 DEAD' : `${myStatus.hp}/${myStatus.maxHp}`}
                   </span>
                 </div>
-                <div className="h-3 bg-void-700 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-300 ${
-                      isDead ? 'bg-gray-600' : 
-                      (myStatus.hp / myStatus.maxHp) < 0.3 ? 'bg-red-600 animate-pulse' : 'bg-red-500'
-                    }`}
-                    style={{ width: `${Math.max(0, (myStatus.hp / myStatus.maxHp) * 100)}%` }}
-                  />
+                <div className="h-2 bg-void-700 rounded-full overflow-hidden">
+                  <div className={`h-full transition-all ${isDead ? 'bg-gray-600' : 'bg-red-500'}`}
+                    style={{ width: `${Math.max(0, (myStatus.hp / myStatus.maxHp) * 100)}%` }} />
                 </div>
               </div>
-              
-              {/* MP Bar */}
               <div className="flex-1">
                 <div className="flex justify-between text-xs mb-1">
                   <span className="text-blue-400">💧 MP</span>
-                  <span className="text-gray-300">{myStatus.mp} / {myStatus.maxMp}</span>
+                  <span className="text-gray-300">{myStatus.mp}/{myStatus.maxMp}</span>
                 </div>
-                <div className="h-3 bg-void-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-500 transition-all duration-300"
-                    style={{ width: `${(myStatus.mp / myStatus.maxMp) * 100}%` }}
-                  />
+                <div className="h-2 bg-void-700 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500" style={{ width: `${(myStatus.mp / myStatus.maxMp) * 100}%` }} />
                 </div>
               </div>
             </div>
-            
-            {/* Dead Warning */}
-            {isDead && (
-              <div className="mt-2 p-2 bg-red-900/30 border border-red-500/50 rounded text-center">
-                <span className="text-red-400 text-sm">💀 You are dead! Use a potion from your inventory to heal.</span>
-              </div>
-            )}
+          </div>
+        )}
+
+        {/* Coin Display */}
+        {myCoins && (
+          <div className="bg-void-800/50 px-4 py-2 border-b border-purple-500/30 flex items-center gap-3 overflow-x-auto text-xs">
+            <span className="text-gray-400">Coins:</span>
+            {Object.entries(myCoins.coins).map(([level, coin]) => (
+              <span key={level} className="text-yellow-400 whitespace-nowrap">
+                🪙{coin.amount} <span className="text-gray-500">{level.toUpperCase()}</span>
+              </span>
+            ))}
           </div>
         )}
 
         {/* Message */}
         {message.text && (
-          <div className={`p-3 text-center text-sm ${
+          <div className={`p-2 text-center text-sm ${
             message.type === 'success' ? 'bg-green-500/20 text-green-400' : 
-            message.type === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
-            'bg-red-500/20 text-red-400'
-          }`}>
-            {message.text}
-          </div>
+            message.type === 'warning' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+          }`}>{message.text}</div>
         )}
 
         {/* Tabs */}
         <div className="flex border-b border-purple-500/30">
-          <button
-            onClick={() => setActiveTab('event')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-              activeTab === 'event' 
-                ? 'bg-red-500/20 text-red-400 border-b-2 border-red-500' 
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            ⚔️ Active Event
-          </button>
-          <button
-            onClick={() => setActiveTab('leaderboard')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-              activeTab === 'leaderboard' 
-                ? 'bg-yellow-500/20 text-yellow-400 border-b-2 border-yellow-500' 
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            🏆 Leaderboard
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex-1 py-3 px-4 text-sm font-medium transition-colors ${
-              activeTab === 'history' 
-                ? 'bg-purple-500/20 text-purple-400 border-b-2 border-purple-500' 
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            📜 History
-          </button>
+          {[
+            { id: 'event', label: '⚔️ Event', color: 'red' },
+            { id: 'leaderboard', label: '🏆 Ranks', color: 'yellow' },
+            { id: 'history', label: '📜 History', color: 'purple' },
+            { id: 'redeem', label: '🛒 Redeem', color: 'green' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${
+                activeTab === tab.id ? `bg-${tab.color}-500/20 text-${tab.color}-400 border-b-2 border-${tab.color}-500` : 'text-gray-400 hover:text-white'
+              }`}
+            >{tab.label}</button>
+          ))}
         </div>
 
         {/* Content */}
         <div className="p-4 overflow-y-auto max-h-[50vh]">
-          {/* Active Event Tab */}
+          
+          {/* EVENT TAB */}
           {activeTab === 'event' && (
-            <>
-              {activeEvent ? (
-                <div className="space-y-4">
-                  {/* Boss Info */}
-                  <div className="bg-gradient-to-r from-red-900/30 to-purple-900/30 rounded-xl p-4 border border-red-500/30">
-                    <div className="flex items-center gap-4 mb-4">
-                      <span className="text-5xl">{activeEvent.boss?.icon}</span>
-                      <div className="flex-1">
-                        <h3 className="text-xl font-bold text-red-400">{activeEvent.boss?.name}</h3>
-                        <p className="text-sm text-gray-400">{activeEvent.boss?.description}</p>
-                        <div className="flex gap-2 mt-1">
-                          <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">
-                            Lv.{activeEvent.boss?.levelReq}+
-                          </span>
-                          <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">
-                            {activeEvent.tier?.name}
-                          </span>
-                          <span className="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded">
-                            {activeEvent.boss?.element}
-                          </span>
-                        </div>
-                        {/* Boss Skill Info */}
-                        {activeEvent.boss?.skill && (
-                          <div className="mt-2 text-xs text-gray-500">
-                            <span className="text-yellow-400">{activeEvent.boss.skill.icon} {activeEvent.boss.skill.name}</span>
-                            <span className="ml-2">({activeEvent.boss.skill.chance}% chance)</span>
-                          </div>
-                        )}
+            activeEvent ? (
+              <div className="space-y-4">
+                {/* Boss Card */}
+                <div className="bg-gradient-to-r from-red-900/30 to-purple-900/30 rounded-xl p-4 border border-red-500/30">
+                  <div className="flex items-center gap-4 mb-3">
+                    <span className="text-4xl">{activeEvent.boss?.icon}</span>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-red-400">{activeEvent.boss?.name}</h3>
+                      <div className="flex gap-2 mt-1 flex-wrap">
+                        <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded">Lv.{activeEvent.boss?.levelReq}+</span>
+                        <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded">🪙 {activeEvent.coinName}</span>
                       </div>
                     </div>
-
-                    {/* HP Bar */}
-                    <div className="mb-3">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-400">Boss HP</span>
-                        <span className="text-red-400">
-                          {formatNumber(activeEvent.hp?.current)} / {formatNumber(activeEvent.hp?.max)}
-                        </span>
-                      </div>
-                      <div className="h-4 bg-void-800 rounded-full overflow-hidden border border-red-500/30">
-                        <div 
-                          className="h-full bg-gradient-to-r from-red-600 to-red-400 transition-all duration-300"
-                          style={{ width: `${activeEvent.hp?.percent}%` }}
-                        />
-                      </div>
-                      <div className="text-right text-xs text-gray-500 mt-1">
-                        {activeEvent.hp?.percent}% remaining
-                      </div>
-                    </div>
-
-                    {/* Time Remaining */}
-                    <div className="text-center text-sm text-yellow-400">
-                      ⏱️ {activeEvent.time?.remainingFormatted} remaining
-                    </div>
+                    <div className="text-right text-sm text-yellow-400">⏱️ {activeEvent.time?.remainingFormatted}</div>
                   </div>
-
-                  {/* Attack Section */}
-                  <div className="bg-void-800 rounded-xl p-4 border border-purple-500/30">
-                    {!canParticipate ? (
-                      <div className="text-center py-4">
-                        <p className="text-red-400">
-                          ⚠️ Minimum level {activeEvent.boss?.levelReq} required
-                        </p>
-                        <p className="text-sm text-gray-500 mt-1">
-                          Your level: {character.level}
-                        </p>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={handleAttack}
-                        disabled={isAttacking || isOnCooldown || isDead || activeEvent.status !== 'active'}
-                        className={`w-full py-4 rounded-lg font-bold text-lg transition-all ${
-                          isDead 
-                            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                            : isOnCooldown
-                              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                              : isAttacking
-                                ? 'bg-yellow-600 text-white'
-                                : 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white transform hover:scale-[1.02]'
-                        }`}
-                      >
-                        {isDead ? (
-                          <span>💀 DEAD - Heal to Attack</span>
-                        ) : isAttacking ? (
-                          <span className="animate-pulse">⚔️ Attacking...</span>
-                        ) : isOnCooldown ? (
-                          <span>⏳ Cooldown ({(cooldown / 1000).toFixed(1)}s)</span>
-                        ) : (
-                          <span>⚔️ ATTACK!</span>
-                        )}
-                      </button>
-                    )}
-
-                    {/* Cooldown Bar */}
-                    {isOnCooldown && !isDead && (
-                      <div className="mt-2">
-                        <div className="h-1 bg-void-700 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-yellow-500 transition-all"
-                            style={{ width: `${(cooldown / 3000) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Last Combat Result */}
-                    {lastCombat && (
-                      <div className="mt-3 space-y-2">
-                        {/* Player Attack */}
-                        <div className={`p-2 rounded-lg text-center ${
-                          lastCombat.playerAttack?.isCrit 
-                            ? 'bg-yellow-500/20 text-yellow-400' 
-                            : 'bg-green-500/20 text-green-400'
-                        }`}>
-                          {lastCombat.playerAttack?.isCrit ? '💥 CRIT! ' : '⚔️ '}
-                          You dealt {formatNumber(lastCombat.playerAttack?.damage)} damage!
-                        </div>
-                        
-                        {/* Boss Counter-Attack */}
-                        {lastCombat.bossAttack && (
-                          <div className={`p-2 rounded-lg text-center ${
-                            lastCombat.bossAttack?.usedSkill 
-                              ? 'bg-purple-500/20 text-purple-400' 
-                              : lastCombat.bossAttack?.isCrit
-                                ? 'bg-red-500/20 text-red-400'
-                                : 'bg-orange-500/20 text-orange-400'
-                          }`}>
-                            {lastCombat.bossAttack?.usedSkill && (
-                              <span>{lastCombat.bossAttack.skillIcon} {lastCombat.bossAttack.skillName}! </span>
-                            )}
-                            {lastCombat.bossAttack?.isCrit ? '💥 CRIT! ' : ''}
-                            Boss hit you for {formatNumber(lastCombat.bossAttack?.damage)}!
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* My Stats */}
-                  {myParticipation && (
-                    <div className="bg-void-800 rounded-xl p-4 border border-purple-500/30">
-                      <h4 className="text-sm font-medium text-purple-400 mb-3">📊 Your Contribution</h4>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="text-center">
-                          <p className="text-2xl font-bold text-green-400">{formatNumber(myParticipation.totalDamage)}</p>
-                          <p className="text-xs text-gray-400">Total Damage</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-2xl font-bold text-yellow-400">#{myParticipation.rank || '?'}</p>
-                          <p className="text-xs text-gray-400">Rank</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-2xl font-bold text-blue-400">{myParticipation.attackCount || 0}</p>
-                          <p className="text-xs text-gray-400">Attacks</p>
-                        </div>
-                      </div>
+                  
+                  {/* Boss HP */}
+                  <div className="mb-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-400">Boss HP</span>
+                      <span className="text-red-400">{formatNumber(activeEvent.hp?.current)} / {formatNumber(activeEvent.hp?.max)}</span>
                     </div>
-                  )}
-
-                  {/* Event Stats */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-void-800 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-purple-400">{activeEvent.stats?.uniqueParticipants || 0}</p>
-                      <p className="text-xs text-gray-400">Hunters</p>
-                    </div>
-                    <div className="bg-void-800 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-blue-400">{activeEvent.stats?.totalAttacks || 0}</p>
-                      <p className="text-xs text-gray-400">Total Attacks</p>
-                    </div>
-                    <div className="bg-void-800 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-green-400">{formatNumber(activeEvent.stats?.totalDamage || 0)}</p>
-                      <p className="text-xs text-gray-400">Total Damage</p>
+                    <div className="h-3 bg-void-800 rounded-full overflow-hidden border border-red-500/30">
+                      <div className="h-full bg-gradient-to-r from-red-600 to-red-400" style={{ width: `${activeEvent.hp?.percent}%` }} />
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">😴</div>
-                  <h3 className="text-xl text-gray-400 mb-2">No Active Dungeon Break</h3>
-                  <p className="text-sm text-gray-500">
-                    Wait for the Game Master to start an event!
-                  </p>
-                  <p className="text-xs text-gray-600 mt-4">
-                    Check back later or ask your GM to start a Dungeon Break event.
-                  </p>
-                </div>
-              )}
-            </>
+
+                {/* Attack Button */}
+                <button
+                  onClick={handleAttack}
+                  disabled={!canParticipate || isAttacking || isOnCooldown || isDead}
+                  className={`w-full py-3 rounded-lg font-bold text-lg transition-all ${
+                    !canParticipate ? 'bg-gray-700 text-gray-500' :
+                    isDead ? 'bg-gray-700 text-gray-500' :
+                    isOnCooldown ? 'bg-gray-700 text-gray-400' :
+                    isAttacking ? 'bg-yellow-600' :
+                    'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500'
+                  }`}
+                >
+                  {!canParticipate ? `⚠️ Need Lv.${activeEvent.boss?.levelReq}` :
+                   isDead ? '💀 DEAD - Heal First' :
+                   isOnCooldown ? `⏳ ${(cooldown/1000).toFixed(1)}s` :
+                   isAttacking ? '⚔️ ...' : '⚔️ ATTACK!'}
+                </button>
+
+                {/* Combat Result */}
+                {lastCombat && (
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className={`p-2 rounded text-center ${lastCombat.playerAttack?.isCrit ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>
+                      You: {formatNumber(lastCombat.playerAttack?.damage)} {lastCombat.playerAttack?.isCrit && '💥'}
+                    </div>
+                    {lastCombat.bossAttack && (
+                      <div className={`p-2 rounded text-center ${lastCombat.bossAttack?.usedSkill ? 'bg-purple-500/20 text-purple-400' : 'bg-orange-500/20 text-orange-400'}`}>
+                        Boss: {formatNumber(lastCombat.bossAttack?.damage)} {lastCombat.bossAttack?.usedSkill && lastCombat.bossAttack.skillIcon}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* My Stats */}
+                {myParticipation?.totalDamage > 0 && (
+                  <div className="bg-void-800 rounded-lg p-3 flex justify-around text-center">
+                    <div><p className="text-xl font-bold text-green-400">{formatNumber(myParticipation.totalDamage)}</p><p className="text-xs text-gray-400">Damage</p></div>
+                    <div><p className="text-xl font-bold text-yellow-400">#{myParticipation.rank}</p><p className="text-xs text-gray-400">Rank</p></div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="text-5xl mb-4">😴</div>
+                <p className="text-gray-400">No Active Event</p>
+                <p className="text-sm text-gray-500 mt-2">Wait for GM to start one!</p>
+              </div>
+            )
           )}
 
-          {/* Leaderboard Tab */}
+          {/* LEADERBOARD TAB */}
           {activeTab === 'leaderboard' && (
-            <div>
-              {leaderboard.length > 0 ? (
-                <div className="space-y-2">
-                  {leaderboard.map((entry, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex items-center justify-between p-3 rounded-lg ${
-                        entry.rank <= 3 
-                          ? 'bg-gradient-to-r from-yellow-900/30 to-void-800 border border-yellow-500/30' 
-                          : 'bg-void-800'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className={`w-8 text-center font-bold text-lg ${
-                          entry.rank === 1 ? 'text-yellow-400' :
-                          entry.rank === 2 ? 'text-gray-300' :
-                          entry.rank === 3 ? 'text-amber-600' :
-                          'text-gray-500'
-                        }`}>
-                          {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
-                        </span>
-                        <div>
-                          <p className="text-white font-medium">{entry.name}</p>
-                          <p className="text-xs text-gray-400">Lv.{entry.level} • {entry.attacks} attacks</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-green-400 font-bold">{formatNumber(entry.damage)}</p>
-                        <p className="text-xs text-gray-500">{entry.damagePercent}%</p>
-                      </div>
+            <div className="space-y-2">
+              {leaderboard.length > 0 ? leaderboard.map((entry, idx) => (
+                <div key={idx} className={`flex items-center justify-between p-2 rounded-lg ${entry.rank <= 3 ? 'bg-yellow-900/20 border border-yellow-500/30' : 'bg-void-800'}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-7 text-center font-bold ${entry.rank === 1 ? 'text-yellow-400' : entry.rank === 2 ? 'text-gray-300' : entry.rank === 3 ? 'text-amber-600' : 'text-gray-500'}`}>
+                      {entry.rank <= 3 ? ['🥇','🥈','🥉'][entry.rank-1] : `#${entry.rank}`}
+                    </span>
+                    <div>
+                      <p className="text-white text-sm">{entry.name}</p>
+                      <p className="text-xs text-gray-500">Lv.{entry.level}</p>
                     </div>
-                  ))}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-green-400 text-sm font-bold">{formatNumber(entry.damage)}</p>
+                    <p className="text-xs text-yellow-400">🪙 {entry.coinsEarned}</p>
+                  </div>
                 </div>
-              ) : (
-                <div className="text-center py-12 text-gray-400">
-                  <p>No participants yet</p>
-                  {activeEvent && <p className="text-sm mt-2">Be the first to attack!</p>}
-                </div>
-              )}
+              )) : <div className="text-center py-8 text-gray-400">No participants</div>}
             </div>
           )}
 
-          {/* History Tab */}
+          {/* HISTORY TAB */}
           {activeTab === 'history' && (
-            <div>
-              {history.length > 0 ? (
-                <div className="space-y-3">
-                  {history.map((event, idx) => (
-                    <div key={idx} className="bg-void-800 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{event.boss?.icon}</span>
-                          <div>
-                            <p className="text-white font-medium">{event.boss?.name}</p>
-                            <p className="text-xs text-gray-400">
-                              {new Date(event.completedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          event.status === 'completed' ? 'bg-green-500/20 text-green-400' :
-                          event.status === 'failed' ? 'bg-red-500/20 text-red-400' :
-                          'bg-gray-500/20 text-gray-400'
-                        }`}>
-                          {event.status}
-                        </span>
+            <div className="space-y-3">
+              {history.length > 0 ? history.map((event, idx) => (
+                <div key={idx} className="bg-void-800 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{event.boss?.icon}</span>
+                      <div>
+                        <p className="text-white text-sm">{event.boss?.name}</p>
+                        <p className="text-xs text-gray-500">{new Date(event.completedAt).toLocaleDateString()}</p>
                       </div>
-                      
-                      {event.myStats && (
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-void-700">
-                          <div className="flex gap-4 text-sm">
-                            <span className="text-green-400">
-                              ⚔️ {formatNumber(event.myStats.totalDamage)} dmg
-                            </span>
-                            <span className="text-yellow-400">
-                              🏆 Rank #{event.myStats.rank}
-                            </span>
-                          </div>
-                          
-                          {!event.myStats.rewardsClaimed && event.status === 'completed' ? (
-                            <button
-                              onClick={() => handleClaimRewards(event.id)}
-                              disabled={isClaiming}
-                              className="px-4 py-1 bg-green-600 hover:bg-green-500 rounded text-sm font-medium disabled:opacity-50"
-                            >
-                              {isClaiming ? 'Claiming...' : '🎁 Claim Rewards'}
-                            </button>
-                          ) : event.myStats.rewardsClaimed ? (
-                            <span className="text-xs text-gray-500">✓ Claimed</span>
-                          ) : null}
-                        </div>
-                      )}
                     </div>
-                  ))}
+                    <span className={`text-xs px-2 py-1 rounded ${event.status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {event.status}
+                    </span>
+                  </div>
+                  {event.myStats && (
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-void-700">
+                      <div className="flex gap-3 text-xs">
+                        <span className="text-green-400">⚔️ {formatNumber(event.myStats.totalDamage)}</span>
+                        <span className="text-yellow-400">#{event.myStats.rank}</span>
+                        <span className="text-yellow-400">🪙 {event.myStats.coinsEarned}</span>
+                      </div>
+                      {!event.myStats.rewardsClaimed && event.status === 'completed' ? (
+                        <button onClick={() => handleClaimRewards(event.id)} disabled={isClaiming}
+                          className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded text-xs disabled:opacity-50">
+                          {isClaiming ? '...' : '🎁 Claim'}
+                        </button>
+                      ) : event.myStats.rewardsClaimed && <span className="text-xs text-gray-500">✓</span>}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="text-center py-12 text-gray-400">
-                  <p>No participation history yet</p>
-                  <p className="text-sm mt-2">Join a Dungeon Break event to get started!</p>
+              )) : <div className="text-center py-8 text-gray-400">No history</div>}
+            </div>
+          )}
+
+          {/* REDEEM TAB */}
+          {activeTab === 'redeem' && (
+            <div className="space-y-4">
+              {/* Set Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {shop.map(set => (
+                  <button
+                    key={set.setId}
+                    onClick={() => setSelectedSet(selectedSet?.setId === set.setId ? null : set)}
+                    className={`p-3 rounded-lg border text-left transition-all ${
+                      selectedSet?.setId === set.setId ? `${getRarityColor(set.rarity)} bg-void-700` : 'border-void-600 bg-void-800 hover:border-purple-500/50'
+                    }`}
+                  >
+                    <div className="flex justify-between">
+                      <div>
+                        <h4 className={`font-medium text-sm ${getRarityColor(set.rarity).split(' ')[0]}`}>{set.name}</h4>
+                        <p className="text-xs text-gray-500">Lv.{set.levelReq}+ • {set.rarity}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">{set.coinName}</p>
+                        <p className={`text-sm font-bold ${set.playerCoins >= 25 ? 'text-green-400' : 'text-red-400'}`}>🪙 {set.playerCoins}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Selected Set Pieces */}
+              {selectedSet && (
+                <div className={`bg-void-800 rounded-xl p-4 border ${getRarityColor(selectedSet.rarity)}`}>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className={`font-bold ${getRarityColor(selectedSet.rarity).split(' ')[0]}`}>{selectedSet.name}</h3>
+                    <span className="text-xs text-gray-400">Cost: 25 {selectedSet.coinName}</span>
+                  </div>
+                  
+                  {/* Level Check */}
+                  {character.level < selectedSet.levelReq && (
+                    <div className="mb-3 p-2 bg-red-900/30 border border-red-500/50 rounded text-center text-sm text-red-400">
+                      ⚠️ Requires Level {selectedSet.levelReq} (You: Lv.{character.level})
+                    </div>
+                  )}
+                  
+                  {/* Pieces */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {selectedSet.pieces.map(piece => {
+                      const canAfford = selectedSet.playerCoins >= 25;
+                      const meetsLevel = character.level >= selectedSet.levelReq;
+                      const canRedeem = canAfford && meetsLevel;
+                      
+                      return (
+                        <div key={piece.slot} className="bg-void-900 rounded-lg p-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{piece.icon}</span>
+                            <div>
+                              <p className="text-white text-sm">{piece.name}</p>
+                              <p className="text-xs text-gray-500">{piece.slot}</p>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {Object.entries(piece.stats).map(([stat, val]) => (
+                                  <span key={stat} className="text-xs text-green-400">+{val} {stat}</span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleRedeem(selectedSet.setId, piece.slot)}
+                            disabled={!canRedeem || isRedeeming}
+                            className={`px-3 py-1 rounded text-sm font-medium ${
+                              canRedeem ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            }`}
+                          >
+                            {isRedeeming ? '...' : '🪙 25'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Set Bonuses */}
+                  <div className="mt-4 pt-3 border-t border-void-700">
+                    <h4 className="text-sm text-purple-400 mb-2">Set Bonuses</h4>
+                    <div className="space-y-1 text-xs">
+                      {Object.entries(selectedSet.setBonuses).map(([count, bonus]) => (
+                        <div key={count} className="flex justify-between text-gray-400">
+                          <span className="text-yellow-400">{bonus.name}:</span>
+                          <span>{bonus.effect}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!selectedSet && (
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  👆 Select a set above to see pieces and redeem
                 </div>
               )}
             </div>
@@ -635,17 +485,10 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
         </div>
 
         {/* Footer */}
-        <div className="bg-void-800 p-3 border-t border-purple-500/30 flex justify-between items-center">
-          <div className="text-xs text-gray-500">
-            {activeEvent ? '🔴 Event Active' : '⚫ No Event'}
-            {isDead && activeEvent && <span className="ml-2 text-red-400">• 💀 Dead</span>}
-          </div>
-          <button
-            onClick={fetchActiveEvent}
-            className="px-3 py-1 bg-void-700 hover:bg-void-600 rounded text-sm text-gray-300"
-          >
-            🔄 Refresh
-          </button>
+        <div className="bg-void-800 p-2 border-t border-purple-500/30 flex justify-between items-center text-xs">
+          <span className="text-gray-500">{activeEvent ? '🔴 Event Active' : '⚫ No Event'}</span>
+          <button onClick={() => { fetchActiveEvent(); fetchCoins(); fetchShop(); }}
+            className="px-2 py-1 bg-void-700 hover:bg-void-600 rounded text-gray-300">🔄</button>
         </div>
       </div>
     </div>
