@@ -191,6 +191,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const [eventData, setEventData] = useState(null);
   const [message, setMessage] = useState(null);
   const [playerBuffs, setPlayerBuffs] = useState([]);
+  const [shrineBuffs, setShrineBuffs] = useState([]); // Floor-persistent shrine blessings
   const [playerSkills, setPlayerSkills] = useState([]);
   const [selectedFloor, setSelectedFloor] = useState(character.currentFloor || 1);
   const [highestFloor, setHighestFloor] = useState(1);
@@ -260,6 +261,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       setFloorMap(data.map);
       setTower(data.tower);
       if (data.highestFloor) setHighestFloor(data.highestFloor);
+      if (data.shrineBuffs) setShrineBuffs(data.shrineBuffs);
       setView('map');
       onTowerStateChange?.(true);
       addLog?.('info', `Entered ${data.tower.name} Floor ${data.floor}`);
@@ -289,6 +291,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       setCombatLog(data.combat.combatLog || []);
       setPlayerSkills(data.character.skills || []);
       setPlayerBuffs([]);
+      if (data.shrineBuffs) setShrineBuffs(data.shrineBuffs);
       setSelectedTarget(0);
       setView('combat');
     } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
@@ -333,7 +336,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           setHighestFloor(newFloor);
           setSelectedFloor(newFloor);
           addLog?.('success', `Floor cleared! Floor ${newFloor} unlocked!`);
-          setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); onCharacterUpdate?.(); }, 2500);
+          setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); setShrineBuffs([]); onCharacterUpdate?.(); }, 2500);
         } else {
           setTimeout(() => { setView('map'); setCombat(null); setMessage(null); setPlayerBuffs([]); onCharacterUpdate?.(); }, 1500);
         }
@@ -343,11 +346,12 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
       } else if (data.status === 'defeat') {
         setCombatLog(data.combatLog);
         setMessage({ type: 'error', text: 'Defeated! Returning to town...' });
-        setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); onTowerStateChange?.(false); onCharacterUpdate?.(); }, 2000);
+        setTimeout(() => { setView('select'); setCombat(null); setMessage(null); setPlayerBuffs([]); setShrineBuffs([]); onTowerStateChange?.(false); onCharacterUpdate?.(); }, 2000);
       } else {
         setCombat(data.combat);
         setCombatLog(data.combat.combatLog);
         setPlayerBuffs(data.playerBuffs || []);
+        if (data.shrineBuffs) setShrineBuffs(data.shrineBuffs);
         updateLocalCharacter?.({ stats: { ...character.stats, hp: data.character.hp, mp: data.character.mp } });
       }
     } catch (err) { addLog?.('error', err.response?.data?.error || err.message); }
@@ -393,7 +397,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
   const leaveTower = async () => {
     try {
       await api.post('/exploration/leave');
-      setView('select'); setFloorMap(null); setCombat(null); setMessage(null); setPlayerBuffs([]);
+      setView('select'); setFloorMap(null); setCombat(null); setMessage(null); setPlayerBuffs([]); setShrineBuffs([]);
       onTowerStateChange?.(false);
       addLog?.('info', 'Left the tower');
       onCharacterUpdate?.();
@@ -513,6 +517,18 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           </div>
           <button onClick={leaveTower} className="text-red-400 hover:text-red-300 text-sm">🚪 Leave</button>
         </div>
+        
+        {/* Active Shrine Blessings */}
+        {shrineBuffs.length > 0 && (
+          <div className="bg-purple-900/30 rounded-lg p-2 flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-purple-300">📜 Blessings:</span>
+            {shrineBuffs.map((b, i) => (
+              <span key={i} className="bg-purple-600/50 px-2 py-0.5 rounded text-xs text-white" title={b.name}>
+                {b.icon} {b.desc}
+              </span>
+            ))}
+          </div>
+        )}
         
         {/* Map Grid */}
         <div className="bg-void-800/30 rounded-xl p-4 overflow-x-auto">
@@ -644,7 +660,19 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
           <div className="text-right text-xs"><p className="text-green-400">HP: {character.stats.hp}/{character.stats.maxHp}</p><p className="text-blue-400">MP: {character.stats.mp}/{character.stats.maxMp}</p></div>
         </div>
         
-        {/* Active Buffs */}
+        {/* Shrine Blessings (Floor-persistent) */}
+        {shrineBuffs.length > 0 && (
+          <div className="bg-purple-900/30 rounded-lg p-2 flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-purple-300">📜 Blessings:</span>
+            {shrineBuffs.map((b, i) => (
+              <span key={i} className="bg-purple-600/50 px-2 py-0.5 rounded text-xs text-white" title={b.name}>
+                {b.icon} {b.desc}
+              </span>
+            ))}
+          </div>
+        )}
+        
+        {/* Active Buffs (Turn-based) */}
         {playerBuffs.length > 0 && (
           <div className="bg-blue-900/30 rounded-lg p-2 flex flex-wrap gap-2">
             <span className="text-xs text-blue-300">Active:</span>
