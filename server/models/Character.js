@@ -212,6 +212,7 @@ const skillSchema = new mongoose.Schema({
 });
 
 // PHASE 9.3 FIX: Added setId for set bonus tracking
+// PHASE 9.9.4: Added VIP expiration fields
 const inventoryItemSchema = new mongoose.Schema({
   itemId: String,
   name: String,
@@ -223,20 +224,33 @@ const inventoryItemSchema = new mongoose.Schema({
   stackable: { type: Boolean, default: true },
   stats: mongoose.Schema.Types.Mixed,
   sellPrice: { type: Number, default: 5 },
-  setId: { type: String, default: null }  // PHASE 9.3 FIX: Track set membership
+  setId: { type: String, default: null },
+  // PHASE 9.9.4: VIP Item Expiration Fields
+  vipOnly: { type: Boolean, default: false },
+  expirationType: { type: String, default: null }, // 'on_first_equip' or 'on_grant'
+  expirationDays: { type: Number, default: null },
+  firstEquippedAt: { type: Date, default: null },
+  expiresAt: { type: Date, default: null }
 });
 
 // PHASE 9.3 FIX: Added setId for set bonus tracking
 // PHASE 9.3.1 FIX: Added subtype for proper re-equip after unequip
+// PHASE 9.9.4: Added VIP expiration fields
 const equipmentSlotSchema = new mongoose.Schema({
   itemId: { type: String, default: null },
   name: { type: String, default: null },
   icon: { type: String, default: null },
   type: String,
-  subtype: { type: String, default: null },  // PHASE 9.3.1 FIX: Store subtype
+  subtype: { type: String, default: null },
   rarity: String,
   stats: mongoose.Schema.Types.Mixed,
-  setId: { type: String, default: null }  // PHASE 9.3 FIX: Track set membership for set bonus calculation
+  setId: { type: String, default: null },
+  // PHASE 9.9.4: VIP Item Expiration Fields
+  vipOnly: { type: Boolean, default: false },
+  expirationType: { type: String, default: null },
+  expirationDays: { type: Number, default: null },
+  firstEquippedAt: { type: Date, default: null },
+  expiresAt: { type: Date, default: null }
 });
 
 // Active buff schema for combat
@@ -249,7 +263,7 @@ const activeBuffSchema = new mongoose.Schema({
   category: String,
   value: Number,
   duration: Number,
-  damagePerTurn: Number,  // For DoTs
+  damagePerTurn: Number,
   source: String,
   stacks: { type: Number, default: 1 }
 });
@@ -336,6 +350,7 @@ const characterSchema = new mongoose.Schema({
   },
   
   // Derived Stats (calculated from base + equipment)
+  // PHASE 9.9.4: Added expBonus and goldBonus
   derivedStats: {
     pDmg: { type: Number, default: 0 },
     mDmg: { type: Number, default: 0 },
@@ -347,6 +362,10 @@ const characterSchema = new mongoose.Schema({
     evasion: { type: Number, default: 0 },
     hpRegen: { type: Number, default: 0 },
     mpRegen: { type: Number, default: 0 },
+    bonusHp: { type: Number, default: 0 },
+    bonusMp: { type: Number, default: 0 },
+    expBonus: { type: Number, default: 0 },   // PHASE 9.9.4: +X% EXP
+    goldBonus: { type: Number, default: 0 },  // PHASE 9.9.4: +X% Gold
     fireRes: { type: Number, default: 0 },
     waterRes: { type: Number, default: 0 },
     lightningRes: { type: Number, default: 0 },
@@ -466,16 +485,12 @@ const characterSchema = new mongoose.Schema({
   // ============================================================
   // PHASE 9.9.2: RAID COINS - Earned from Dungeon Break events
   // ============================================================
-  // Each boss level gives different coins
-  // Use matching coins to redeem that boss's equipment set
-  // Cost: 25 coins per equipment piece
-  
   raidCoins: {
-    lv5: { type: Number, default: 0 },   // From Shadow Monarch (Lv.5 boss)
-    lv10: { type: Number, default: 0 },  // From Demon King (Lv.10 boss)
-    lv20: { type: Number, default: 0 },  // From Ice Dragon (Lv.20 boss)
-    lv30: { type: Number, default: 0 },  // From Architect (Lv.30 boss)
-    lv40: { type: Number, default: 0 }   // From Absolute Being (Lv.40 boss)
+    lv5: { type: Number, default: 0 },
+    lv10: { type: Number, default: 0 },
+    lv20: { type: Number, default: 0 },
+    lv30: { type: Number, default: 0 },
+    lv40: { type: Number, default: 0 }
   },
   
   // Statistics
@@ -494,7 +509,6 @@ const characterSchema = new mongoose.Schema({
   // PHASE 9.8: SOCIAL FEATURES
   // ============================================================
   
-  // Helper Points - Used for co-op boss help
   helperPoints: {
     type: Number,
     default: 10,
@@ -506,7 +520,6 @@ const characterSchema = new mongoose.Schema({
     default: 30
   },
   
-  // Online status for friend list
   lastOnline: {
     type: Date,
     default: Date.now
@@ -517,14 +530,12 @@ const characterSchema = new mongoose.Schema({
     default: false
   },
   
-  // Current activity (for friend list display)
   currentActivity: {
     type: String,
     enum: ['idle', 'in_tower', 'in_combat', 'in_dungeon_break', 'helping_friend'],
     default: 'idle'
   },
   
-  // Social statistics
   socialStats: {
     helpsGiven: { type: Number, default: 0 },
     helpsReceived: { type: Number, default: 0 },
@@ -532,14 +543,12 @@ const characterSchema = new mongoose.Schema({
     totalDungeonDamage: { type: Number, default: 0 }
   },
   
-  // Titles earned from achievements
   titles: [{
     id: String,
     name: String,
     earnedAt: Date
   }],
   
-  // Currently displayed title
   activeTitle: {
     type: String,
     default: null
@@ -557,11 +566,10 @@ const characterSchema = new mongoose.Schema({
 
 // ============================================================
 // PRE-SAVE MIDDLEWARE - Initialize stats and skills based on class
-// FIX #2 & #3: Apply CLASS_BASE_STATS when creating new character
 // ============================================================
 
 characterSchema.pre('save', function(next) {
-  // FIX #2 & #3: Initialize stats from CLASS_BASE_STATS if not set
+  // Initialize stats from CLASS_BASE_STATS if not set
   if (this.isNew || !this.stats || !this.stats.str) {
     const baseStats = CLASS_BASE_STATS[this.baseClass];
     if (baseStats) {
@@ -612,10 +620,6 @@ characterSchema.pre('save', function(next) {
 
 // ============================================================
 // PHASE 9.5: METHOD - Update energy AND HP/MP based on time passed
-// Regen rates:
-// - Energy: 25 per hour
-// - HP: 5% of maxHp per hour (when NOT in tower)
-// - MP: 10% of maxMp per hour (when NOT in tower)
 // ============================================================
 
 characterSchema.methods.updateEnergy = function() {
@@ -624,7 +628,7 @@ characterSchema.methods.updateEnergy = function() {
   // ===== ENERGY REGEN (always happens) =====
   const lastEnergyUpdate = this.lastEnergyUpdate || now;
   const energyHoursPassed = (now - lastEnergyUpdate) / (1000 * 60 * 60);
-  const energyGain = Math.floor(energyHoursPassed * 25); // 25 energy per hour
+  const energyGain = Math.floor(energyHoursPassed * 25);
   
   if (energyGain > 0) {
     this.energy = Math.min(100, this.energy + energyGain);
@@ -636,13 +640,11 @@ characterSchema.methods.updateEnergy = function() {
     const lastRegenUpdate = this.lastRegenUpdate || now;
     const regenHoursPassed = (now - lastRegenUpdate) / (1000 * 60 * 60);
     
-    if (regenHoursPassed >= 0.1) { // At least 6 minutes passed
-      // HP Regen: 5% of maxHp per hour
-      const hpRegenRate = 0.05; // 5% per hour
+    if (regenHoursPassed >= 0.1) {
+      const hpRegenRate = 0.05;
       const hpGain = Math.floor(this.stats.maxHp * hpRegenRate * regenHoursPassed);
       
-      // MP Regen: 10% of maxMp per hour
-      const mpRegenRate = 0.10; // 10% per hour
+      const mpRegenRate = 0.10;
       const mpGain = Math.floor(this.stats.maxMp * mpRegenRate * regenHoursPassed);
       
       if (hpGain > 0 || mpGain > 0) {
@@ -670,7 +672,7 @@ characterSchema.methods.checkLevelUp = function() {
   while (this.experience >= this.experienceToNextLevel && this.level < 200) {
     this.experience -= this.experienceToNextLevel;
     this.level += 1;
-    this.statPoints += 5; // 5 stat points per level
+    this.statPoints += 5;
     this.experienceToNextLevel = Math.floor(100 * Math.pow(1.15, this.level - 1));
     levelsGained++;
     
@@ -684,23 +686,41 @@ characterSchema.methods.checkLevelUp = function() {
 
 // ============================================================
 // STATIC METHOD - Calculate derived stats
+// PHASE 9.9.4: NOW SUPPORTS BOTH FLAT AND PERCENTAGE BONUSES!
+// 
+// Flat stats: pAtk, mAtk, pDef, mDef, hp, mp, str, agi, dex, int, vit
+// Percent stats: pAtkPercent, mAtkPercent, pDefPercent, mDefPercent, hpPercent, mpPercent
+// Special: expBonus, goldBonus
 // ============================================================
 
 characterSchema.statics.calculateDerivedStats = function(character) {
   const stats = character.stats || {};
   const equipment = character.equipment;
   
-  // Equipment stat bonuses (accumulated from all slots)
+  // ============================================================
+  // FLAT BONUSES (e.g., +15 P.DEF)
+  // ============================================================
   let equipPAtk = 0, equipMAtk = 0, equipPDef = 0, equipMDef = 0;
   let equipStr = 0, equipAgi = 0, equipDex = 0, equipInt = 0, equipVit = 0;
   let equipCritRate = 0, equipCritDmg = 0, equipHp = 0, equipMp = 0;
   
-  // Add equipment bonuses
+  // ============================================================
+  // PERCENTAGE BONUSES (e.g., +15% P.DEF) - NEW IN PHASE 9.9.4!
+  // ============================================================
+  let pAtkPercent = 0, mAtkPercent = 0, pDefPercent = 0, mDefPercent = 0;
+  let hpPercent = 0, mpPercent = 0;
+  let critRatePercent = 0, critDmgPercent = 0;
+  let expBonus = 0, goldBonus = 0;
+  
+  // Add equipment bonuses from all slots
   if (equipment) {
     const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
     slots.forEach(slot => {
       const item = equipment[slot];
       if (item && item.stats) {
+        // ============================================================
+        // FLAT BONUSES
+        // ============================================================
         equipPAtk += item.stats.pAtk || 0;
         equipMAtk += item.stats.mAtk || 0;
         equipPDef += item.stats.pDef || 0;
@@ -714,31 +734,65 @@ characterSchema.statics.calculateDerivedStats = function(character) {
         equipCritDmg += item.stats.critDmg || 0;
         equipHp += item.stats.hp || 0;
         equipMp += item.stats.mp || 0;
+        
+        // ============================================================
+        // PERCENTAGE BONUSES (NEW IN PHASE 9.9.4!)
+        // ============================================================
+        pAtkPercent += item.stats.pAtkPercent || 0;
+        mAtkPercent += item.stats.mAtkPercent || 0;
+        pDefPercent += item.stats.pDefPercent || 0;
+        mDefPercent += item.stats.mDefPercent || 0;
+        hpPercent += item.stats.hpPercent || 0;
+        mpPercent += item.stats.mpPercent || 0;
+        critRatePercent += item.stats.critRatePercent || 0;
+        critDmgPercent += item.stats.critDmgPercent || 0;
+        
+        // Special bonuses
+        expBonus += item.stats.expBonus || 0;
+        goldBonus += item.stats.goldBonus || 0;
       }
     });
   }
   
-  // Total stats = base + equipment
+  // Total base stats = character stats + flat equipment bonuses
   const totalStr = (stats.str || 0) + equipStr;
   const totalAgi = (stats.agi || 0) + equipAgi;
   const totalDex = (stats.dex || 0) + equipDex;
   const totalInt = (stats.int || 0) + equipInt;
   const totalVit = (stats.vit || 0) + equipVit;
   
-  // Base formulas using total stats
+  // ============================================================
+  // BASE CALCULATIONS (before percentage multipliers)
+  // ============================================================
+  let basePDmg = 5 + (totalStr * 3) + equipPAtk;
+  let baseMDmg = 5 + (totalInt * 4) + equipMAtk;
+  let basePDef = totalStr + (totalVit * 2) + equipPDef;
+  let baseMDef = totalVit + totalInt + equipMDef;
+  let baseCritRate = 5 + (totalAgi * 0.5) + equipCritRate;
+  let baseCritDmg = 150 + totalDex + equipCritDmg;
+  
+  // ============================================================
+  // APPLY PERCENTAGE BONUSES
+  // Formula: final = base * (1 + percent/100)
+  // ============================================================
   const derived = {
-    pDmg: 5 + (totalStr * 3) + equipPAtk,
-    mDmg: 5 + (totalInt * 4) + equipMAtk,
-    pDef: totalStr + (totalVit * 2) + equipPDef,
-    mDef: totalVit + totalInt + equipMDef,
-    critRate: 5 + (totalAgi * 0.5) + equipCritRate,
-    critDmg: 150 + totalDex + equipCritDmg,
+    pDmg: Math.floor(basePDmg * (1 + pAtkPercent / 100)),
+    mDmg: Math.floor(baseMDmg * (1 + mAtkPercent / 100)),
+    pDef: Math.floor(basePDef * (1 + pDefPercent / 100)),
+    mDef: Math.floor(baseMDef * (1 + mDefPercent / 100)),
+    critRate: baseCritRate * (1 + critRatePercent / 100),
+    critDmg: baseCritDmg * (1 + critDmgPercent / 100),
     accuracy: 90 + (totalDex * 0.5),
     evasion: totalAgi * 0.3,
     hpRegen: Math.floor(totalVit * 1),
     mpRegen: Math.floor(totalInt * 0.5),
-    bonusHp: equipHp,
-    bonusMp: equipMp,
+    // HP/MP bonuses - flat + percentage of max
+    bonusHp: Math.floor(equipHp + ((stats.maxHp || 100) * hpPercent / 100)),
+    bonusMp: Math.floor(equipMp + ((stats.maxMp || 50) * mpPercent / 100)),
+    // Special bonuses (for use in tower/combat)
+    expBonus: expBonus,
+    goldBonus: goldBonus,
+    // Resistances
     fireRes: 0, waterRes: 0, lightningRes: 0, earthRes: 0,
     natureRes: 0, iceRes: 0, darkRes: 0, holyRes: 0
   };
@@ -764,14 +818,12 @@ characterSchema.statics.repairSkills = function(character) {
   const baseSkills = CLASS_DEFAULT_SKILLS[character.baseClass] || [];
   const existingSkillIds = (character.skills || []).map(s => s.skillId);
   
-  // Add missing base skills
   baseSkills.forEach(skill => {
     if (!existingSkillIds.includes(skill.skillId)) {
       character.skills.push({ ...skill });
     }
   });
   
-  // Add hidden class skills if applicable
   if (character.hiddenClass && character.hiddenClass !== 'none') {
     const hiddenSkills = HIDDEN_CLASS_SKILLS[character.hiddenClass] || [];
     hiddenSkills.forEach(skill => {
@@ -786,14 +838,12 @@ characterSchema.statics.repairSkills = function(character) {
 
 // ============================================================
 // STATIC METHOD - Repair stats for existing characters
-// FIX #2 & #3: Add method to fix existing characters with wrong stats
 // ============================================================
 
 characterSchema.statics.repairStats = function(character) {
   const baseStats = CLASS_BASE_STATS[character.baseClass];
   if (!baseStats) return character;
   
-  // Check if stats are default (10 for all) - indicates broken character
   const isDefault = character.stats.str === 10 && 
                     character.stats.agi === 10 && 
                     character.stats.dex === 10 && 
@@ -836,17 +886,11 @@ characterSchema.statics.getSkillsForClass = function(baseClass, hiddenClass = 'n
 // PHASE 9.8: SOCIAL FEATURE METHODS
 // ============================================================
 
-/**
- * Add helper points (earned from helping friends)
- */
 characterSchema.methods.addHelperPoints = function(amount) {
   this.helperPoints = Math.min(this.maxHelperPoints, this.helperPoints + amount);
   return this.save();
 };
 
-/**
- * Spend helper points (used when helping)
- */
 characterSchema.methods.spendHelperPoints = function(amount) {
   if (this.helperPoints < amount) {
     throw new Error('Not enough Helper Points');
@@ -855,9 +899,6 @@ characterSchema.methods.spendHelperPoints = function(amount) {
   return this.save();
 };
 
-/**
- * Update online status and activity
- */
 characterSchema.methods.updateOnlineStatus = function(isOnline, activity = 'idle') {
   this.isOnline = isOnline;
   this.lastOnline = new Date();
@@ -865,9 +906,6 @@ characterSchema.methods.updateOnlineStatus = function(isOnline, activity = 'idle
   return this.save();
 };
 
-/**
- * Add a title to the character
- */
 characterSchema.methods.addTitle = function(titleId, titleName) {
   if (!this.titles.find(t => t.id === titleId)) {
     this.titles.push({
@@ -879,9 +917,6 @@ characterSchema.methods.addTitle = function(titleId, titleName) {
   return this.save();
 };
 
-/**
- * Get public profile data (for friends to see)
- */
 characterSchema.methods.getPublicProfile = function() {
   return {
     name: this.name,
