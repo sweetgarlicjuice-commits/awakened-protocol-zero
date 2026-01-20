@@ -56,21 +56,29 @@ const ENERGY_PER_EXPLORATION = 5;
 // PHASE 9.7.2: BALANCE CONFIG
 // ============================================================
 // Tunable values for game balance. Edit these to adjust progression speed.
+// 
+// Target Progression:
+// Tower 1 (F1-15): Level 1 → 8
+// Tower 2 (F1-15): Level 8 → 16
+// Tower 3 (F1-15): Level 16 → 24
+// Tower 4 (F1-15): Level 24 → 32
+// Tower 5 (F1-15): Level 32 → 40
+// 
 const BALANCE = {
   expBase: {
-    normal: 8,      // Was 15 - base EXP per normal enemy
-    elite: 25,      // Was 40 - base EXP per elite enemy
-    boss: 60        // Was 100 - base EXP per boss
+    normal: 6,      // Reduced from 8 - base EXP per normal enemy
+    elite: 18,      // Reduced from 25 - base EXP per elite enemy
+    boss: 45        // Reduced from 60 - base EXP per boss
   },
   goldBase: {
-    normal: { min: 3, max: 8 },    // Was { min: 5, max: 15 }
-    elite: { min: 8, max: 20 },    // Was { min: 15, max: 40 }
-    boss: { min: 25, max: 60 }     // Was { min: 50, max: 150 }
+    normal: { min: 3, max: 8 },
+    elite: { min: 8, max: 18 },
+    boss: { min: 20, max: 50 }
   },
-  floorExpBonus: 0.05,      // +5% per floor (was 10%)
-  towerExpBonus: 0.25,      // +25% per tower (was 50%)
+  floorExpBonus: 0.03,      // +3% per floor (was 5%) - slower floor scaling
+  towerExpBonus: 0.20,      // +20% per tower (was 25%) - slower tower scaling
   expCurveBase: 100,        // Base EXP needed for level 2
-  expCurveMultiplier: 1.25  // 25% more EXP needed per level (was 20%)
+  expCurveMultiplier: 1.30  // 30% more EXP needed per level (was 25%) - steeper curve
 };
 
 // ============================================================
