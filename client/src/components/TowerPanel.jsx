@@ -43,6 +43,139 @@ const NODE_NAMES = {
 
 const BUFF_ICONS = { attack: '⚔️', critRate: '🎯', evasion: '💨', shield: '🛡️', defend: '🛡️' };
 
+// ============================================================
+// PHASE 9.7.2: Skill Details for Combat Display
+// ============================================================
+const ELEMENT_ICONS = { fire: '🔥', ice: '❄️', lightning: '⚡', nature: '🌿', dark: '🌑', holy: '✨', earth: '🪨', none: '' };
+
+const COMBAT_SKILL_DETAILS = {
+  // BASE SWORDSMAN
+  slash: { details: '120% P.DMG', type: 'physical' },
+  heavyStrike: { details: '180% P.DMG', type: 'physical' },
+  shieldBash: { details: '100% P.DMG | -15% ATK (3t)', type: 'physical' },
+  warCry: { details: '+25% P.DMG (3t)', type: 'buff' },
+  // BASE THIEF
+  backstab: { details: '200% P.DMG | +30% Crit', type: 'physical' },
+  poisonBlade: { details: '100% P.DMG | Poison 20%/t (3t)', type: 'physical' },
+  smokeScreen: { details: '+40% Evasion (2t)', type: 'buff' },
+  steal: { details: 'Steal 5-15% Gold', type: 'utility' },
+  // BASE ARCHER
+  preciseShot: { details: '150% P.DMG | 100% Hit', type: 'physical' },
+  multiShot: { details: '60% P.DMG x3 Hits', type: 'physical' },
+  eagleEye: { details: '+25% Crit | +20% Crit DMG (3t)', type: 'buff' },
+  arrowRain: { details: '220% P.DMG', type: 'physical' },
+  // BASE MAGE
+  fireball: { details: '160% M.DMG | Burn 25%/t (3t)', type: 'magical' },
+  iceSpear: { details: '140% M.DMG | -20% ATK (2t)', type: 'magical' },
+  manaShield: { details: 'Shield = 50% Current MP', type: 'buff' },
+  thunderbolt: { details: '200% M.DMG', type: 'magical' },
+  // FLAMEBLADE
+  flameSlash: { details: '180% P.DMG | Burn 20%/t (3t)', type: 'physical' },
+  infernoStrike: { details: '280% P.DMG', type: 'physical' },
+  fireAura: { details: '+30% P.DMG | Reflect 15% (3t)', type: 'buff' },
+  volcanicRage: { details: '350% P.DMG | Burn 35%/t (3t)', type: 'physical' },
+  // BERSERKER
+  rageSlash: { details: '200% P.DMG | Cost 5% HP', type: 'physical' },
+  bloodFury: { details: '+50% P.DMG | -20% DEF (3t)', type: 'buff' },
+  recklessCharge: { details: '250% P.DMG | Cost 10% HP', type: 'physical' },
+  deathwish: { details: '400% P.DMG | Cost 20% HP', type: 'physical' },
+  // PALADIN
+  holyStrike: { details: '160% P.DMG | +50% vs Undead', type: 'physical' },
+  divineShield: { details: 'Shield = 200% P.DEF', type: 'buff' },
+  healingLight: { details: 'Heal 35% Max HP', type: 'heal' },
+  judgment: { details: '300% P.DMG | Purify Debuffs', type: 'physical' },
+  // EARTHSHAKER
+  groundSlam: { details: '150% P.DMG | -20% DEF (2t)', type: 'physical' },
+  stoneSkin: { details: '+50% P.DEF (3t)', type: 'buff' },
+  earthquake: { details: '220% P.DMG | -30% DEF (2t)', type: 'physical' },
+  titansWrath: { details: '320% P.DMG | Stun (1t)', type: 'physical' },
+  // FROSTGUARD
+  frostStrike: { details: '140% P.DMG | -15% ATK (2t)', type: 'physical' },
+  iceBarrier: { details: 'Shield 150% P.DEF | Reflect 20%', type: 'buff' },
+  frozenBlade: { details: '200% P.DMG | 30% Freeze (1t)', type: 'physical' },
+  glacialFortress: { details: '+100% DEF | Debuff Immune (2t)', type: 'buff' },
+  // SHADOW DANCER
+  shadowStrike: { details: '220% P.DMG | +40% Crit', type: 'physical' },
+  vanish: { details: 'Stealth | Next Attack Auto-Crit', type: 'buff' },
+  deathMark: { details: '120% P.DMG | +30% DMG Taken (3t)', type: 'physical' },
+  shadowDance: { details: '80% P.DMG x5 Hits', type: 'physical' },
+  // VENOMANCER
+  toxicStrike: { details: '140% P.DMG | Poison 25%/t (3t)', type: 'physical' },
+  venomCoat: { details: '+25% Poison DMG (3t)', type: 'buff' },
+  plague: { details: '80% P.DMG | Poison 35%/t (4t)', type: 'physical' },
+  pandemic: { details: '250% P.DMG | Poison 40%/t (3t)', type: 'physical' },
+  // ASSASSIN
+  exposeWeakness: { details: '120% P.DMG | +30% DMG Taken (3t)', type: 'physical' },
+  markForDeath: { details: '+50% Crit Taken (3t)', type: 'debuff' },
+  execute: { details: '300% P.DMG | +100% if <25% HP', type: 'physical' },
+  assassination: { details: '400% P.DMG', type: 'physical' },
+  // PHANTOM
+  haunt: { details: '180% P.DMG | Ignores 30% DEF', type: 'physical' },
+  nightmare: { details: '-30% ATK (2t)', type: 'debuff' },
+  soulDrain: { details: '150% M.DMG | Heal 30% Dealt', type: 'magical' },
+  dread: { details: '300% M.DMG | Fear (1t)', type: 'magical' },
+  // BLOODREAPER
+  bloodlet: { details: '180% P.DMG | Heal 20% Dealt', type: 'physical' },
+  sanguineBlade: { details: 'Attacks Heal 25% (3t)', type: 'buff' },
+  crimsonSlash: { details: '220% P.DMG | Heal 35% Dealt', type: 'physical' },
+  exsanguinate: { details: '350% P.DMG | Heal 50% Dealt', type: 'physical' },
+  // STORM RANGER
+  lightningArrow: { details: '200% P.DMG', type: 'physical' },
+  chainLightning: { details: '70% M.DMG x3 Hits', type: 'magical' },
+  stormEye: { details: '+50% Accuracy | +30% Crit (3t)', type: 'buff' },
+  thunderstorm: { details: '80% M.DMG x4 Hits', type: 'magical' },
+  // PYRO ARCHER
+  fireArrow: { details: '170% P.DMG | Burn 20%/t (3t)', type: 'physical' },
+  explosiveShot: { details: '230% P.DMG | Burn 25%/t (2t)', type: 'physical' },
+  ignite: { details: 'All Attacks Burn 15%/t (3t)', type: 'buff' },
+  meteorArrow: { details: '350% P.DMG | Burn 40%/t (3t)', type: 'physical' },
+  // FROST SNIPER
+  iceArrow: { details: '150% P.DMG | Slow -20% (2t)', type: 'physical' },
+  frozenAim: { details: '+40% Crit | +50% Crit DMG (2t)', type: 'buff' },
+  piercingCold: { details: '220% P.DMG | Ignores 40% DEF', type: 'physical' },
+  absoluteShot: { details: '420% P.DMG | Freeze (1t)', type: 'physical' },
+  // NATURE WARDEN
+  thornArrow: { details: '150% P.DMG | Poison 15%/t (3t)', type: 'physical' },
+  naturesGift: { details: 'Heal 25% HP | +20% DEF (2t)', type: 'heal' },
+  vineTrap: { details: '80% P.DMG | Root -30% Evasion (2t)', type: 'physical' },
+  overgrowth: { details: '70% P.DMG x5 Hits', type: 'physical' },
+  // VOID HUNTER
+  voidArrow: { details: '180% P.DMG | Ignores 40% DEF', type: 'physical' },
+  nullZone: { details: 'Dispel All Enemy Buffs', type: 'debuff' },
+  darkVolley: { details: '60% P.DMG x4 Hits', type: 'physical' },
+  oblivion: { details: '350% P.DMG | Ignores 50% DEF', type: 'physical' },
+  // FROST WEAVER
+  frostBolt: { details: '150% M.DMG | -25% ATK (2t)', type: 'magical' },
+  blizzard: { details: '200% M.DMG | -30% DEF (2t)', type: 'magical' },
+  iceArmor: { details: '+40% P.DEF | +20% M.DEF (3t)', type: 'buff' },
+  absoluteZero: { details: '400% M.DMG | Freeze (1t)', type: 'magical' },
+  // PYROMANCER
+  flameBurst: { details: '180% M.DMG | Burn 20%/t (3t)', type: 'magical' },
+  combustion: { details: '220% M.DMG', type: 'magical' },
+  inferno: { details: '150% M.DMG | Burn 30%/t (3t)', type: 'magical' },
+  hellfire: { details: '380% M.DMG', type: 'magical' },
+  // STORMCALLER
+  shock: { details: '140% M.DMG', type: 'magical' },
+  lightningBolt: { details: '200% M.DMG', type: 'magical' },
+  thunderChain: { details: '80% M.DMG x4 Hits', type: 'magical' },
+  tempest: { details: '140% M.DMG (AoE)', type: 'magical' },
+  // NECROMANCER
+  lifeDrain: { details: '140% M.DMG | Heal 30% Dealt', type: 'magical' },
+  curse: { details: '-25% All Stats (3t)', type: 'debuff' },
+  soulRend: { details: '220% M.DMG | Heal 40% Dealt', type: 'magical' },
+  deathPact: { details: '350% M.DMG | Heal 50% Dealt', type: 'magical' },
+  // ARCANIST
+  arcaneMissile: { details: '160% M.DMG', type: 'magical' },
+  empower: { details: '+35% M.DMG (3t)', type: 'buff' },
+  arcaneBurst: { details: '280% M.DMG', type: 'magical' },
+  transcendence: { details: '+50% All DMG | +30% Crit (3t)', type: 'buff' }
+};
+
+// Get skill display info
+const getSkillDisplayInfo = (skillId) => {
+  return COMBAT_SKILL_DETAILS[skillId] || { details: 'No data', type: 'physical' };
+};
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const api = axios.create({ baseURL: API_BASE, headers: { 'Content-Type': 'application/json' } });
 api.interceptors.request.use(config => { const token = localStorage.getItem('apz_token'); if (token) config.headers.Authorization = `Bearer ${token}`; return config; });
@@ -566,21 +699,27 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
             <div className="bg-void-800/30 rounded-lg p-2">
               <p className="text-gray-400 text-xs mb-2">SKILLS</p>
               <div className="grid grid-cols-2 gap-2">
-                {playerSkills.map((skill, i) => (
-                  <button key={i} onClick={() => doCombatAction('skill', skill.skillId)} disabled={isLoading || character.stats.mp < skill.mpCost}
-                    className={`p-2 rounded text-left text-xs transition-colors disabled:opacity-50
-                      ${skill.damageType === 'buff' ? 'bg-blue-900/50 hover:bg-blue-900 border border-blue-500/30' : 
-                        skill.target === 'all' ? 'bg-purple-900/50 hover:bg-purple-900' : 'bg-void-900/50 hover:bg-void-900'}`}>
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-white font-medium">{skill.name}</span>
-                      <span className="text-blue-400">{skill.mpCost}MP</span>
-                    </div>
-                    <p className="text-gray-400">{skill.desc}</p>
-                    <p className={`font-medium ${skill.damageType === 'magical' ? 'text-cyan-400' : skill.damageType === 'buff' ? 'text-blue-400' : 'text-orange-400'}`}>
-                      {skill.dmgText}
-                    </p>
-                  </button>
-                ))}
+                {playerSkills.map((skill, i) => {
+                  const skillInfo = getSkillDisplayInfo(skill.skillId);
+                  const typeColor = skillInfo.type === 'magical' ? 'text-cyan-400' : 
+                                   skillInfo.type === 'buff' ? 'text-blue-400' : 
+                                   skillInfo.type === 'heal' ? 'text-green-400' :
+                                   skillInfo.type === 'debuff' ? 'text-red-400' : 'text-orange-400';
+                  const bgColor = skillInfo.type === 'buff' ? 'bg-blue-900/50 hover:bg-blue-900 border border-blue-500/30' :
+                                 skillInfo.type === 'heal' ? 'bg-green-900/50 hover:bg-green-900 border border-green-500/30' :
+                                 skillInfo.type === 'magical' ? 'bg-cyan-900/30 hover:bg-cyan-900/50 border border-cyan-500/20' :
+                                 'bg-void-900/50 hover:bg-void-900 border border-orange-500/20';
+                  return (
+                    <button key={i} onClick={() => doCombatAction('skill', skill.skillId)} disabled={isLoading || character.stats.mp < skill.mpCost}
+                      className={`p-2 rounded text-left text-xs transition-colors disabled:opacity-50 ${bgColor}`}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-white font-medium">{ELEMENT_ICONS[skill.element] || ''} {skill.name}</span>
+                        <span className="text-blue-400 font-medium">{skill.mpCost}MP</span>
+                      </div>
+                      <p className={`font-medium ${typeColor}`}>{skillInfo.details}</p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
