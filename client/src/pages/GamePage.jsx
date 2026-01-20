@@ -448,11 +448,17 @@ const GamePage = () => {
   }, [refreshCharacter]);
 
   // Sync isInTower state with character data
+  // Also kick user out of tavern tab if they're in tower
   useEffect(() => {
     if (character) {
       setIsInTower(character.isInTower || false);
+      // If player is in tower and on tavern tab, switch to tower tab
+      if (character.isInTower && activeTab === 'tavern') {
+        setActiveTab('tower');
+        addLog('system', '🏰 Switched to Tower tab - Tavern is not accessible while in tower.');
+      }
     }
-  }, [character]);
+  }, [character, activeTab]);
 
   const addLog = (type, message) => {
     setGameLog(prev => [...prev, { type, message, timestamp: new Date() }].slice(-50));
@@ -611,21 +617,30 @@ const GamePage = () => {
         <main className="flex-1 p-4">
           <div className="flex border-b border-purple-500/20 mb-4 overflow-x-auto">
             {[
-              { id: 'status', label: '👤 Status', icon: '👤' },
-              { id: 'tower', label: '🏰 Tower', icon: '🏰' },
-              { id: 'inventory', label: '🎒 Items', icon: '🎒' },
-              { id: 'tavern', label: '🍺 Tavern', icon: '🍺' }
+              { id: 'status', label: '👤 Status', icon: '👤', disabled: false },
+              { id: 'tower', label: '🏰 Tower', icon: '🏰', disabled: false },
+              { id: 'inventory', label: '🎒 Items', icon: '🎒', disabled: false },
+              { id: 'tavern', label: '🍺 Tavern', icon: '🍺', disabled: isInTower }
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  if (tab.disabled) {
+                    addLog('error', '🚫 Cannot access Tavern while inside a tower! Leave the tower first.');
+                    return;
+                  }
+                  setActiveTab(tab.id);
+                }}
                 className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'text-purple-400 border-b-2 border-purple-400'
-                    : 'text-gray-500 hover:text-gray-300'
+                  tab.disabled
+                    ? 'text-gray-600 cursor-not-allowed opacity-50'
+                    : activeTab === tab.id
+                      ? 'text-purple-400 border-b-2 border-purple-400'
+                      : 'text-gray-500 hover:text-gray-300'
                 }`}
+                title={tab.disabled ? 'Leave tower to access Tavern' : ''}
               >
-                {tab.label}
+                {tab.label} {tab.disabled && '🔒'}
               </button>
             ))}
           </div>
