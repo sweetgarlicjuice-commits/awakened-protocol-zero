@@ -463,6 +463,21 @@ const characterSchema = new mongoose.Schema({
     default: 0
   },
   
+  // ============================================================
+  // PHASE 9.9.2: RAID COINS - Earned from Dungeon Break events
+  // ============================================================
+  // Each boss level gives different coins
+  // Use matching coins to redeem that boss's equipment set
+  // Cost: 25 coins per equipment piece
+  
+  raidCoins: {
+    lv5: { type: Number, default: 0 },   // From Shadow Monarch (Lv.5 boss)
+    lv10: { type: Number, default: 0 },  // From Demon King (Lv.10 boss)
+    lv20: { type: Number, default: 0 },  // From Ice Dragon (Lv.20 boss)
+    lv30: { type: Number, default: 0 },  // From Architect (Lv.30 boss)
+    lv40: { type: Number, default: 0 }   // From Absolute Being (Lv.40 boss)
+  },
+  
   // Statistics
   statistics: {
     totalKills: { type: Number, default: 0 },
