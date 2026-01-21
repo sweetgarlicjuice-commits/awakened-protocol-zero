@@ -364,6 +364,33 @@ const GMDashboard = () => {
     return colors[rarity] || 'text-gray-300';
   };
 
+  // PHASE 9.9.4: Format stat names for display
+  const formatStatName = (statKey) => {
+    const statNames = {
+      pAtk: 'P.ATK', mAtk: 'M.ATK', pDef: 'P.DEF', mDef: 'M.DEF',
+      hp: 'HP', mp: 'MP', str: 'STR', agi: 'AGI', dex: 'DEX', int: 'INT', vit: 'VIT',
+      critRate: 'CRIT', critDmg: 'CRIT DMG',
+      pAtkPercent: 'P.ATK', mAtkPercent: 'M.ATK', 
+      pDefPercent: 'P.DEF', mDefPercent: 'M.DEF',
+      hpPercent: 'HP', mpPercent: 'MP',
+      critRatePercent: 'CRIT', critDmgPercent: 'CRIT DMG',
+      expBonus: 'EXP', goldBonus: 'GOLD'
+    };
+    return statNames[statKey] || statKey.toUpperCase();
+  };
+
+  const isPercentStat = (statKey) => {
+    return statKey.includes('Percent') || statKey === 'expBonus' || statKey === 'goldBonus';
+  };
+
+  const formatStat = (statKey, value) => {
+    const name = formatStatName(statKey);
+    if (isPercentStat(statKey)) {
+      return `+${value}% ${name}`;
+    }
+    return `${name} +${value}`;
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-void-800 border-b border-purple-500/20 px-4 py-3">
@@ -869,8 +896,8 @@ const GMDashboard = () => {
                   {addItemForm.stats && Object.keys(addItemForm.stats).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {Object.entries(addItemForm.stats).map(([stat, val]) => (
-                        <span key={stat} className="text-xs bg-void-800 px-2 py-0.5 rounded text-green-400">
-                          {stat.toUpperCase()} +{val}
+                        <span key={stat} className={`text-xs px-2 py-0.5 rounded ${isPercentStat(stat) ? 'bg-amber-900/30 text-amber-400' : 'bg-void-800 text-green-400'}`}>
+                          {formatStat(stat, val)}
                         </span>
                       ))}
                     </div>
