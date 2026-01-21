@@ -9,6 +9,7 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
   const [activeEvent, setActiveEvent] = useState(null);
   const [myParticipation, setMyParticipation] = useState(null);
   const [myStatus, setMyStatus] = useState(null);
+  const [mySkills, setMySkills] = useState([]); // Phase 9.9.7: Player skills
   const [leaderboard, setLeaderboard] = useState([]);
   const [history, setHistory] = useState([]);
   const [myCoins, setMyCoins] = useState(null);
@@ -35,6 +36,7 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
       setActiveEvent(data.active ? data.event : null);
       setMyParticipation(data.myParticipation || null);
       setMyStatus(data.myStatus || null);
+      setMySkills(data.mySkills || []); // Phase 9.9.7: Set skills
       if (data.myParticipation?.cooldownRemaining > 0) setCooldown(data.myParticipation.cooldownRemaining);
       if (data.active && data.event?.id) {
         const lbData = await dungeonBreakAPI.getLeaderboard(data.event.id);
@@ -79,7 +81,7 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
     setTimeout(() => setMessage({ type: '', text: '' }), 4000);
   };
 
-  const handleAttack = async () => {
+  const handleAttack = async (skillId = null) => {
     if (!activeEvent || isAttacking || cooldown > 0) return;
     if (character.level < activeEvent.boss?.levelReq) {
       showMessage('error', `You need to be level ${activeEvent.boss.levelReq} to participate!`);
@@ -90,15 +92,35 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
       return;
     }
     
+    // Phase 9.9.7: Check MP for skills
+    if (skillId) {
+      const skill = mySkills.find(s => s.skillId === skillId);
+      if (skill && myStatus?.mp < skill.mpCost) {
+        showMessage('error', `Not enough MP! Need ${skill.mpCost}, have ${myStatus.mp}`);
+        return;
+      }
+    }
+    
     setIsAttacking(true);
     try {
-      const { data } = await dungeonBreakAPI.attack();
+      const { data } = await dungeonBreakAPI.attack(skillId);
       if (data.cooldownMs) setCooldown(data.cooldownMs);
       setLastCombat({ playerAttack: data.playerAttack, bossAttack: data.bossAttack, timestamp: Date.now() });
       setMyStatus({ hp: data.player.hp, maxHp: data.player.maxHp, mp: data.player.mp, maxMp: data.player.maxMp, isDead: data.player.died });
       setMyParticipation(prev => ({ ...prev, totalDamage: data.myStats?.totalDamage, rank: data.myStats?.rank }));
       
-      let msg = data.playerAttack.isCrit ? `💥 CRIT! ${formatNumber(data.playerAttack.damage)} dmg! ` : `⚔️ ${formatNumber(data.playerAttack.damage)} dmg! `;
+      // Phase 9.9.7: Updated message for skills
+      let msg = '';
+      if (data.playerAttack.usedSkill) {
+        msg = data.playerAttack.isCrit 
+          ? `💥 CRIT! ${data.playerAttack.skillName}: ${formatNumber(data.playerAttack.damage)} dmg! `
+          : `✨ ${data.playerAttack.skillName}: ${formatNumber(data.playerAttack.damage)} dmg! `;
+      } else {
+        msg = data.playerAttack.isCrit 
+          ? `💥 CRIT! ${formatNumber(data.playerAttack.damage)} dmg! ` 
+          : `⚔️ ${formatNumber(data.playerAttack.damage)} dmg! `;
+      }
+      
       if (data.bossAttack) {
         if (data.bossAttack.usedSkill) msg += `${data.bossAttack.skillIcon} ${data.bossAttack.skillName}! `;
         msg += `Boss: ${formatNumber(data.bossAttack.damage)} dmg`;
@@ -276,7 +298,7 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
 
                 {/* Attack Button */}
                 <button
-                  onClick={handleAttack}
+                  onClick={() => handleAttack(null)}
                   disabled={!canParticipate || isAttacking || isOnCooldown || isDead}
                   className={`w-full py-3 rounded-lg font-bold text-lg transition-all ${
                     !canParticipate ? 'bg-gray-700 text-gray-500' :
@@ -291,6 +313,42 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
                    isOnCooldown ? `⏳ ${(cooldown/1000).toFixed(1)}s` :
                    isAttacking ? '⚔️ ...' : '⚔️ ATTACK!'}
                 </button>
+
+                {/* Phase 9.9.7: Skills Section */}
+                {mySkills.length > 0 && canParticipate && !isDead && (
+                  <div className="bg-void-800/50 rounded-lg p-3">
+                    <p className="text-xs text-gray-400 mb-2">⚡ SKILLS</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {mySkills.map((skill, idx) => {
+                        const hasEnoughMp = (myStatus?.mp || 0) >= skill.mpCost;
+                        const canUseSkill = canParticipate && !isAttacking && !isOnCooldown && !isDead && hasEnoughMp;
+                        
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => canUseSkill && handleAttack(skill.skillId)}
+                            disabled={!canUseSkill}
+                            className={`p-2 rounded-lg text-left text-xs transition-all border ${
+                              canUseSkill 
+                                ? 'bg-purple-900/50 hover:bg-purple-800/50 border-purple-500/30 cursor-pointer' 
+                                : 'bg-void-900/50 border-void-700 opacity-50 cursor-not-allowed'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-white font-medium truncate">{skill.name}</span>
+                              <span className={`text-xs ${hasEnoughMp ? 'text-blue-400' : 'text-red-400'}`}>
+                                {skill.mpCost}MP
+                              </span>
+                            </div>
+                            <p className="text-gray-500 text-[10px] truncate">
+                              {skill.damageType === 'magical' ? 'M.DMG' : 'P.DMG'} • {Math.round((skill.scaling?.multiplier || 1) * 100)}%
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Combat Result */}
                 {lastCombat && (
