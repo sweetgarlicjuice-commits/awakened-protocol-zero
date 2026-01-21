@@ -520,6 +520,9 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
     const currentNode = nodes.find(n => n.id === floorMap.currentNodeId);
     const connectedIds = currentNode?.connections || [];
     
+    // PHASE 9.9.7 FIX: Can only move if current node is cleared
+    const currentNodeCleared = currentNode?.cleared || false;
+    
     // Group nodes by row for display
     const maxRow = Math.max(...nodes.map(n => n.row || 0));
     const rows = [];
@@ -558,7 +561,8 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
                 {rowNodes.map(node => {
                   const isCurrent = node.id === floorMap.currentNodeId;
                   const isConnected = connectedIds.includes(node.id);
-                  const canMove = isConnected && !node.visited && !isCurrent;
+                  // PHASE 9.9.7 FIX: Can only move if connected AND current node is cleared
+                  const canMove = isConnected && !node.visited && !isCurrent && currentNodeCleared;
                   
                   // Get display type (unknown if not explored)
                   const displayType = getNodeDisplayType(node, floorMap.currentNodeId);
@@ -630,7 +634,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
         )}
         
         {/* Connected Nodes Preview */}
-        {connectedIds.length > 0 && (
+        {connectedIds.length > 0 && currentNodeCleared && (
           <div className="bg-void-900/30 rounded-lg p-3">
             <p className="text-gray-500 text-xs mb-2">Available Paths:</p>
             <div className="flex flex-wrap gap-2">
@@ -639,7 +643,7 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
                 if (!connNode) return null;
                 const displayType = getNodeDisplayType(connNode, floorMap.currentNodeId);
                 const isUnknown = displayType === 'unknown';
-                const canMoveToNode = !connNode.visited;
+                const canMoveToNode = !connNode.visited && currentNodeCleared;
                 
                 return (
                   <button
@@ -660,6 +664,13 @@ const TowerPanel = ({ character, onCharacterUpdate, updateLocalCharacter, addLog
                 );
               })}
             </div>
+          </div>
+        )}
+        
+        {/* Message when current node not cleared */}
+        {!currentNodeCleared && currentNode && currentNode.type !== 'start' && (
+          <div className="bg-yellow-900/30 rounded-lg p-3 text-center">
+            <p className="text-yellow-400 text-sm">⚠️ Clear this node before moving to the next!</p>
           </div>
         )}
         
