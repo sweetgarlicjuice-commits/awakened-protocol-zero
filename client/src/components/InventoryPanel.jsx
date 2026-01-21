@@ -45,7 +45,7 @@ var CRAFTING_RECIPES = [
 // ============================================================
 
 function isEquipmentType(item) {
-  return item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory';
+  return item.type === 'equipment' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory' || item.type === 'vip_equipment';
 }
 
 // ============================================================
@@ -117,12 +117,45 @@ function getItemIcon(item) {
   return '📦';
 }
 
+// ============================================================
+// PHASE 9.9.4: Format stat names for display
+// Handles both flat stats and percentage stats
+// ============================================================
+function formatStatName(statKey) {
+  var statNames = {
+    // Flat stats
+    pAtk: 'P.ATK', mAtk: 'M.ATK', pDef: 'P.DEF', mDef: 'M.DEF',
+    hp: 'HP', mp: 'MP', str: 'STR', agi: 'AGI', dex: 'DEX', int: 'INT', vit: 'VIT',
+    critRate: 'CRIT', critDmg: 'CRIT DMG',
+    // Percentage stats
+    pAtkPercent: 'P.ATK', mAtkPercent: 'M.ATK', 
+    pDefPercent: 'P.DEF', mDefPercent: 'M.DEF',
+    hpPercent: 'HP', mpPercent: 'MP',
+    critRatePercent: 'CRIT', critDmgPercent: 'CRIT DMG',
+    // Special bonuses
+    expBonus: 'EXP', goldBonus: 'GOLD'
+  };
+  return statNames[statKey] || statKey.toUpperCase();
+}
+
+function isPercentStat(statKey) {
+  return statKey.includes('Percent') || statKey === 'expBonus' || statKey === 'goldBonus';
+}
+
+function formatStat(statKey, value) {
+  var name = formatStatName(statKey);
+  if (isPercentStat(statKey)) {
+    return '+' + value + '% ' + name;
+  }
+  return name + '+' + value;
+}
+
 function getItemEffect(item) {
   if (isEquipmentType(item) && item.stats) {
     var statList = [];
     var keys = Object.keys(item.stats);
     for (var i = 0; i < keys.length; i++) {
-      statList.push(keys[i].toUpperCase() + '+' + item.stats[keys[i]]);
+      statList.push(formatStat(keys[i], item.stats[keys[i]]));
     }
     return statList.join(' ');
   }
@@ -147,133 +180,126 @@ function getItemEffect(item) {
     // Removed hardcoded energy fallback - should use effect.value
     return 'Use';
   }
-  if (item.type === 'material') return 'Material';
-  if (item.type === 'scroll' || item.type === 'hidden_class_scroll' || isHiddenClassScroll(item)) {
-    var scrollBase = getScrollBaseClass(item);
-    if (scrollBase) {
-      return 'Requires ' + scrollBase.charAt(0).toUpperCase() + scrollBase.slice(1);
-    }
-    return 'Hidden Class';
-  }
-  if (item.type === 'special') {
-    if (item.itemId === 'memory_crystal') return 'Remove Class';
-    return 'Special';
-  }
   return '';
 }
 
-function getItemRequirements(item, character) {
-  if (!isEquipmentType(item)) return null;
-  var reqs = [];
-  if (item.levelReq) {
-    var meetsLevel = !character || character.level >= item.levelReq;
-    reqs.push({ text: 'Lv.' + item.levelReq, met: meetsLevel });
+// ============================================================
+// PHASE 9.9.4: Format stat badge for total bonuses display
+// ============================================================
+function formatStatBadge(statKey, value) {
+  var name = formatStatName(statKey);
+  if (isPercentStat(statKey)) {
+    return '+' + value + '% ' + name;
   }
-  if (item.classReq || item.class) {
-    var reqClass = item.classReq || item.class;
-    // FIXED: Handle 'any' class - any class can equip
-    var meetsClass = !character || reqClass.toLowerCase() === 'any' || reqClass.toLowerCase() === character.baseClass.toLowerCase();
-    reqs.push({ text: reqClass.charAt(0).toUpperCase() + reqClass.slice(1), met: meetsClass });
-  }
-  return reqs.length > 0 ? reqs : null;
+  return name + '+' + value;
 }
 
-var getRarityColor = function(rarity) {
-  var colors = { common: 'text-gray-300', uncommon: 'text-green-400', rare: 'text-blue-400', epic: 'text-purple-400', legendary: 'text-amber-400' };
+function getRarityColor(rarity) {
+  var colors = {
+    common: 'text-gray-300',
+    uncommon: 'text-green-400',
+    rare: 'text-blue-400',
+    epic: 'text-purple-400',
+    legendary: 'text-amber-400'
+  };
   return colors[rarity] || 'text-gray-300';
-};
+}
 
-var getRarityBorder = function(rarity) {
-  var colors = { common: 'border-gray-600', uncommon: 'border-green-500/50', rare: 'border-blue-500/50', epic: 'border-purple-500/50', legendary: 'border-amber-500/50' };
+function getRarityBorder(rarity) {
+  var colors = {
+    common: 'border-gray-600',
+    uncommon: 'border-green-600',
+    rare: 'border-blue-600',
+    epic: 'border-purple-600',
+    legendary: 'border-amber-500'
+  };
   return colors[rarity] || 'border-gray-600';
-};
-
-var getRarityBg = function(rarity) {
-  var colors = { common: 'bg-gray-800/50', uncommon: 'bg-green-900/20', rare: 'bg-blue-900/20', epic: 'bg-purple-900/20', legendary: 'bg-amber-900/20' };
-  return colors[rarity] || 'bg-gray-800/50';
-};
+}
 
 var InventoryPanel = function(props) {
   var character = props.character;
-  var refreshCharacter = props.refreshCharacter;
-  var addLog = props.addLog;
-  
-  var [activeTab, setActiveTab] = useState('inventory');
-  var [currentPage, setCurrentPage] = useState(0);
-  var [isLoading, setIsLoading] = useState(false);
-  var [splitModal, setSplitModal] = useState(null);
-  var [splitQty, setSplitQty] = useState(1);
-  var [filter, setFilter] = useState('all');
-  var [selectedItem, setSelectedItem] = useState(null);
-  var [craftingMessage, setCraftingMessage] = useState(null);
+  var onUpdate = props.onUpdate;
+  var inTower = props.inTower;
+  var activeTab = useState('inventory');
+  var inventoryFilter = useState('all');
+  var currentPage = useState(0);
+  var isLoading = useState(false);
+  var splitModal = useState(null);
+  var splitQty = useState(1);
+  var craftingMessage = useState(null);
 
-  var inventory = character.inventory || [];
-  
-  var filteredInventory = inventory.filter(function(item) {
-    if (filter === 'all') return true;
-    if (filter === 'material') return item.type === 'material';
-    if (filter === 'consumable') return item.type === 'consumable';
-    if (filter === 'equipment') return isEquipmentType(item);
-    if (filter === 'scroll') return item.type === 'scroll' || item.type === 'special' || item.type === 'hidden_class_scroll' || isHiddenClassScroll(item);
-    return true;
-  });
-  
-  var totalPages = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
-  var paginatedItems = filteredInventory.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
+  var setActiveTab = activeTab[1]; activeTab = activeTab[0];
+  var setInventoryFilter = inventoryFilter[1]; inventoryFilter = inventoryFilter[0];
+  var setCurrentPage = currentPage[1]; currentPage = currentPage[0];
+  var setIsLoading = isLoading[1]; isLoading = isLoading[0];
+  var setSplitModal = splitModal[1]; splitModal = splitModal[0];
+  var setSplitQty = splitQty[1]; splitQty = splitQty[0];
+  var setCraftingMessage = craftingMessage[1]; craftingMessage = craftingMessage[0];
 
-  var handleFilterChange = function(newFilter) {
-    setFilter(newFilter);
-    setCurrentPage(0);
-    setSelectedItem(null);
-  };
+  // PHASE 9.6.6: Check how many memory crystal fragments the player has
+  var fragments = 0;
+  var hasCrystal = false;
+  if (character && character.inventory) {
+    var fragItem = character.inventory.find(function(i) { return i.itemId === 'memory_crystal_fragment'; });
+    if (fragItem) fragments = fragItem.quantity || 0;
+    hasCrystal = character.inventory.some(function(i) { return i.itemId === 'memory_crystal'; });
+  }
 
-  var handleUseItem = async function(itemId) {
-    setIsLoading(true);
-    try {
-      var response = await tavernAPI.useItem(itemId);
-      addLog('success', response.data.message);
-      await refreshCharacter();
-    } catch (err) {
-      addLog('error', err.response?.data?.error || 'Failed to use item');
-    }
-    setIsLoading(false);
-  };
-
-  var handleEquipItem = async function(itemId) {
+  var handleEquip = async function(itemId) {
     setIsLoading(true);
     try {
       var response = await tavernAPI.equipItem(itemId);
-      addLog('success', response.data.message);
-      await refreshCharacter();
-      setSelectedItem(null);
+      if (onUpdate) onUpdate(response.data);
     } catch (err) {
-      addLog('error', err.response?.data?.error || 'Failed to equip');
+      console.error('Equip failed:', err);
+      alert(err.response?.data?.error || 'Failed to equip');
     }
     setIsLoading(false);
   };
 
-  var handleUnequipItem = async function(slot) {
+  var handleUnequip = async function(slot) {
     setIsLoading(true);
     try {
       var response = await tavernAPI.unequipItem(slot);
-      addLog('success', response.data.message);
-      await refreshCharacter();
+      if (onUpdate) onUpdate(response.data);
     } catch (err) {
-      addLog('error', err.response?.data?.error || 'Failed to unequip');
+      console.error('Unequip failed:', err);
+      alert(err.response?.data?.error || 'Failed to unequip');
     }
     setIsLoading(false);
   };
 
-  var handleDiscardItem = async function(itemId) {
-    if (!confirm('Discard this item?')) return;
+  var handleSell = async function(itemId) {
+    if (!confirm('Sell this item?')) return;
     setIsLoading(true);
     try {
-      var response = await tavernAPI.discardItem(itemId, 1);
-      addLog('info', response.data.message);
-      await refreshCharacter();
-      setSelectedItem(null);
+      var response = await tavernAPI.sellItem(itemId, 1);
+      if (onUpdate) onUpdate(response.data);
     } catch (err) {
-      addLog('error', err.response?.data?.error || 'Failed');
+      console.error('Sell failed:', err);
+      alert(err.response?.data?.error || 'Failed to sell');
+    }
+    setIsLoading(false);
+  };
+
+  var handleUse = async function(item) {
+    setIsLoading(true);
+    try {
+      // Use correct endpoint for consumables
+      if (item.type === 'consumable') {
+        var response = await tavernAPI.useItem(item.itemId);
+        if (onUpdate) onUpdate(response.data);
+      } else if (isHiddenClassScroll(item)) {
+        // Hidden class scroll
+        var scrollResponse = await tavernAPI.useScroll(item.itemId);
+        if (onUpdate) onUpdate(scrollResponse.data);
+        if (scrollResponse.data.message) {
+          alert(scrollResponse.data.message);
+        }
+      }
+    } catch (err) {
+      console.error('Use failed:', err);
+      alert(err.response?.data?.error || 'Failed to use item');
     }
     setIsLoading(false);
   };
@@ -283,184 +309,134 @@ var InventoryPanel = function(props) {
     setIsLoading(true);
     try {
       var response = await tavernAPI.splitStack(splitModal.itemId, splitQty);
-      addLog('success', response.data.message);
-      await refreshCharacter();
+      if (onUpdate) onUpdate(response.data);
       setSplitModal(null);
     } catch (err) {
-      addLog('error', err.response?.data?.error || 'Failed');
+      console.error('Split failed:', err);
+      alert(err.response?.data?.error || 'Failed to split');
     }
     setIsLoading(false);
   };
 
-  var handleCraft = async function(recipe) {
+  var handleCombine = async function(itemId) {
     setIsLoading(true);
-    setCraftingMessage(null);
     try {
-      if (recipe.id === 'craft_memory_crystal') {
-        var response = await tavernAPI.craftMemoryCrystal();
-        addLog('success', response.data.message);
-        setCraftingMessage({ type: 'success', text: 'Crafted Memory Crystal!' });
-      } else {
-        var response = await tavernAPI.craftItem(recipe.id);
-        addLog('success', response.data.message || 'Crafted ' + recipe.name + '!');
-        setCraftingMessage({ type: 'success', text: 'Crafted ' + recipe.name + '!' });
-      }
-      await refreshCharacter();
+      var response = await tavernAPI.combineStacks(itemId);
+      if (onUpdate) onUpdate(response.data);
     } catch (err) {
-      var errorMsg = err.response?.data?.error || 'Crafting failed';
-      addLog('error', errorMsg);
-      setCraftingMessage({ type: 'error', text: errorMsg });
+      console.error('Combine failed:', err);
+      alert(err.response?.data?.error || 'Failed to combine');
     }
     setIsLoading(false);
   };
 
+  // PHASE 9.6.6: Craft Memory Crystal
   var handleCraftMemoryCrystal = async function() {
+    if (fragments < 15) {
+      setCraftingMessage({ type: 'error', text: 'Need 15 fragments. Have: ' + fragments });
+      return;
+    }
     setIsLoading(true);
     try {
       var response = await tavernAPI.craftMemoryCrystal();
-      addLog('success', response.data.message);
-      await refreshCharacter();
+      if (onUpdate) onUpdate(response.data);
+      setCraftingMessage({ type: 'success', text: response.data.message || 'Memory Crystal crafted!' });
     } catch (err) {
-      addLog('error', err.response?.data?.error || 'Failed');
+      console.error('Craft failed:', err);
+      setCraftingMessage({ type: 'error', text: err.response?.data?.error || 'Failed to craft' });
     }
     setIsLoading(false);
   };
 
+  // PHASE 9.6.6: Use Memory Crystal to remove hidden class
   var handleUseMemoryCrystal = async function() {
-    if (!confirm('Remove your hidden class? You will get the scroll back.')) return;
+    if (!confirm('Use Memory Crystal to remove your hidden class? You will receive the scroll back.')) return;
     setIsLoading(true);
     try {
       var response = await tavernAPI.useMemoryCrystal();
-      addLog('success', response.data.message);
-      await refreshCharacter();
+      if (onUpdate) onUpdate(response.data);
+      setCraftingMessage({ type: 'success', text: response.data.message || 'Hidden class removed!' });
     } catch (err) {
-      addLog('error', err.response?.data?.error || 'Failed');
+      console.error('Use crystal failed:', err);
+      setCraftingMessage({ type: 'error', text: err.response?.data?.error || 'Failed to use crystal' });
     }
     setIsLoading(false);
   };
 
-  // PHASE 9.6.3: Handle using hidden class scroll
-  var handleUseScroll = async function(itemId) {
-    setIsLoading(true);
-    try {
-      // tavernAPI.useScroll should call POST /api/tavern/use-scroll
-      var response = await tavernAPI.useScroll(itemId);
-      addLog('success', response.data.message);
-      await refreshCharacter();
-    } catch (err) {
-      addLog('error', err.response?.data?.error || 'Failed to use scroll');
-    }
-    setIsLoading(false);
-  };
-
-  var isUsable = function(item) { return item.type === 'consumable'; };
-  var isEquippable = function(item) { return isEquipmentType(item) && (item.slot || item.subtype); };
-  var canSplit = function(item) { return item.stackable && item.quantity > 1; };
-  
-  // PHASE 9.6.3: Check if item is Memory Crystal
-  var isMemoryCrystal = function(item) {
-    return item.itemId === 'memory_crystal' || 
-           (item.name && item.name.toLowerCase().includes('memory crystal') && item.type === 'special');
-  };
-  
-  // Check if Memory Crystal can be used
-  var getMemoryCrystalStatus = function() {
-    var result = { canUse: true, reason: '' };
-    if (!character.hiddenClass || character.hiddenClass === 'none') {
-      result.canUse = false;
-      result.reason = 'No hidden class to remove';
-    }
-    return result;
-  };
-
-  // PHASE 9.6.3: Check if scroll can be used
-  var getScrollStatus = function(item) {
-    var result = { canUse: true, reason: '' };
-    
-    // Check if player already has a hidden class
-    if (character.hiddenClass && character.hiddenClass !== 'none') {
-      result.canUse = false;
-      result.reason = 'Already have hidden class: ' + character.hiddenClass;
-      return result;
-    }
-    
-    // Check if scroll matches player's base class
-    var scrollBase = getScrollBaseClass(item);
-    if (scrollBase && scrollBase !== character.baseClass.toLowerCase()) {
-      result.canUse = false;
-      result.reason = 'Requires ' + scrollBase.charAt(0).toUpperCase() + scrollBase.slice(1) + ' class';
-      return result;
-    }
-    
-    return result;
-  };
-
-  var getEquipStatus = function(item) {
-    var result = { canEquip: true, reason: '' };
-    if (item.levelReq && character.level < item.levelReq) {
-      result.canEquip = false;
-      result.reason = 'Level ' + item.levelReq + ' required';
-      return result;
-    }
-    if (item.classReq || item.class) {
-      var reqClass = (item.classReq || item.class).toLowerCase();
-      // FIXED: Handle 'any' class - any class can equip
-      if (reqClass !== 'any' && reqClass !== character.baseClass.toLowerCase()) {
-        result.canEquip = false;
-        result.reason = (item.classReq || item.class) + ' class required';
-        return result;
-      }
-    }
-    return result;
-  };
-
-  var fragments = 0;
-  for (var i = 0; i < inventory.length; i++) {
-    if (inventory[i].itemId === 'memory_crystal_fragment') {
-      fragments = inventory[i].quantity;
-      break;
-    }
-  }
-  
-  var hasCrystal = inventory.some(function(item) { return item.itemId === 'memory_crystal'; });
-
+  // Crafting helpers
   var getMaterialCount = function(itemId) {
-    for (var i = 0; i < inventory.length; i++) {
-      if (inventory[i].itemId === itemId) return inventory[i].quantity || 0;
-    }
-    return 0;
+    if (!character || !character.inventory) return 0;
+    var item = character.inventory.find(function(i) { return i.itemId === itemId; });
+    return item ? item.quantity : 0;
   };
 
   var canCraftRecipe = function(recipe) {
     for (var i = 0; i < recipe.materials.length; i++) {
-      if (getMaterialCount(recipe.materials[i].itemId) < recipe.materials[i].quantity) return false;
+      var mat = recipe.materials[i];
+      if (getMaterialCount(mat.itemId) < mat.quantity) return false;
     }
     return true;
   };
 
-  var counts = { material: 0, consumable: 0, equipment: 0, scroll: 0 };
-  for (var k = 0; k < inventory.length; k++) {
-    var itemType = inventory[k].type;
-    if (itemType === 'material') counts.material++;
-    else if (itemType === 'consumable') counts.consumable++;
-    else if (isEquipmentType(inventory[k])) counts.equipment++;
-    else if (itemType === 'scroll' || itemType === 'special' || itemType === 'hidden_class_scroll' || isHiddenClassScroll(inventory[k])) counts.scroll++;
+  var handleCraft = async function(recipe) {
+    if (!canCraftRecipe(recipe)) {
+      setCraftingMessage({ type: 'error', text: 'Not enough materials' });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      var response = await tavernAPI.craft(recipe.id);
+      if (onUpdate) onUpdate(response.data);
+      setCraftingMessage({ type: 'success', text: 'Crafted ' + recipe.name + '!' });
+    } catch (err) {
+      console.error('Craft failed:', err);
+      setCraftingMessage({ type: 'error', text: err.response?.data?.error || 'Failed to craft' });
+    }
+    setIsLoading(false);
+  };
+
+  // Filter inventory
+  var filteredInventory = character && character.inventory ? character.inventory.filter(function(item) {
+    if (inventoryFilter === 'all') return true;
+    if (inventoryFilter === 'equipment') return isEquipmentType(item);
+    if (inventoryFilter === 'materials') return item.type === 'material';
+    if (inventoryFilter === 'consumables') return item.type === 'consumable';
+    if (inventoryFilter === 'special') return item.type === 'special' || item.type === 'scroll' || item.type === 'hidden_class_scroll';
+    return true;
+  }) : [];
+
+  // Count items by type
+  var equipmentCount = character && character.inventory ? character.inventory.filter(function(i) { return isEquipmentType(i); }).length : 0;
+  var materialCount = character && character.inventory ? character.inventory.filter(function(i) { return i.type === 'material'; }).length : 0;
+  var consumableCount = character && character.inventory ? character.inventory.filter(function(i) { return i.type === 'consumable'; }).length : 0;
+  var specialCount = character && character.inventory ? character.inventory.filter(function(i) { return i.type === 'special' || i.type === 'scroll' || i.type === 'hidden_class_scroll'; }).length : 0;
+
+  // Pagination
+  var totalPages = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
+  var startIdx = currentPage * ITEMS_PER_PAGE;
+  var pagedInventory = filteredInventory.slice(startIdx, startIdx + ITEMS_PER_PAGE);
+
+  if (!character) {
+    return <div className="text-gray-400">Loading...</div>;
   }
 
   return (
-    <div className="space-y-4">
-      {/* Sub-tabs */}
-      <div className="flex gap-2 justify-center">
-        <button onClick={function() { setActiveTab('inventory'); }}
-          className={'px-4 py-2 rounded-lg text-sm ' + (activeTab === 'inventory' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
+    <div className="space-y-3">
+      {/* Tabs */}
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={function() { setActiveTab('inventory'); }} 
+          className={'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ' + 
+            (activeTab === 'inventory' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-300 hover:bg-void-600')}>
           📦 Inventory
         </button>
         <button onClick={function() { setActiveTab('equipment'); }}
-          className={'px-4 py-2 rounded-lg text-sm ' + (activeTab === 'equipment' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
+          className={'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ' +
+            (activeTab === 'equipment' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-300 hover:bg-void-600')}>
           ⚔️ Equipment
         </button>
         <button onClick={function() { setActiveTab('craft'); }}
-          className={'px-4 py-2 rounded-lg text-sm ' + (activeTab === 'craft' ? 'bg-purple-600 text-white' : 'bg-void-800 text-gray-400')}>
+          className={'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ' +
+            (activeTab === 'craft' ? 'bg-purple-600 text-white' : 'bg-void-700 text-gray-300 hover:bg-void-600')}>
           🔨 Craft
         </button>
       </div>
@@ -470,136 +446,109 @@ var InventoryPanel = function(props) {
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-display text-lg text-purple-400">📦 Inventory</h3>
-            <span className="text-gray-500 text-sm">{inventory.length}/50</span>
+            <span className="text-gray-400 text-sm">{character.inventory ? character.inventory.length : 0}/{character.inventorySize || 50}</span>
           </div>
 
-          {/* Filters */}
+          {/* Filter Buttons */}
           <div className="flex gap-1 mb-3 flex-wrap">
-            <button onClick={function() { handleFilterChange('all'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'all' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
-              All ({inventory.length})
+            <button onClick={function() { setInventoryFilter('all'); setCurrentPage(0); }}
+              className={'px-2 py-1 rounded text-xs ' + (inventoryFilter === 'all' ? 'bg-purple-600' : 'bg-void-700')}>
+              All ({character.inventory ? character.inventory.length : 0})
             </button>
-            <button onClick={function() { handleFilterChange('material'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'material' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
-              📦 ({counts.material})
+            <button onClick={function() { setInventoryFilter('equipment'); setCurrentPage(0); }}
+              className={'px-2 py-1 rounded text-xs ' + (inventoryFilter === 'equipment' ? 'bg-purple-600' : 'bg-void-700')}>
+              ⚔️ ({equipmentCount})
             </button>
-            <button onClick={function() { handleFilterChange('consumable'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'consumable' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
-              🧪 ({counts.consumable})
+            <button onClick={function() { setInventoryFilter('materials'); setCurrentPage(0); }}
+              className={'px-2 py-1 rounded text-xs ' + (inventoryFilter === 'materials' ? 'bg-purple-600' : 'bg-void-700')}>
+              🪨 ({materialCount})
             </button>
-            <button onClick={function() { handleFilterChange('equipment'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'equipment' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
-              ⚔️ ({counts.equipment})
+            <button onClick={function() { setInventoryFilter('consumables'); setCurrentPage(0); }}
+              className={'px-2 py-1 rounded text-xs ' + (inventoryFilter === 'consumables' ? 'bg-purple-600' : 'bg-void-700')}>
+              🧪 ({consumableCount})
             </button>
-            <button onClick={function() { handleFilterChange('scroll'); }}
-              className={'px-3 py-1 rounded text-xs ' + (filter === 'scroll' ? 'bg-purple-600 text-white' : 'bg-void-900 text-gray-400')}>
-              📜 ({counts.scroll})
+            <button onClick={function() { setInventoryFilter('special'); setCurrentPage(0); }}
+              className={'px-2 py-1 rounded text-xs ' + (inventoryFilter === 'special' ? 'bg-purple-600' : 'bg-void-700')}>
+              📜 ({specialCount})
             </button>
           </div>
 
-          {/* Item List */}
+          {/* Items */}
           <div className="space-y-1">
-            {paginatedItems.map(function(item, idx) {
-              var effect = getItemEffect(item);
-              var requirements = getItemRequirements(item, character);
-              var equipStatus = getEquipStatus(item);
+            {pagedInventory.length === 0 ? (
+              <p className="text-gray-500 text-sm text-center py-4">No items</p>
+            ) : pagedInventory.map(function(item, index) {
+              var actualIndex = startIdx + index;
               var isScroll = isHiddenClassScroll(item);
-              var scrollStatus = isScroll ? getScrollStatus(item) : null;
+              var scrollBaseClass = isScroll ? getScrollBaseClass(item) : null;
+              var canUseScroll = isScroll && scrollBaseClass && scrollBaseClass === character.baseClass.toLowerCase();
+              
+              // Check for VIP item expiration
+              var isVipItem = item.vipOnly || (item.itemId && item.itemId.startsWith('vip_'));
+              var expiresAt = item.expiresAt ? new Date(item.expiresAt) : null;
+              var daysRemaining = expiresAt ? Math.max(0, Math.ceil((expiresAt - new Date()) / (1000 * 60 * 60 * 24))) : null;
+              
               return (
-                <div key={item.itemId + '-' + idx}
-                  className={'py-2 px-3 rounded-lg border ' + getRarityBorder(item.rarity) + ' ' + getRarityBg(item.rarity)}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{getItemIcon(item)}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={getRarityColor(item.rarity) + ' text-sm font-medium truncate'}>{item.name}</span>
-                        {item.quantity > 1 && <span className="text-gray-500 text-xs">x{item.quantity}</span>}
-                      </div>
-                      {isEquipmentType(item) && requirements && (
-                        <div className="flex gap-1">
-                          {requirements.map(function(req, i) {
-                            return <span key={i} className={'text-xs ' + (req.met ? 'text-green-400' : 'text-red-400')}>{req.text}{req.met ? '✓' : '✗'}</span>;
-                          })}
-                        </div>
-                      )}
-                      {/* Show scroll requirements */}
-                      {isScroll && (
-                        <div className="flex gap-1">
-                          {(function() {
-                            var scrollBase = getScrollBaseClass(item);
-                            var meetsClass = scrollBase && scrollBase === character.baseClass.toLowerCase();
-                            var hasHidden = character.hiddenClass && character.hiddenClass !== 'none';
-                            return (
-                              <>
-                                {scrollBase && (
-                                  <span className={'text-xs ' + (meetsClass ? 'text-green-400' : 'text-red-400')}>
-                                    {scrollBase.charAt(0).toUpperCase() + scrollBase.slice(1)}{meetsClass ? '✓' : '✗'}
-                                  </span>
-                                )}
-                                {hasHidden && (
-                                  <span className="text-xs text-red-400">Has Class✗</span>
-                                )}
-                                {!hasHidden && meetsClass && (
-                                  <span className="text-xs text-green-400">Ready✓</span>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      )}
-                      {effect && <p className="text-green-400 text-xs">({effect})</p>}
+                <div key={actualIndex} className={'flex items-center gap-2 p-2 rounded-lg border ' + getRarityBorder(item.rarity) + ' bg-void-900/50 hover:bg-void-800/50'}>
+                  <span className="text-xl w-8 text-center">{getItemIcon(item)}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={getRarityColor(item.rarity) + ' text-sm truncate'}>{item.name}</span>
+                      {item.quantity > 1 && <span className="text-gray-400 text-xs">x{item.quantity}</span>}
+                      {isVipItem && <span className="text-amber-400 text-xs">⭐VIP</span>}
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {isUsable(item) && (
-                        <button onClick={function() { handleUseItem(item.itemId); }} disabled={isLoading}
-                          className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs disabled:opacity-50">Use</button>
-                      )}
-                      {/* Hidden Class Scroll Use Button */}
-                      {isScroll && (
-                        <button onClick={function() { handleUseScroll(item.itemId); }} 
-                          disabled={isLoading || !scrollStatus.canUse}
-                          className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs disabled:opacity-50"
-                          title={scrollStatus.reason || 'Awaken hidden class'}>Awaken</button>
-                      )}
-                      {/* Memory Crystal Use Button */}
-                      {isMemoryCrystal(item) && (function() {
-                        var crystalStatus = getMemoryCrystalStatus();
-                        return (
-                          <button onClick={function() { handleUseMemoryCrystal(); }} 
-                            disabled={isLoading || !crystalStatus.canUse}
-                            className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs disabled:opacity-50"
-                            title={crystalStatus.reason || 'Remove hidden class'}>Use</button>
-                        );
-                      })()}
-                      {isEquippable(item) && (
-                        <button onClick={function() { handleEquipItem(item.itemId); }} disabled={isLoading || !equipStatus.canEquip}
-                          className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs disabled:opacity-50"
-                          title={equipStatus.reason || ''}>Equip</button>
-                      )}
-                      {canSplit(item) && (
-                        <button onClick={function() { setSplitModal(item); setSplitQty(1); }}
-                          className="px-2 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs">✂️</button>
-                      )}
-                      <button onClick={function() { handleDiscardItem(item.itemId); }} disabled={isLoading}
-                        className="px-2 py-1 bg-red-900/50 hover:bg-red-800/50 rounded text-xs text-red-400">🗑️</button>
-                    </div>
+                    {item.stats && Object.keys(item.stats).length > 0 && (
+                      <p className="text-green-400 text-xs truncate">({getItemEffect(item)})</p>
+                    )}
+                    {isScroll && scrollBaseClass && (
+                      <p className={'text-xs ' + (canUseScroll ? 'text-green-400' : 'text-red-400')}>
+                        Requires: {scrollBaseClass}
+                      </p>
+                    )}
+                    {isVipItem && daysRemaining !== null && (
+                      <p className="text-amber-400 text-xs">⏰ {daysRemaining}d remaining</p>
+                    )}
+                    {isVipItem && !expiresAt && (
+                      <p className="text-gray-400 text-xs">Timer starts on equip</p>
+                    )}
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {isEquipmentType(item) && (
+                      <button onClick={function() { handleEquip(item.itemId); }} disabled={isLoading}
+                        className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs disabled:opacity-50">Equip</button>
+                    )}
+                    {item.type === 'consumable' && (
+                      <button onClick={function() { handleUse(item); }} disabled={isLoading}
+                        className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs disabled:opacity-50">Use</button>
+                    )}
+                    {isScroll && canUseScroll && character.hiddenClass === 'none' && (
+                      <button onClick={function() { handleUse(item); }} disabled={isLoading}
+                        className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs disabled:opacity-50">Awaken</button>
+                    )}
+                    {item.stackable && item.quantity > 1 && (
+                      <button onClick={function() { setSplitModal(item); setSplitQty(1); }}
+                        className="px-2 py-1 bg-gray-600 hover:bg-gray-500 rounded text-xs">Split</button>
+                    )}
+                    {!item.vipOnly && (
+                      <button onClick={function() { handleSell(item.itemId); }} disabled={isLoading}
+                        className="px-2 py-1 bg-red-600/50 hover:bg-red-500 rounded text-xs disabled:opacity-50">🗑️</button>
+                    )}
                   </div>
                 </div>
               );
             })}
-            {filteredInventory.length === 0 && (
-              <p className="text-gray-500 text-center py-4">No items found</p>
-            )}
           </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-3">
-              <button onClick={function() { setCurrentPage(Math.max(0, currentPage - 1)); }} disabled={currentPage === 0}
-                className="px-3 py-1 bg-void-700 rounded disabled:opacity-50 text-sm">←</button>
-              <span className="text-gray-400 text-sm">{currentPage + 1} / {totalPages}</span>
-              <button onClick={function() { setCurrentPage(Math.min(totalPages - 1, currentPage + 1)); }} disabled={currentPage >= totalPages - 1}
-                className="px-3 py-1 bg-void-700 rounded disabled:opacity-50 text-sm">→</button>
+              <button onClick={function() { setCurrentPage(Math.max(0, currentPage - 1)); }}
+                disabled={currentPage === 0}
+                className="px-2 py-1 bg-void-700 rounded text-xs disabled:opacity-50">←</button>
+              <span className="text-gray-400 text-xs">{currentPage + 1} / {totalPages}</span>
+              <button onClick={function() { setCurrentPage(Math.min(totalPages - 1, currentPage + 1)); }}
+                disabled={currentPage >= totalPages - 1}
+                className="px-2 py-1 bg-void-700 rounded text-xs disabled:opacity-50">→</button>
             </div>
           )}
         </div>
@@ -608,22 +557,38 @@ var InventoryPanel = function(props) {
       {/* EQUIPMENT TAB */}
       {activeTab === 'equipment' && (
         <div className="bg-void-800/50 rounded-xl p-4 neon-border">
-          <h3 className="font-display text-lg text-purple-400 mb-3">⚔️ Equipped</h3>
-          <div className="grid grid-cols-2 gap-2">
+          <h3 className="font-display text-lg text-purple-400 mb-3">⚔️ Equipment</h3>
+          
+          <div className="grid grid-cols-2 gap-2 mb-3">
             {EQUIPMENT_SLOTS.map(function(slot) {
               var equippedItem = character.equipment ? character.equipment[slot.id] : null;
+              var hasItem = equippedItem && equippedItem.itemId;
+              
+              // Check VIP expiration for equipped items
+              var isVipItem = hasItem && (equippedItem.vipOnly || (equippedItem.itemId && equippedItem.itemId.startsWith('vip_')));
+              var expiresAt = hasItem && equippedItem.expiresAt ? new Date(equippedItem.expiresAt) : null;
+              var daysRemaining = expiresAt ? Math.max(0, Math.ceil((expiresAt - new Date()) / (1000 * 60 * 60 * 24))) : null;
+              
               return (
-                <div key={slot.id} className={'p-2 rounded-lg border ' + (equippedItem ? getRarityBorder(equippedItem.rarity) + ' ' + getRarityBg(equippedItem.rarity) : 'border-gray-700 bg-void-900/50')}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{equippedItem ? getItemIcon(equippedItem) : slot.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className={'text-xs truncate ' + (equippedItem ? getRarityColor(equippedItem.rarity) : 'text-gray-500')}>
-                        {equippedItem ? equippedItem.name : slot.name}
-                      </p>
+                <div key={slot.id} className={'p-2 rounded-lg border ' + (hasItem ? getRarityBorder(equippedItem.rarity) : 'border-gray-700') + ' bg-void-900/50'}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-lg">{hasItem ? (equippedItem.icon || slot.icon) : slot.icon}</span>
+                      <div className="min-w-0">
+                        <p className="text-gray-500 text-xs">{slot.name}</p>
+                        {hasItem ? (
+                          <p className={getRarityColor(equippedItem.rarity) + ' text-sm truncate'}>{equippedItem.name}</p>
+                        ) : (
+                          <p className="text-gray-600 text-xs">Empty</p>
+                        )}
+                        {isVipItem && daysRemaining !== null && (
+                          <p className="text-amber-400 text-xs">⏰ {daysRemaining}d</p>
+                        )}
+                      </div>
                     </div>
-                    {equippedItem && (
-                      <button onClick={function() { handleUnequipItem(slot.id); }} disabled={isLoading}
-                        className="px-2 py-1 bg-red-900/50 hover:bg-red-800/50 rounded text-xs text-red-400 disabled:opacity-50">-</button>
+                    {hasItem && (
+                      <button onClick={function() { handleUnequip(slot.id); }} disabled={isLoading}
+                        className="px-2 py-1 bg-red-600/50 hover:bg-red-500 rounded text-xs disabled:opacity-50">✕</button>
                     )}
                   </div>
                   {equippedItem && equippedItem.stats && (
@@ -651,7 +616,14 @@ var InventoryPanel = function(props) {
                 var statKeys = Object.keys(totalStats);
                 if (statKeys.length === 0) return <span className="text-gray-500 text-xs">None</span>;
                 return statKeys.map(function(stat) {
-                  return <span key={stat} className="px-1.5 py-0.5 bg-green-900/30 rounded text-xs text-green-400">{stat.toUpperCase()}+{totalStats[stat]}</span>;
+                  // PHASE 9.9.4: Use proper formatting for percentage stats
+                  var formattedStat = formatStatBadge(stat, totalStats[stat]);
+                  var isPercent = isPercentStat(stat);
+                  return (
+                    <span key={stat} className={'px-1.5 py-0.5 rounded text-xs ' + (isPercent ? 'bg-amber-900/30 text-amber-400' : 'bg-green-900/30 text-green-400')}>
+                      {formattedStat}
+                    </span>
+                  );
                 });
               })()}
             </div>
@@ -713,7 +685,7 @@ var InventoryPanel = function(props) {
                         <span className={getRarityColor(recipe.result.rarity) + ' text-sm'}>{recipe.name}</span>
                         {recipe.result.stats && (
                           <p className="text-green-400 text-xs">
-                            ({Object.keys(recipe.result.stats).map(function(s) { return s.toUpperCase() + '+' + recipe.result.stats[s]; }).join(' ')})
+                            ({Object.keys(recipe.result.stats).map(function(s) { return formatStat(s, recipe.result.stats[s]); }).join(' ')})
                           </p>
                         )}
                       </div>
