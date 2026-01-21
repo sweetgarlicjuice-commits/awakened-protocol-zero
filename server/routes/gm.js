@@ -217,19 +217,22 @@ async function buildItemDatabase() {
   
   // ============================================================
   // Phase 9.9.4: Add VIP Equipment to item database
+  // FIX: Use item.id instead of item.itemId (VIP_EQUIPMENT uses 'id')
   // ============================================================
   try {
     const vipItems = getAllVipItems();
     if (vipItems && vipItems.length > 0) {
       vipItems.forEach(item => {
-        if (!items.find(i => i.id === item.itemId)) {
+        // FIX: VIP_EQUIPMENT items have 'id', not 'itemId'
+        const itemId = item.id;
+        if (!items.find(i => i.id === itemId)) {
           items.push({
-            id: item.itemId,
+            id: itemId,
             name: item.name,
-            type: 'vip_equipment',
-            subtype: item.subtype,
-            slot: item.subtype,
-            rarity: item.rarity || 'rare',
+            type: 'vip_equipment',  // Mark as VIP for special handling
+            subtype: item.slot,
+            slot: item.slot,
+            rarity: item.rarity || 'legendary',
             icon: item.icon || '⭐',
             stats: item.stats || {},
             levelReq: item.levelReq || 1,
@@ -295,6 +298,12 @@ async function getItemDatabase() {
   });
   
   return dbInitPromise;
+}
+
+// Force rebuild item database (useful after updates)
+function invalidateItemDatabase() {
+  itemDatabase = null;
+  dbInitPromise = null;
 }
 
 // GET /api/gm/items/search?q=query
@@ -425,7 +434,8 @@ router.post('/player/:id/add-vip-set', authenticate, requireGM, async (req, res)
     // Add all set items
     const addedItems = [];
     for (const item of setItems) {
-      const vipItem = createVipInventoryItem(item.itemId);
+      // FIX: Use item.id instead of item.itemId
+      const vipItem = createVipInventoryItem(item.id);
       if (vipItem) {
         character.inventory.push(vipItem);
         addedItems.push(vipItem.name);
@@ -546,24 +556,47 @@ router.post('/player/:id/add-gold', authenticate, requireGM, async (req, res) =>
   }
 });
 
+// ============================================================
 // POST /api/gm/player/:id/add-item
+// FIX: Now properly handles VIP items by using createVipInventoryItem
+// ============================================================
 router.post('/player/:id/add-item', authenticate, requireGM, async (req, res) => {
   try {
     const character = await Character.findOne({ userId: req.params.id });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    const { itemId, name, type, subtype, rarity, quantity, stats, icon } = req.body;
+    const { itemId, name, type, subtype, rarity, quantity, stats, icon, slot } = req.body;
     
     if (character.inventory.length >= character.inventorySize) {
       return res.status(400).json({ error: 'Inventory full' });
     }
     
+    // ============================================================
+    // FIX: Check if this is a VIP item and handle specially
+    // ============================================================
+    if (type === 'vip_equipment' || (itemId && itemId.startsWith('vip_'))) {
+      // Use the VIP item creator for proper expiration fields
+      const vipItem = createVipInventoryItem(itemId);
+      if (vipItem) {
+        character.inventory.push(vipItem);
+        await character.save();
+        return res.json({ 
+          message: `Added ${vipItem.name} to inventory (VIP)`, 
+          inventory: character.inventory 
+        });
+      } else {
+        return res.status(400).json({ error: 'Invalid VIP item ID: ' + itemId });
+      }
+    }
+    
+    // Regular item handling
     const itemData = {
       itemId: itemId || `custom_${Date.now()}`,
       name: name || 'Custom Item',
       icon: icon || '📦',
       type: type || 'equipment',
-      subtype: subtype || null,
+      subtype: subtype || slot || null,
+      slot: slot || subtype || null,
       rarity: rarity || 'common',
       quantity: quantity || 1,
       stackable: type === 'material' || type === 'consumable',
