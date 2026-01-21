@@ -15,6 +15,97 @@ var EQUIPMENT_SLOTS = [
 var ITEMS_PER_PAGE = 10;
 
 // ============================================================
+// PHASE 9.9.4: Set Bonus Definitions (mirrors server data)
+// ============================================================
+var SET_BONUS_DEFINITIONS = {
+  vip_premium_set: {
+    name: 'VIP Premium Set',
+    bonuses: {
+      4: { pAtkPercent: 5, mAtkPercent: 5 },
+      8: { pAtkPercent: 10, mAtkPercent: 10, hpPercent: 10 }
+    }
+  },
+  flame_guardian_set: {
+    name: 'Flame Guardian Set',
+    bonuses: {
+      2: { pAtkPercent: 3 },
+      4: { pAtkPercent: 6, hpPercent: 5 }
+    }
+  },
+  shadow_stalker_set: {
+    name: 'Shadow Stalker Set',
+    bonuses: {
+      2: { critRate: 3 },
+      4: { critRate: 6, critDmg: 15 }
+    }
+  },
+  arcane_scholar_set: {
+    name: 'Arcane Scholar Set',
+    bonuses: {
+      2: { mAtkPercent: 3 },
+      4: { mAtkPercent: 6, mpPercent: 10 }
+    }
+  },
+  iron_bastion_set: {
+    name: 'Iron Bastion Set',
+    bonuses: {
+      2: { pDefPercent: 3 },
+      4: { pDefPercent: 6, hpPercent: 8 }
+    }
+  },
+  void_walker_set: {
+    name: 'Void Walker Set',
+    bonuses: {
+      2: { pAtkPercent: 2, mAtkPercent: 2 },
+      4: { pAtkPercent: 5, mAtkPercent: 5, critRate: 3 }
+    }
+  }
+};
+
+// Helper to calculate set bonuses from equipment
+function calculateSetBonuses(equipment) {
+  var setCount = {};
+  var totalBonuses = {};
+  var activeSets = [];
+  
+  if (!equipment) return { totalBonuses: {}, activeSets: [] };
+  
+  var slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
+  
+  slots.forEach(function(slot) {
+    var item = equipment[slot];
+    if (item && item.setId) {
+      if (!setCount[item.setId]) {
+        setCount[item.setId] = 0;
+      }
+      setCount[item.setId]++;
+    }
+  });
+  
+  Object.keys(setCount).forEach(function(setId) {
+    var count = setCount[setId];
+    var setDef = SET_BONUS_DEFINITIONS[setId];
+    if (setDef && setDef.bonuses && count >= 2) {
+      var setActiveBonuses = [];
+      Object.keys(setDef.bonuses).forEach(function(threshold) {
+        if (count >= parseInt(threshold)) {
+          var bonus = setDef.bonuses[threshold];
+          setActiveBonuses.push({ pieces: parseInt(threshold), bonus: bonus });
+          Object.keys(bonus).forEach(function(stat) {
+            totalBonuses[stat] = (totalBonuses[stat] || 0) + bonus[stat];
+          });
+        }
+      });
+      if (setActiveBonuses.length > 0) {
+        activeSets.push({ id: setId, name: setDef.name, count: count, bonuses: setActiveBonuses });
+      }
+    }
+  });
+  
+  return { totalBonuses: totalBonuses, activeSets: activeSets };
+}
+
+// ============================================================
 // PHASE 9.9.4: Stat Formatting Functions
 // ============================================================
 function formatStatName(statKey) {
@@ -504,6 +595,32 @@ var InventoryPanel = function(props) {
                 });
               })()}
             </div>
+            
+            {/* Set Bonuses Section */}
+            {(function() {
+              var setData = calculateSetBonuses(character.equipment);
+              if (setData.activeSets.length === 0) return null;
+              return (
+                <div className="mt-3 pt-3 border-t border-gray-700">
+                  <p className="text-amber-400 text-sm mb-2">⚔️ Set Bonuses:</p>
+                  {setData.activeSets.map(function(set) {
+                    return (
+                      <div key={set.id} className="mb-2">
+                        <p className="text-amber-300 text-xs font-semibold">{set.name} ({set.count}pc)</p>
+                        {set.bonuses.map(function(b, idx) {
+                          var bonusText = Object.keys(b.bonus).map(function(stat) {
+                            return '+' + b.bonus[stat] + '% ' + formatStatName(stat);
+                          }).join(', ');
+                          return (
+                            <p key={idx} className="text-green-400 text-xs ml-2">✓ {b.pieces}-piece: {bonusText}</p>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
