@@ -137,39 +137,22 @@ function getEquipmentStatsFromCharacter(character) {
 }
 
 function calculateCombatStats(character, shrineBuffs = []) {
-  const stats = character.stats;
-  const level = character.level || 1;
-  const equippedIds = getEquippedItemIds(character);
+  // ============================================================
+  // PHASE 9.9.4: Use Character.calculateDerivedStats for percentage stat support
+  // This ensures VIP items with percentage stats work in combat
+  // ============================================================
+  const derivedStats = Character.calculateDerivedStats(character);
   
-  let equipBonus = { pAtk: 0, mAtk: 0, pDef: 0, mDef: 0, hp: 0, mp: 0, str: 0, agi: 0, dex: 0, int: 0, vit: 0, critRate: 0, critDmg: 0 };
-  try { equipBonus = calculateEquipmentStats(equippedIds); } catch (err) { }
-  
-  const directStats = getEquipmentStatsFromCharacter(character);
-  const totalEquipBonus = {};
-  Object.keys(equipBonus).forEach(key => {
-    totalEquipBonus[key] = Math.max(equipBonus[key] || 0, directStats[key] || 0);
-  });
-  
-  let setBonus = {};
-  try { setBonus = calculateSetBonuses(equippedIds); } catch (err) { }
-  
-  const totalStr = (stats.str || 0) + (totalEquipBonus.str || 0);
-  const totalAgi = (stats.agi || 0) + (totalEquipBonus.agi || 0);
-  const totalDex = (stats.dex || 0) + (totalEquipBonus.dex || 0);
-  const totalInt = (stats.int || 0) + (totalEquipBonus.int || 0);
-  const totalVit = (stats.vit || 0) + (totalEquipBonus.vit || 0);
-  const levelBonus = 1 + (level - 1) * 0.02;
-  
-  // Base combat stats
-  let pDmg = Math.floor((5 + totalStr * 3 + (totalEquipBonus.pAtk || 0)) * levelBonus);
-  let mDmg = Math.floor((5 + totalInt * 4 + (totalEquipBonus.mAtk || 0)) * levelBonus);
-  let pDef = totalStr + totalVit * 2 + (totalEquipBonus.pDef || 0);
-  let mDef = totalVit + totalInt + (totalEquipBonus.mDef || 0);
-  let critRate = Math.min(5 + totalAgi * 0.5 + (totalEquipBonus.critRate || 0), 80);
-  let critDmg = 150 + totalDex + (totalEquipBonus.critDmg || 0);
-  let bonusHp = totalEquipBonus.hp || 0;
-  let bonusMp = totalEquipBonus.mp || 0;
-  let evasion = 0;
+  // Get base values from the server-calculated derived stats
+  let pDmg = derivedStats.pDmg || 0;
+  let mDmg = derivedStats.mDmg || 0;
+  let pDef = derivedStats.pDef || 0;
+  let mDef = derivedStats.mDef || 0;
+  let critRate = Math.min(derivedStats.critRate || 5, 80);
+  let critDmg = derivedStats.critDmg || 150;
+  let bonusHp = derivedStats.bonusHp || 0;
+  let bonusMp = derivedStats.bonusMp || 0;
+  let evasion = derivedStats.evasion || 0;
   let allDamageBonus = 0;
   
   // ============================================================
@@ -189,13 +172,13 @@ function calculateCombatStats(character, shrineBuffs = []) {
         critRate = Math.min(critRate + blessing.value, 80);
         break;
       case 'maxHp':
-        bonusHp += Math.floor(stats.maxHp * blessing.value / 100);
+        bonusHp += Math.floor((character.stats.maxHp || 100) * blessing.value / 100);
         break;
       case 'maxMp':
-        bonusMp += Math.floor(stats.maxMp * blessing.value / 100);
+        bonusMp += Math.floor((character.stats.maxMp || 50) * blessing.value / 100);
         break;
       case 'evasion':
-        evasion += blessing.value;
+        evasion = Math.min(evasion + blessing.value, 60);
         break;
       case 'allDamage':
         allDamageBonus += blessing.value;
@@ -203,19 +186,26 @@ function calculateCombatStats(character, shrineBuffs = []) {
     }
   }
   
-  return {
-    pDmg,
-    mDmg,
-    pDef,
-    mDef,
-    critRate,
-    critDmg,
-    bonusHp,
-    bonusMp,
+  // Apply all damage bonus
+  if (allDamageBonus > 0) {
+    pDmg = Math.floor(pDmg * (1 + allDamageBonus / 100));
+    mDmg = Math.floor(mDmg * (1 + allDamageBonus / 100));
+  }
+  
+  // Get set bonuses from equipment
+  const equippedIds = getEquippedItemIds(character);
+  let setBonus = {};
+  try { setBonus = calculateSetBonuses(equippedIds); } catch (err) { }
+  
+  return { 
+    pDmg, mDmg, pDef, mDef, 
+    critRate, critDmg, 
+    bonusHp, bonusMp,
     evasion,
-    allDamageBonus,
-    activeSets: setBonus,
-    equipmentBonus: totalEquipBonus
+    setBonus,
+    // Include special bonuses from VIP items
+    expBonus: derivedStats.expBonus || 0,
+    goldBonus: derivedStats.goldBonus || 0
   };
 }
 
@@ -788,10 +778,18 @@ router.post('/combat/action', authenticate, async (req, res) => {
       const floorMultiplier = 1.0 + (floorMap.floor - 1) * BALANCE.floorExpBonus;
       const nodeMultiplier = currentNode.type === 'boss' ? 2 : currentNode.type === 'elite' ? 1.5 : 1;
       
+      // ============================================================
+      // PHASE 9.9.4: Apply EXP and Gold bonuses from VIP equipment
+      // ============================================================
+      const expBonusMultiplier = 1.0 + ((combatStats.expBonus || 0) / 100);
+      const goldBonusMultiplier = 1.0 + ((combatStats.goldBonus || 0) / 100);
+      
       const rewards = { 
-        exp: Math.floor(baseExp * towerMultiplier * floorMultiplier * nodeMultiplier), 
-        gold: Math.floor(baseGold * towerMultiplier * floorMultiplier * (currentNode.type === 'boss' ? 1.5 : currentNode.type === 'elite' ? 1.25 : 1)), 
-        items: [] 
+        exp: Math.floor(baseExp * towerMultiplier * floorMultiplier * nodeMultiplier * expBonusMultiplier), 
+        gold: Math.floor(baseGold * towerMultiplier * floorMultiplier * (currentNode.type === 'boss' ? 1.5 : currentNode.type === 'elite' ? 1.25 : 1) * goldBonusMultiplier), 
+        items: [],
+        expBonus: combatStats.expBonus || 0,
+        goldBonus: combatStats.goldBonus || 0
       };
       
       const loot = generateLootDrops(currentNode.type, floorMap.towerId, floorMap.floor, character.level, character.baseClass);
