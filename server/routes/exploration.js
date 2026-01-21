@@ -512,13 +512,19 @@ router.get('/map', authenticate, async (req, res) => {
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
     const floorMap = await FloorMap.findOne({ characterId: character._id, completed: false });
-    if (!floorMap) return res.json({ map: null, inTower: false, shrineBuffs: [] });
+    if (!floorMap) return res.json({ map: null, inTower: false, shrineBuffs: [], tower: null, floor: null });
+    
+    // Get tower data for the response
+    const tower = TOWERS.find ? TOWERS.find(t => t.id === floorMap.towerId) : TOWERS[floorMap.towerId];
     
     res.json({ 
       map: floorMap, 
       inTower: true, 
       currentNode: floorMap.nodes.find(n => n.id === floorMap.currentNodeId),
-      shrineBuffs: floorMap.shrineBuffs || []
+      shrineBuffs: floorMap.shrineBuffs || [],
+      tower: tower || { id: floorMap.towerId, name: `Tower ${floorMap.towerId}` },
+      floor: floorMap.floor,
+      highestFloor: character.towerProgress?.[`tower_${floorMap.towerId}`] || 1
     });
   } catch (error) {
     console.error('Get map error:', error);
