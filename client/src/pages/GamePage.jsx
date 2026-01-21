@@ -446,8 +446,16 @@ const GamePage = () => {
   ]);
   const navigate = useNavigate();
 
-  // FIXED: Calculate derived stats WITH EQUIPMENT
-  const derivedStats = character ? calculateDerivedStats(character.stats, character.level, character.equipment) : null;
+  // PHASE 9.9.4 FIX: Use server's derivedStats (includes set bonuses!) 
+  // Fall back to local calculation only if server data not available
+  const derivedStats = character ? (character.derivedStats || calculateDerivedStats(character.stats, character.level, character.equipment)) : null;
+  
+  // DEBUG: Log to verify set bonuses are being used
+  if (character?.derivedStats) {
+    console.log('[GamePage] Using server derivedStats:', character.derivedStats);
+  } else if (character) {
+    console.log('[GamePage] WARNING: No server derivedStats, using local calculation');
+  }
   
   // Get set bonus info for display
   const setInfo = character ? calculateSetBonusesFromEquipment(character.equipment) : { activeSets: [] };
