@@ -515,7 +515,8 @@ router.get('/map', authenticate, async (req, res) => {
     if (!floorMap) return res.json({ map: null, inTower: false, shrineBuffs: [], tower: null, floor: null });
     
     // Get tower data for the response
-    const tower = TOWERS.find ? TOWERS.find(t => t.id === floorMap.towerId) : TOWERS[floorMap.towerId];
+    // FIX: TOWERS is an object keyed by ID, not an array
+    const tower = TOWERS[floorMap.towerId];
     
     res.json({ 
       map: floorMap, 
@@ -544,7 +545,8 @@ router.post('/enter', authenticate, async (req, res) => {
     }
     
     // Check tower unlock
-    const tower = TOWERS.find(t => t.id === towerId);
+    // FIX: TOWERS is an object keyed by ID, not an array
+    const tower = TOWERS[towerId];
     if (!tower) return res.status(400).json({ error: 'Invalid tower' });
     if (tower.levelReq > character.level) return res.status(400).json({ error: `Need level ${tower.levelReq}` });
     
