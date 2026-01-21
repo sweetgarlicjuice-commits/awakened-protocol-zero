@@ -1029,22 +1029,46 @@ router.post('/combat/action', authenticate, async (req, res) => {
       character.stats.mp -= skillUsed.mpCost;
       
       // Calculate skill damage using combat engine
+      // PHASE 9.9.7 FIX: calculateSkillDamage returns { finalDamage, isCrit, ... }
       const skillResult = calculateSkillDamage(skillUsed, fullCombatStats, target, combat.playerBuffs || []);
-      playerDamage = skillResult.damage;
-      isCrit = skillResult.isCrit;
-      damageType = skillUsed.damageType || 'physical';
+      
+      // Handle case where calculateSkillDamage returns undefined or invalid result
+      if (!skillResult || typeof skillResult !== 'object') {
+        console.error('[combat/action] calculateSkillDamage returned invalid result:', skillResult);
+        // Fallback: calculate basic damage based on skill type
+        const baseDmg = skillUsed.damageType === 'magical' ? fullCombatStats.mDmg : fullCombatStats.pDmg;
+        const multiplier = (skillUsed.scaling?.multiplier || 1.0);
+        const targetDef = skillUsed.damageType === 'magical' ? (target.mDef || 0) : (target.def || 0);
+        playerDamage = Math.max(1, Math.floor(baseDmg * multiplier - targetDef * 0.3));
+        isCrit = Math.random() * 100 < (fullCombatStats.critRate || 5);
+        if (isCrit) playerDamage = Math.floor(playerDamage * (fullCombatStats.critDmg || 150) / 100);
+      } else {
+        // PHASE 9.9.7 FIX: Use finalDamage (not damage)
+        playerDamage = skillResult.finalDamage || 0;
+        isCrit = skillResult.isCrit || false;
+      }
+      
+      damageType = skillUsed.damageType || (skillUsed.scaling?.stat === 'mDmg' ? 'magical' : 'physical');
       
       // Process skill effects (buffs, debuffs, heals, etc.)
-      const effectResult = processSkillEffects(skillUsed, character, combat, fullCombatStats);
-      if (effectResult.logs) {
-        newLogs.push(...effectResult.logs);
-      }
-      if (effectResult.healAmount) {
-        character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + effectResult.healAmount);
+      // PHASE 9.9.7 FIX: Correct parameter order: (skill, damageResult, combatStats, target, character)
+      const effectResult = processSkillEffects(skillUsed, skillResult || {}, fullCombatStats, target, character);
+      if (effectResult && Array.isArray(effectResult)) {
+        effectResult.forEach(effect => {
+          if (effect && effect.message) {
+            newLogs.push({ type: effect.type || 'buff', message: effect.message });
+          }
+          // Handle heal effect
+          if (effect && effect.type === 'heal' && effect.value) {
+            character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + effect.value);
+          }
+        });
       }
       
       // Format skill message
-      const skillMsg = formatSkillMessage(skillUsed, playerDamage, isCrit, target.name);
+      const skillMsg = isCrit 
+        ? `CRITICAL! ${skillUsed.name} deals ${playerDamage} damage to ${target.name}!`
+        : `${skillUsed.name} deals ${playerDamage} damage to ${target.name}.`;
       newLogs.push({ type: isCrit ? 'crit' : 'skill', message: skillMsg });
       
     } else {
