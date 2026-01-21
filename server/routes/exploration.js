@@ -511,11 +511,65 @@ router.get('/map', authenticate, async (req, res) => {
     const character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
     
-    const floorMap = await FloorMap.findOne({ characterId: character._id, completed: false });
-    if (!floorMap) return res.json({ map: null, inTower: false, shrineBuffs: [], tower: null, floor: null });
+    // ============================================================
+    // PHASE 9.9.7 FIX: Handle towerId and floor query params
+    // Client calls: GET /exploration/map?towerId=1&floor=1
+    // If no active map exists, create one for the requested tower/floor
+    // ============================================================
+    const requestedTowerId = parseInt(req.query.towerId) || null;
+    const requestedFloor = parseInt(req.query.floor) || null;
+    
+    let floorMap = await FloorMap.findOne({ characterId: character._id, completed: false });
+    
+    // If towerId/floor provided and no active map (or different tower/floor), create new map
+    if (requestedTowerId && requestedFloor) {
+      // Check if we need to create a new map
+      const needNewMap = !floorMap || 
+                         floorMap.towerId !== requestedTowerId || 
+                         floorMap.floor !== requestedFloor;
+      
+      if (needNewMap) {
+        // Validate tower exists
+        const tower = TOWERS[requestedTowerId];
+        if (!tower) {
+          return res.status(400).json({ error: 'Invalid tower' });
+        }
+        
+        // Check energy
+        if ((character.energy || 0) < ENERGY_PER_EXPLORATION) {
+          return res.status(400).json({ error: `Not enough energy. Need ${ENERGY_PER_EXPLORATION}, have ${character.energy || 0}` });
+        }
+        
+        // Validate floor is unlocked
+        const towerKey = `tower_${requestedTowerId}`;
+        const highestUnlocked = character.towerProgress?.[towerKey] || 1;
+        if (requestedFloor > highestUnlocked) {
+          return res.status(400).json({ error: `Floor ${requestedFloor} is locked. Highest unlocked: ${highestUnlocked}` });
+        }
+        
+        // Clear any existing incomplete maps
+        await FloorMap.deleteMany({ characterId: character._id, completed: false });
+        
+        // Generate new floor map
+        const mapData = generateFloorMap(character._id, requestedTowerId, requestedFloor);
+        floorMap = new FloorMap(mapData);
+        await floorMap.save();
+        
+        // Deduct energy and update character state
+        character.energy -= ENERGY_PER_EXPLORATION;
+        character.isInTower = true;
+        character.currentTowerId = requestedTowerId;
+        character.currentFloor = requestedFloor;
+        await character.save();
+      }
+    }
+    
+    // If still no map, return empty state
+    if (!floorMap) {
+      return res.json({ map: null, inTower: false, shrineBuffs: [], tower: null, floor: null });
+    }
     
     // Get tower data for the response
-    // FIX: TOWERS is an object keyed by ID, not an array
     const tower = TOWERS[floorMap.towerId];
     
     res.json({ 
@@ -525,7 +579,8 @@ router.get('/map', authenticate, async (req, res) => {
       shrineBuffs: floorMap.shrineBuffs || [],
       tower: tower || { id: floorMap.towerId, name: `Tower ${floorMap.towerId}` },
       floor: floorMap.floor,
-      highestFloor: character.towerProgress?.[`tower_${floorMap.towerId}`] || 1
+      highestFloor: character.towerProgress?.[`tower_${floorMap.towerId}`] || 1,
+      energy: character.energy
     });
   } catch (error) {
     console.error('Get map error:', error);
