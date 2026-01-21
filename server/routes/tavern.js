@@ -1256,6 +1256,9 @@ router.post('/equip', authenticate, async function(req, res) {
       message: message,
       equipment: character.equipment,
       inventory: character.inventory,
+      // PHASE 9.9.4: Return derivedStats so client can update combat stats display
+      derivedStats: character.derivedStats,
+      stats: character.stats,
       // Include expiration info in response
       expirationStarted: !invItem.firstEquippedAt && expiresAt ? true : false,
       expiresAt: expiresAt
@@ -1322,7 +1325,10 @@ router.post('/unequip', authenticate, async function(req, res) {
     res.json({
       message: 'Unequipped ' + currentEquip.name,
       equipment: character.equipment,
-      inventory: character.inventory
+      inventory: character.inventory,
+      // PHASE 9.9.4: Return derivedStats so client can update combat stats display
+      derivedStats: character.derivedStats,
+      stats: character.stats
     });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
