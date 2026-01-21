@@ -2,6 +2,16 @@ import mongoose from 'mongoose';
 import { SET_BONUS_DEFINITIONS } from '../data/setBonuses.js';
 
 // ============================================================
+// DEBUG: Log SET_BONUS_DEFINITIONS on server start
+// ============================================================
+console.log('[Character.js] SET_BONUS_DEFINITIONS loaded:', Object.keys(SET_BONUS_DEFINITIONS || {}).length, 'sets');
+if (SET_BONUS_DEFINITIONS && SET_BONUS_DEFINITIONS['vip_premium_set']) {
+  console.log('[Character.js] vip_premium_set found:', JSON.stringify(SET_BONUS_DEFINITIONS['vip_premium_set']));
+} else {
+  console.log('[Character.js] WARNING: vip_premium_set NOT FOUND in SET_BONUS_DEFINITIONS!');
+}
+
+// ============================================================
 // BASE STATS CONFIGURATION - Different for each class!
 // ============================================================
 
@@ -188,483 +198,307 @@ const HIDDEN_CLASS_SKILLS = {
     { skillId: 'tempest', name: 'Tempest', level: 1, unlocked: true }
   ],
   necromancer: [
-    { skillId: 'lifeDrain', name: 'Life Drain', level: 1, unlocked: true },
-    { skillId: 'curse', name: 'Curse', level: 1, unlocked: true },
-    { skillId: 'soulRend', name: 'Soul Rend', level: 1, unlocked: true },
+    { skillId: 'darkBolt', name: 'Dark Bolt', level: 1, unlocked: true },
+    { skillId: 'drainLife', name: 'Drain Life', level: 1, unlocked: true },
+    { skillId: 'summonSkeleton', name: 'Summon Skeleton', level: 1, unlocked: true },
     { skillId: 'deathPact', name: 'Death Pact', level: 1, unlocked: true }
   ],
   arcanist: [
-    { skillId: 'arcaneMissile', name: 'Arcane Missile', level: 1, unlocked: true },
-    { skillId: 'empower', name: 'Empower', level: 1, unlocked: true },
-    { skillId: 'arcaneBurst', name: 'Arcane Burst', level: 1, unlocked: true },
-    { skillId: 'transcendence', name: 'Transcendence', level: 1, unlocked: true }
+    { skillId: 'arcaneBlast', name: 'Arcane Blast', level: 1, unlocked: true },
+    { skillId: 'manaBarrier', name: 'Mana Barrier', level: 1, unlocked: true },
+    { skillId: 'spellweave', name: 'Spellweave', level: 1, unlocked: true },
+    { skillId: 'arcaneNova', name: 'Arcane Nova', level: 1, unlocked: true }
   ]
 };
 
 // ============================================================
-// SCHEMAS
-// ============================================================
-
-const skillSchema = new mongoose.Schema({
-  skillId: String,
-  name: String,
-  level: { type: Number, default: 1 },
-  unlocked: { type: Boolean, default: true }
-});
-
-// PHASE 9.3 FIX: Added setId for set bonus tracking
-// PHASE 9.9.4: Added VIP expiration fields
-const inventoryItemSchema = new mongoose.Schema({
-  itemId: String,
-  name: String,
-  icon: { type: String, default: '📦' },
-  type: String,
-  subtype: String,
-  rarity: { type: String, enum: ['common', 'uncommon', 'rare', 'epic', 'legendary'], default: 'common' },
-  quantity: { type: Number, default: 1 },
-  stackable: { type: Boolean, default: true },
-  stats: mongoose.Schema.Types.Mixed,
-  sellPrice: { type: Number, default: 5 },
-  setId: { type: String, default: null },
-  // PHASE 9.9.4: VIP Item Expiration Fields
-  vipOnly: { type: Boolean, default: false },
-  expirationType: { type: String, default: null }, // 'on_first_equip' or 'on_grant'
-  expirationDays: { type: Number, default: null },
-  firstEquippedAt: { type: Date, default: null },
-  expiresAt: { type: Date, default: null }
-});
-
-// PHASE 9.3 FIX: Added setId for set bonus tracking
-// PHASE 9.3.1 FIX: Added subtype for proper re-equip after unequip
-// PHASE 9.9.4: Added VIP expiration fields
-const equipmentSlotSchema = new mongoose.Schema({
-  itemId: { type: String, default: null },
-  name: { type: String, default: null },
-  icon: { type: String, default: null },
-  type: String,
-  subtype: { type: String, default: null },
-  rarity: String,
-  stats: mongoose.Schema.Types.Mixed,
-  setId: { type: String, default: null },
-  // PHASE 9.9.4: VIP Item Expiration Fields
-  vipOnly: { type: Boolean, default: false },
-  expirationType: { type: String, default: null },
-  expirationDays: { type: Number, default: null },
-  firstEquippedAt: { type: Date, default: null },
-  expiresAt: { type: Date, default: null }
-});
-
-// Active buff schema for combat
-const activeBuffSchema = new mongoose.Schema({
-  id: String,
-  name: String,
-  icon: String,
-  color: String,
-  type: { type: String, enum: ['buff', 'debuff', 'dot', 'control'] },
-  category: String,
-  value: Number,
-  duration: Number,
-  damagePerTurn: Number,
-  source: String,
-  stacks: { type: Number, default: 1 }
-});
-
-// ============================================================
-// MAIN CHARACTER SCHEMA
-// FIX #2 & #3: Remove default stats - they will be set in pre-save based on class
+// CHARACTER SCHEMA
 // ============================================================
 
 const characterSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    unique: true
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  name: { type: String, required: true, unique: true },
+  baseClass: { 
+    type: String, 
+    required: true, 
+    enum: ['swordsman', 'thief', 'archer', 'mage'] 
   },
-  name: {
-    type: String,
-    required: true,
-    minlength: 2,
-    maxlength: 20,
-    trim: true
-  },
+  hiddenClass: { type: String, default: 'none' },
+  hiddenClassUnlocked: { type: Boolean, default: false },
+  element: { type: String, default: 'none' },
+  level: { type: Number, default: 1 },
+  experience: { type: Number, default: 0 },
+  experienceToNextLevel: { type: Number, default: 100 },
+  gold: { type: Number, default: 100 },
   
-  // Class System
-  baseClass: {
-    type: String,
-    enum: ['swordsman', 'thief', 'archer', 'mage'],
-    required: true
-  },
-  hiddenClass: {
-    type: String,
-    enum: ['none', 
-      // Swordsman
-      'flameblade', 'berserker', 'paladin', 'earthshaker', 'frostguard',
-      // Thief  
-      'shadowDancer', 'venomancer', 'assassin', 'phantom', 'bloodreaper',
-      // Archer
-      'stormRanger', 'pyroArcher', 'frostSniper', 'natureWarden', 'voidHunter',
-      // Mage
-      'frostWeaver', 'pyromancer', 'stormcaller', 'necromancer', 'arcanist'
-    ],
-    default: 'none'
-  },
-  hiddenClassUnlocked: {
-    type: Boolean,
-    default: false
-  },
-  
-  // Element (derived from hidden class)
-  element: {
-    type: String,
-    enum: ['none', 'fire', 'water', 'lightning', 'earth', 'nature', 'ice', 'dark', 'holy'],
-    default: 'none'
-  },
-  
-  // Level & Experience
-  level: {
-    type: Number,
-    default: 1,
-    min: 1,
-    max: 200
-  },
-  experience: {
-    type: Number,
-    default: 0
-  },
-  experienceToNextLevel: {
-    type: Number,
-    default: 100
-  },
-  
-  // FIX #2 & #3: Base Stats - NO DEFAULTS! Set by pre-save hook based on class
+  // Core stats
   stats: {
-    hp: { type: Number },
-    maxHp: { type: Number },
-    mp: { type: Number },
-    maxMp: { type: Number },
-    str: { type: Number },
-    agi: { type: Number },
-    dex: { type: Number },
-    int: { type: Number },
-    vit: { type: Number }
+    hp: { type: Number, default: 100 },
+    maxHp: { type: Number, default: 100 },
+    mp: { type: Number, default: 50 },
+    maxMp: { type: Number, default: 50 },
+    str: { type: Number, default: 10 },
+    agi: { type: Number, default: 10 },
+    dex: { type: Number, default: 10 },
+    int: { type: Number, default: 10 },
+    vit: { type: Number, default: 10 }
   },
   
-  // Derived Stats (calculated from base + equipment)
-  // PHASE 9.9.4: Added expBonus and goldBonus
-  derivedStats: {
-    pDmg: { type: Number, default: 0 },
-    mDmg: { type: Number, default: 0 },
-    pDef: { type: Number, default: 0 },
-    mDef: { type: Number, default: 0 },
-    critRate: { type: Number, default: 5 },
-    critDmg: { type: Number, default: 150 },
-    accuracy: { type: Number, default: 90 },
-    evasion: { type: Number, default: 0 },
-    hpRegen: { type: Number, default: 0 },
-    mpRegen: { type: Number, default: 0 },
-    bonusHp: { type: Number, default: 0 },
-    bonusMp: { type: Number, default: 0 },
-    expBonus: { type: Number, default: 0 },   // PHASE 9.9.4: +X% EXP
-    goldBonus: { type: Number, default: 0 },  // PHASE 9.9.4: +X% Gold
-    fireRes: { type: Number, default: 0 },
-    waterRes: { type: Number, default: 0 },
-    lightningRes: { type: Number, default: 0 },
-    earthRes: { type: Number, default: 0 },
-    natureRes: { type: Number, default: 0 },
-    iceRes: { type: Number, default: 0 },
-    darkRes: { type: Number, default: 0 },
-    holyRes: { type: Number, default: 0 }
-  },
+  statPoints: { type: Number, default: 0 },
   
-  // Stat points from leveling
-  statPoints: {
-    type: Number,
-    default: 0
+  // Equipment slots
+  equipment: {
+    head: {
+      itemId: { type: String, default: null },
+      name: { type: String, default: null },
+      icon: { type: String, default: null },
+      type: { type: String, default: null },
+      subtype: { type: String, default: null },
+      rarity: { type: String, default: null },
+      stats: { type: mongoose.Schema.Types.Mixed, default: null },
+      setId: { type: String, default: null },
+      vipOnly: { type: Boolean, default: false },
+      expirationType: { type: String, default: null },
+      expirationDays: { type: Number, default: null },
+      firstEquippedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null }
+    },
+    body: {
+      itemId: { type: String, default: null },
+      name: { type: String, default: null },
+      icon: { type: String, default: null },
+      type: { type: String, default: null },
+      subtype: { type: String, default: null },
+      rarity: { type: String, default: null },
+      stats: { type: mongoose.Schema.Types.Mixed, default: null },
+      setId: { type: String, default: null },
+      vipOnly: { type: Boolean, default: false },
+      expirationType: { type: String, default: null },
+      expirationDays: { type: Number, default: null },
+      firstEquippedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null }
+    },
+    leg: {
+      itemId: { type: String, default: null },
+      name: { type: String, default: null },
+      icon: { type: String, default: null },
+      type: { type: String, default: null },
+      subtype: { type: String, default: null },
+      rarity: { type: String, default: null },
+      stats: { type: mongoose.Schema.Types.Mixed, default: null },
+      setId: { type: String, default: null },
+      vipOnly: { type: Boolean, default: false },
+      expirationType: { type: String, default: null },
+      expirationDays: { type: Number, default: null },
+      firstEquippedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null }
+    },
+    shoes: {
+      itemId: { type: String, default: null },
+      name: { type: String, default: null },
+      icon: { type: String, default: null },
+      type: { type: String, default: null },
+      subtype: { type: String, default: null },
+      rarity: { type: String, default: null },
+      stats: { type: mongoose.Schema.Types.Mixed, default: null },
+      setId: { type: String, default: null },
+      vipOnly: { type: Boolean, default: false },
+      expirationType: { type: String, default: null },
+      expirationDays: { type: Number, default: null },
+      firstEquippedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null }
+    },
+    leftHand: {
+      itemId: { type: String, default: null },
+      name: { type: String, default: null },
+      icon: { type: String, default: null },
+      type: { type: String, default: null },
+      subtype: { type: String, default: null },
+      rarity: { type: String, default: null },
+      stats: { type: mongoose.Schema.Types.Mixed, default: null },
+      setId: { type: String, default: null },
+      vipOnly: { type: Boolean, default: false },
+      expirationType: { type: String, default: null },
+      expirationDays: { type: Number, default: null },
+      firstEquippedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null }
+    },
+    rightHand: {
+      itemId: { type: String, default: null },
+      name: { type: String, default: null },
+      icon: { type: String, default: null },
+      type: { type: String, default: null },
+      subtype: { type: String, default: null },
+      rarity: { type: String, default: null },
+      stats: { type: mongoose.Schema.Types.Mixed, default: null },
+      setId: { type: String, default: null },
+      vipOnly: { type: Boolean, default: false },
+      expirationType: { type: String, default: null },
+      expirationDays: { type: Number, default: null },
+      firstEquippedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null }
+    },
+    ring: {
+      itemId: { type: String, default: null },
+      name: { type: String, default: null },
+      icon: { type: String, default: null },
+      type: { type: String, default: null },
+      subtype: { type: String, default: null },
+      rarity: { type: String, default: null },
+      stats: { type: mongoose.Schema.Types.Mixed, default: null },
+      setId: { type: String, default: null },
+      vipOnly: { type: Boolean, default: false },
+      expirationType: { type: String, default: null },
+      expirationDays: { type: Number, default: null },
+      firstEquippedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null }
+    },
+    necklace: {
+      itemId: { type: String, default: null },
+      name: { type: String, default: null },
+      icon: { type: String, default: null },
+      type: { type: String, default: null },
+      subtype: { type: String, default: null },
+      rarity: { type: String, default: null },
+      stats: { type: mongoose.Schema.Types.Mixed, default: null },
+      setId: { type: String, default: null },
+      vipOnly: { type: Boolean, default: false },
+      expirationType: { type: String, default: null },
+      expirationDays: { type: Number, default: null },
+      firstEquippedAt: { type: Date, default: null },
+      expiresAt: { type: Date, default: null }
+    }
   },
-  
-  // Energy System
-  energy: {
-    type: Number,
-    default: 100,
-    min: 0,
-    max: 100
-  },
-  lastEnergyUpdate: {
-    type: Date,
-    default: Date.now
-  },
-  
-  // PHASE 9.5: Track last HP/MP regen separately
-  lastRegenUpdate: {
-    type: Date,
-    default: Date.now
-  },
-  
-  // Gold
-  gold: {
-    type: Number,
-    default: 100
-  },
-  
-  // Tower Progress
-  currentTower: {
-    type: Number,
-    default: 1
-  },
-  currentFloor: {
-    type: Number,
-    default: 1
-  },
-  highestTowerCleared: {
-    type: Number,
-    default: 0
-  },
-  highestFloorReached: {
-    tower: { type: Number, default: 1 },
-    floor: { type: Number, default: 1 }
-  },
-  towerProgress: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
-  },
-  isInTower: {
-    type: Boolean,
-    default: false
-  },
-  towerLockoutUntil: {
-    type: Date,
-    default: null
-  },
-  explorationProgress: {
-    type: mongoose.Schema.Types.Mixed,
-    default: null
-  },
-  
-  // Combat state
-  activeBuffs: [activeBuffSchema],
-  
-  // Skills
-  skills: [skillSchema],
   
   // Inventory
-  inventory: [inventoryItemSchema],
-  inventorySize: {
-    type: Number,
-    default: 50
+  inventory: [{
+    itemId: String,
+    name: String,
+    icon: String,
+    type: String,
+    subtype: String,
+    slot: String,
+    rarity: String,
+    quantity: { type: Number, default: 1 },
+    stackable: { type: Boolean, default: false },
+    stats: mongoose.Schema.Types.Mixed,
+    setId: String,
+    levelReq: Number,
+    classReq: String,
+    // VIP fields
+    vipOnly: { type: Boolean, default: false },
+    expirationType: { type: String, default: null },
+    expirationDays: { type: Number, default: null },
+    firstEquippedAt: { type: Date, default: null },
+    expiresAt: { type: Date, default: null }
+  }],
+  inventorySize: { type: Number, default: 30 },
+  
+  // Skills
+  skills: [{
+    skillId: String,
+    name: String,
+    level: { type: Number, default: 1 },
+    unlocked: { type: Boolean, default: false }
+  }],
+  
+  // Tower progress
+  currentTower: { type: Number, default: 1 },
+  currentFloor: { type: Number, default: 1 },
+  highestFloor: { type: Number, default: 1 },
+  towerProgress: {
+    type: Map,
+    of: Number,
+    default: () => new Map([['1', 1]])
   },
   
-  // Equipment - 8 slots
-  equipment: {
-    head: equipmentSlotSchema,
-    body: equipmentSlotSchema,
-    leg: equipmentSlotSchema,
-    shoes: equipmentSlotSchema,
-    leftHand: equipmentSlotSchema,
-    rightHand: equipmentSlotSchema,
-    ring: equipmentSlotSchema,
-    necklace: equipmentSlotSchema
-  },
-  
-  // Hidden Class Quest Progress
-  hiddenClassQuest: {
-    scrollObtained: { type: String, default: null },
-    questStarted: { type: Boolean, default: false },
-    questStep: { type: Number, default: 0 },
-    killCount: { type: Number, default: 0 },
-    itemFound: { type: Boolean, default: false },
-    miniBossDefeated: { type: Boolean, default: false },
-    completed: { type: Boolean, default: false }
-  },
-  
-  // Special Items
-  memoryCrystals: {
-    type: Number,
-    default: 0
-  },
-  
-  // ============================================================
-  // PHASE 9.9.2: RAID COINS - Earned from Dungeon Break events
-  // ============================================================
-  raidCoins: {
-    lv5: { type: Number, default: 0 },
-    lv10: { type: Number, default: 0 },
-    lv20: { type: Number, default: 0 },
-    lv30: { type: Number, default: 0 },
-    lv40: { type: Number, default: 0 }
-  },
+  // Energy system
+  energy: { type: Number, default: 100 },
+  maxEnergy: { type: Number, default: 100 },
+  lastEnergyUpdate: { type: Date, default: Date.now },
   
   // Statistics
   statistics: {
-    totalKills: { type: Number, default: 0 },
+    monstersKilled: { type: Number, default: 0 },
     bossKills: { type: Number, default: 0 },
-    eliteKills: { type: Number, default: 0 },
-    deaths: { type: Number, default: 0 },
     totalDamageDealt: { type: Number, default: 0 },
     totalGoldEarned: { type: Number, default: 0 },
-    scrollsFound: { type: Number, default: 0 },
-    floorsCleared: { type: Number, default: 0 }
+    totalExpEarned: { type: Number, default: 0 },
+    floorsCleared: { type: Number, default: 0 },
+    deathCount: { type: Number, default: 0 },
+    itemsFound: { type: Number, default: 0 },
+    questsCompleted: { type: Number, default: 0 }
   },
   
-  // ============================================================
-  // PHASE 9.8: SOCIAL FEATURES
-  // ============================================================
+  // Phase 9.8: Social Features
+  isOnline: { type: Boolean, default: false },
+  lastOnline: { type: Date, default: Date.now },
+  currentActivity: { type: String, default: 'idle' },
   
-  helperPoints: {
-    type: Number,
-    default: 10,
-    min: 0
-  },
+  // Helper points for co-op
+  helperPoints: { type: Number, default: 100 },
+  maxHelperPoints: { type: Number, default: 100 },
   
-  maxHelperPoints: {
-    type: Number,
-    default: 30
-  },
-  
-  lastOnline: {
-    type: Date,
-    default: Date.now
-  },
-  
-  isOnline: {
-    type: Boolean,
-    default: false
-  },
-  
-  currentActivity: {
-    type: String,
-    enum: ['idle', 'in_tower', 'in_combat', 'in_dungeon_break', 'helping_friend'],
-    default: 'idle'
-  },
-  
-  socialStats: {
-    helpsGiven: { type: Number, default: 0 },
-    helpsReceived: { type: Number, default: 0 },
-    dungeonBreaksParticipated: { type: Number, default: 0 },
-    totalDungeonDamage: { type: Number, default: 0 }
-  },
-  
+  // Titles
   titles: [{
     id: String,
     name: String,
-    earnedAt: Date
+    earnedAt: { type: Date, default: Date.now }
   }],
+  activeTitle: { type: String, default: null },
   
-  activeTitle: {
-    type: String,
-    default: null
+  // Social stats
+  socialStats: {
+    helpGiven: { type: Number, default: 0 },
+    helpReceived: { type: Number, default: 0 },
+    coopBattles: { type: Number, default: 0 },
+    raidParticipations: { type: Number, default: 0 }
   },
   
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  lastPlayed: {
-    type: Date,
-    default: Date.now
-  }
+  // Phase 9.9.2: Raid Coins
+  raidCoins: { type: Number, default: 0 },
+  
+  createdAt: { type: Date, default: Date.now },
+  lastPlayed: { type: Date, default: Date.now }
 });
 
 // ============================================================
-// PRE-SAVE MIDDLEWARE - Initialize stats and skills based on class
+// PRE-SAVE HOOKS
 // ============================================================
 
 characterSchema.pre('save', function(next) {
-  // Initialize stats from CLASS_BASE_STATS if not set
-  if (this.isNew || !this.stats || !this.stats.str) {
+  // Initialize class-based stats for new characters
+  if (this.isNew && this.baseClass) {
     const baseStats = CLASS_BASE_STATS[this.baseClass];
     if (baseStats) {
-      this.stats = {
-        hp: baseStats.hp,
-        maxHp: baseStats.hp,
-        mp: baseStats.mp,
-        maxMp: baseStats.mp,
-        str: baseStats.str,
-        agi: baseStats.agi,
-        dex: baseStats.dex,
-        int: baseStats.int,
-        vit: baseStats.vit
-      };
-      console.log(`Initialized stats for ${this.baseClass}:`, this.stats);
+      this.stats.hp = baseStats.hp;
+      this.stats.maxHp = baseStats.hp;
+      this.stats.mp = baseStats.mp;
+      this.stats.maxMp = baseStats.mp;
+      this.stats.str = baseStats.str;
+      this.stats.agi = baseStats.agi;
+      this.stats.dex = baseStats.dex;
+      this.stats.int = baseStats.int;
+      this.stats.vit = baseStats.vit;
     }
-  }
-  
-  // Initialize base class skills if empty
-  if (!this.skills || this.skills.length === 0) {
-    const baseSkills = CLASS_DEFAULT_SKILLS[this.baseClass] || [];
-    this.skills = [...baseSkills];
-  }
-  
-  // Add hidden class skills if they have one and don't have them yet
-  if (this.hiddenClass && this.hiddenClass !== 'none') {
-    const hiddenSkills = HIDDEN_CLASS_SKILLS[this.hiddenClass] || [];
-    const existingSkillIds = this.skills.map(s => s.skillId);
     
-    hiddenSkills.forEach(skill => {
-      if (!existingSkillIds.includes(skill.skillId)) {
-        this.skills.push(skill);
-      }
-    });
-    
-    // Set element from hidden class
-    const hiddenClassInfo = HIDDEN_CLASSES[this.hiddenClass];
-    if (hiddenClassInfo) {
-      this.element = hiddenClassInfo.element;
-    }
+    // Initialize skills based on class
+    this.skills = CLASS_DEFAULT_SKILLS[this.baseClass] || [];
   }
-  
-  // Calculate and update derived stats
-  this.derivedStats = Character.calculateDerivedStats(this);
   
   next();
 });
 
 // ============================================================
-// PHASE 9.5: METHOD - Update energy AND HP/MP based on time passed
+// VIRTUAL: Derived stats
 // ============================================================
 
-characterSchema.methods.updateEnergy = function() {
-  const now = new Date();
-  
-  // ===== ENERGY REGEN (always happens) =====
-  const lastEnergyUpdate = this.lastEnergyUpdate || now;
-  const energyHoursPassed = (now - lastEnergyUpdate) / (1000 * 60 * 60);
-  const energyGain = Math.floor(energyHoursPassed * 25);
-  
-  if (energyGain > 0) {
-    this.energy = Math.min(100, this.energy + energyGain);
-    this.lastEnergyUpdate = now;
-  }
-  
-  // ===== HP/MP REGEN (only when NOT in tower) =====
-  if (!this.isInTower) {
-    const lastRegenUpdate = this.lastRegenUpdate || now;
-    const regenHoursPassed = (now - lastRegenUpdate) / (1000 * 60 * 60);
-    
-    if (regenHoursPassed >= 0.1) {
-      const hpRegenRate = 0.05;
-      const hpGain = Math.floor(this.stats.maxHp * hpRegenRate * regenHoursPassed);
-      
-      const mpRegenRate = 0.10;
-      const mpGain = Math.floor(this.stats.maxMp * mpRegenRate * regenHoursPassed);
-      
-      if (hpGain > 0 || mpGain > 0) {
-        this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + hpGain);
-        this.stats.mp = Math.min(this.stats.maxMp, this.stats.mp + mpGain);
-        this.lastRegenUpdate = now;
-      }
-    }
-  }
-  
-  return {
-    energy: this.energy,
-    hp: this.stats.hp,
-    mp: this.stats.mp
-  };
-};
+characterSchema.virtual('derivedStats').get(function() {
+  return this.constructor.calculateDerivedStats(this);
+});
 
 // ============================================================
-// METHOD - Check and process level up
+// INSTANCE METHODS
 // ============================================================
 
 characterSchema.methods.checkLevelUp = function() {
@@ -722,11 +556,10 @@ characterSchema.statics.calculateDerivedStats = function(character) {
     const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
     slots.forEach(slot => {
       const item = equipment[slot];
-      if (item) {
+      if (item && item.itemId) {
         // Track equipped item IDs for set bonuses
-        if (item.itemId) {
-          equippedItemIds.push(item.itemId);
-        }
+        equippedItemIds.push(item.itemId);
+        
         // Track set IDs
         if (item.setId) {
           equippedSetIds[item.setId] = (equippedSetIds[item.setId] || 0) + 1;
@@ -772,18 +605,29 @@ characterSchema.statics.calculateDerivedStats = function(character) {
   
   // ============================================================
   // PHASE 9.9.4: APPLY SET BONUSES (including percentage stats!)
-  // Set bonuses are imported from ../data/setBonuses.js which aggregates
-  // all sets from towers, VIP, and dungeon break automatically!
   // ============================================================
+  
+  // DEBUG: Log equipped sets and available definitions
+  console.log('[calculateDerivedStats] Equipped sets:', JSON.stringify(equippedSetIds));
+  console.log('[calculateDerivedStats] SET_BONUS_DEFINITIONS available:', Object.keys(SET_BONUS_DEFINITIONS || {}));
   
   // Apply set bonuses based on piece count
   Object.entries(equippedSetIds).forEach(([setId, pieceCount]) => {
+    console.log(`[calculateDerivedStats] Checking set: ${setId} with ${pieceCount} pieces`);
+    
     const setBonus = SET_BONUS_DEFINITIONS[setId];
     if (setBonus) {
+      console.log(`[calculateDerivedStats] Found set bonus definition for ${setId}:`, JSON.stringify(setBonus));
+      
       // Check each threshold (2, 3, 4, 5, 6, 8 pieces)
       Object.keys(setBonus).forEach(threshold => {
-        if (pieceCount >= parseInt(threshold)) {
+        const thresholdNum = parseInt(threshold);
+        console.log(`[calculateDerivedStats] Checking threshold ${thresholdNum}, pieceCount: ${pieceCount}, meets: ${pieceCount >= thresholdNum}`);
+        
+        if (pieceCount >= thresholdNum) {
           const bonus = setBonus[threshold];
+          console.log(`[calculateDerivedStats] APPLYING ${threshold}-piece bonus:`, JSON.stringify(bonus));
+          
           // Apply flat bonuses
           equipPAtk += bonus.pAtk || 0;
           equipMAtk += bonus.mAtk || 0;
@@ -814,8 +658,13 @@ characterSchema.statics.calculateDerivedStats = function(character) {
           goldBonus += bonus.goldBonus || 0;
         }
       });
+    } else {
+      console.log(`[calculateDerivedStats] WARNING: No bonus definition found for set: ${setId}`);
     }
   });
+  
+  // DEBUG: Log final percentage values
+  console.log(`[calculateDerivedStats] Final pAtkPercent: ${pAtkPercent}, mAtkPercent: ${mAtkPercent}`);
   
   // Total base stats = character stats + flat equipment bonuses
   const totalStr = (stats.str || 0) + equipStr;
@@ -859,7 +708,16 @@ characterSchema.statics.calculateDerivedStats = function(character) {
     fireRes: 0, waterRes: 0, lightningRes: 0, earthRes: 0,
     natureRes: 0, iceRes: 0, darkRes: 0, holyRes: 0,
     // Store active set info for display
-    activeSets: equippedSetIds
+    activeSets: equippedSetIds,
+    // DEBUG: Store percentage values
+    _debug: {
+      pAtkPercent,
+      mAtkPercent,
+      pDefPercent,
+      mDefPercent,
+      hpPercent,
+      mpPercent
+    }
   };
   
   // Apply level bonus (+2% per level)
