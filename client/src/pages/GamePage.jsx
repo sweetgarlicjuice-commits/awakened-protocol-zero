@@ -309,15 +309,79 @@ const getEquipmentStatsFromCharacter = (equipment) => {
 };
 
 // ============================================================
+// PHASE 9.9.4: Set Bonus Definitions (mirrors server data)
+// ============================================================
+const SET_BONUS_DEFINITIONS = {
+  // VIP Sets
+  vip_premium_set: {
+    name: 'VIP Premium Set',
+    bonuses: {
+      4: { pAtkPercent: 5, mAtkPercent: 5 },
+      8: { pAtkPercent: 10, mAtkPercent: 10, hpPercent: 10 }
+    }
+  },
+  // Dungeon Break Sets
+  flame_guardian_set: {
+    name: 'Flame Guardian Set',
+    bonuses: {
+      2: { pAtkPercent: 3 },
+      4: { pAtkPercent: 6, hpPercent: 5 }
+    }
+  },
+  shadow_stalker_set: {
+    name: 'Shadow Stalker Set',
+    bonuses: {
+      2: { critRate: 3 },
+      4: { critRate: 6, critDmg: 15 }
+    }
+  },
+  arcane_scholar_set: {
+    name: 'Arcane Scholar Set',
+    bonuses: {
+      2: { mAtkPercent: 3 },
+      4: { mAtkPercent: 6, mpPercent: 10 }
+    }
+  },
+  iron_bastion_set: {
+    name: 'Iron Bastion Set',
+    bonuses: {
+      2: { pDefPercent: 3 },
+      4: { pDefPercent: 6, hpPercent: 8 }
+    }
+  },
+  void_walker_set: {
+    name: 'Void Walker Set',
+    bonuses: {
+      2: { pAtkPercent: 2, mAtkPercent: 2 },
+      4: { pAtkPercent: 5, mAtkPercent: 5, critRate: 3 }
+    }
+  }
+};
+
+// Helper to format bonus stats for display
+const formatBonusStats = (bonusObj) => {
+  if (!bonusObj) return '';
+  const statNames = {
+    pAtkPercent: 'P.ATK', mAtkPercent: 'M.ATK',
+    pDefPercent: 'P.DEF', mDefPercent: 'M.DEF',
+    hpPercent: 'HP', mpPercent: 'MP',
+    critRate: 'Crit Rate', critDmg: 'Crit DMG',
+    critRatePercent: 'Crit Rate', critDmgPercent: 'Crit DMG'
+  };
+  return Object.entries(bonusObj)
+    .map(([stat, val]) => `+${val}% ${statNames[stat] || stat}`)
+    .join(', ');
+};
+
+// ============================================================
 // PHASE 9.3 FIX: Calculate set bonuses from equipped items
+// PHASE 9.9.4: Now includes bonus details for display!
 // ============================================================
 const calculateSetBonusesFromEquipment = (equipment) => {
-  // This is a simplified version - the backend has the full set database
-  // For display purposes, we show what sets are active based on setId
-  const setBonuses = {};
   const setCount = {};
+  const totalSetBonuses = {};
   
-  if (!equipment) return { bonuses: {}, activeSets: [] };
+  if (!equipment) return { activeSets: [], totalSetBonuses: {} };
   
   const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
   
@@ -332,17 +396,39 @@ const calculateSetBonusesFromEquipment = (equipment) => {
     }
   });
   
-  // Build active sets list for display
+  // Build active sets list with bonus details
   const activeSets = Object.entries(setCount)
     .filter(([_, data]) => data.count >= 2)
-    .map(([setId, data]) => ({
-      id: setId,
-      pieces: data.count,
-      // Note: actual bonus values come from the server during combat
-      // This is just for UI indication
-    }));
+    .map(([setId, data]) => {
+      const setDef = SET_BONUS_DEFINITIONS[setId];
+      const activeBonuses = [];
+      
+      if (setDef && setDef.bonuses) {
+        // Find all active bonus tiers
+        Object.entries(setDef.bonuses).forEach(([threshold, bonus]) => {
+          if (data.count >= parseInt(threshold)) {
+            activeBonuses.push({
+              pieces: parseInt(threshold),
+              bonus: bonus,
+              description: formatBonusStats(bonus)
+            });
+            // Accumulate total set bonuses
+            Object.entries(bonus).forEach(([stat, val]) => {
+              totalSetBonuses[stat] = (totalSetBonuses[stat] || 0) + val;
+            });
+          }
+        });
+      }
+      
+      return {
+        id: setId,
+        name: setDef?.name || setId,
+        pieces: data.count,
+        activeBonuses: activeBonuses
+      };
+    });
   
-  return { activeSets };
+  return { activeSets, totalSetBonuses };
 };
 
 // ============================================================
@@ -903,8 +989,13 @@ const GamePage = () => {
                           <div className="space-y-2">
                             {setInfo.activeSets.map((set, idx) => (
                               <div key={idx} className="p-3 bg-amber-500/10 rounded border border-amber-500/20">
-                                <div className="text-amber-400 font-semibold">{set.id}</div>
-                                <div className="text-xs text-amber-300">{set.pieces} pieces equipped</div>
+                                <div className="text-amber-400 font-semibold">{set.name}</div>
+                                <div className="text-xs text-amber-300 mb-1">{set.pieces} pieces equipped</div>
+                                {set.activeBonuses && set.activeBonuses.map((bonus, bidx) => (
+                                  <div key={bidx} className="text-xs text-green-400 ml-2">
+                                    ✓ {bonus.pieces}-piece: {bonus.description}
+                                  </div>
+                                ))}
                               </div>
                             ))}
                           </div>
