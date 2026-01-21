@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { SET_BONUS_DEFINITIONS } from '../data/setBonuses.js';
 
 // ============================================================
 // BASE STATS CONFIGURATION - Different for each class!
@@ -712,47 +713,109 @@ characterSchema.statics.calculateDerivedStats = function(character) {
   let critRatePercent = 0, critDmgPercent = 0;
   let expBonus = 0, goldBonus = 0;
   
+  // Collect equipped item IDs for set bonus calculation
+  const equippedItemIds = [];
+  const equippedSetIds = {};
+  
   // Add equipment bonuses from all slots
   if (equipment) {
     const slots = ['head', 'body', 'leg', 'shoes', 'leftHand', 'rightHand', 'ring', 'necklace'];
     slots.forEach(slot => {
       const item = equipment[slot];
-      if (item && item.stats) {
-        // ============================================================
-        // FLAT BONUSES
-        // ============================================================
-        equipPAtk += item.stats.pAtk || 0;
-        equipMAtk += item.stats.mAtk || 0;
-        equipPDef += item.stats.pDef || 0;
-        equipMDef += item.stats.mDef || 0;
-        equipStr += item.stats.str || 0;
-        equipAgi += item.stats.agi || 0;
-        equipDex += item.stats.dex || 0;
-        equipInt += item.stats.int || 0;
-        equipVit += item.stats.vit || 0;
-        equipCritRate += item.stats.critRate || 0;
-        equipCritDmg += item.stats.critDmg || 0;
-        equipHp += item.stats.hp || 0;
-        equipMp += item.stats.mp || 0;
+      if (item) {
+        // Track equipped item IDs for set bonuses
+        if (item.itemId) {
+          equippedItemIds.push(item.itemId);
+        }
+        // Track set IDs
+        if (item.setId) {
+          equippedSetIds[item.setId] = (equippedSetIds[item.setId] || 0) + 1;
+        }
         
-        // ============================================================
-        // PERCENTAGE BONUSES (NEW IN PHASE 9.9.4!)
-        // ============================================================
-        pAtkPercent += item.stats.pAtkPercent || 0;
-        mAtkPercent += item.stats.mAtkPercent || 0;
-        pDefPercent += item.stats.pDefPercent || 0;
-        mDefPercent += item.stats.mDefPercent || 0;
-        hpPercent += item.stats.hpPercent || 0;
-        mpPercent += item.stats.mpPercent || 0;
-        critRatePercent += item.stats.critRatePercent || 0;
-        critDmgPercent += item.stats.critDmgPercent || 0;
-        
-        // Special bonuses
-        expBonus += item.stats.expBonus || 0;
-        goldBonus += item.stats.goldBonus || 0;
+        if (item.stats) {
+          // ============================================================
+          // FLAT BONUSES
+          // ============================================================
+          equipPAtk += item.stats.pAtk || 0;
+          equipMAtk += item.stats.mAtk || 0;
+          equipPDef += item.stats.pDef || 0;
+          equipMDef += item.stats.mDef || 0;
+          equipStr += item.stats.str || 0;
+          equipAgi += item.stats.agi || 0;
+          equipDex += item.stats.dex || 0;
+          equipInt += item.stats.int || 0;
+          equipVit += item.stats.vit || 0;
+          equipCritRate += item.stats.critRate || 0;
+          equipCritDmg += item.stats.critDmg || 0;
+          equipHp += item.stats.hp || 0;
+          equipMp += item.stats.mp || 0;
+          
+          // ============================================================
+          // PERCENTAGE BONUSES (NEW IN PHASE 9.9.4!)
+          // ============================================================
+          pAtkPercent += item.stats.pAtkPercent || 0;
+          mAtkPercent += item.stats.mAtkPercent || 0;
+          pDefPercent += item.stats.pDefPercent || 0;
+          mDefPercent += item.stats.mDefPercent || 0;
+          hpPercent += item.stats.hpPercent || 0;
+          mpPercent += item.stats.mpPercent || 0;
+          critRatePercent += item.stats.critRatePercent || 0;
+          critDmgPercent += item.stats.critDmgPercent || 0;
+          
+          // Special bonuses
+          expBonus += item.stats.expBonus || 0;
+          goldBonus += item.stats.goldBonus || 0;
+        }
       }
     });
   }
+  
+  // ============================================================
+  // PHASE 9.9.4: APPLY SET BONUSES (including percentage stats!)
+  // Set bonuses are imported from ../data/setBonuses.js which aggregates
+  // all sets from towers, VIP, and dungeon break automatically!
+  // ============================================================
+  
+  // Apply set bonuses based on piece count
+  Object.entries(equippedSetIds).forEach(([setId, pieceCount]) => {
+    const setBonus = SET_BONUS_DEFINITIONS[setId];
+    if (setBonus) {
+      // Check each threshold (2, 3, 4, 5, 6, 8 pieces)
+      Object.keys(setBonus).forEach(threshold => {
+        if (pieceCount >= parseInt(threshold)) {
+          const bonus = setBonus[threshold];
+          // Apply flat bonuses
+          equipPAtk += bonus.pAtk || 0;
+          equipMAtk += bonus.mAtk || 0;
+          equipPDef += bonus.pDef || 0;
+          equipMDef += bonus.mDef || 0;
+          equipStr += bonus.str || 0;
+          equipAgi += bonus.agi || 0;
+          equipDex += bonus.dex || 0;
+          equipInt += bonus.int || 0;
+          equipVit += bonus.vit || 0;
+          equipCritRate += bonus.critRate || 0;
+          equipCritDmg += bonus.critDmg || 0;
+          equipHp += bonus.hp || 0;
+          equipMp += bonus.mp || 0;
+          
+          // Apply percentage bonuses from set
+          pAtkPercent += bonus.pAtkPercent || 0;
+          mAtkPercent += bonus.mAtkPercent || 0;
+          pDefPercent += bonus.pDefPercent || 0;
+          mDefPercent += bonus.mDefPercent || 0;
+          hpPercent += bonus.hpPercent || 0;
+          mpPercent += bonus.mpPercent || 0;
+          critRatePercent += bonus.critRatePercent || 0;
+          critDmgPercent += bonus.critDmgPercent || 0;
+          
+          // Special bonuses from set
+          expBonus += bonus.expBonus || 0;
+          goldBonus += bonus.goldBonus || 0;
+        }
+      });
+    }
+  });
   
   // Total base stats = character stats + flat equipment bonuses
   const totalStr = (stats.str || 0) + equipStr;
@@ -794,7 +857,9 @@ characterSchema.statics.calculateDerivedStats = function(character) {
     goldBonus: goldBonus,
     // Resistances
     fireRes: 0, waterRes: 0, lightningRes: 0, earthRes: 0,
-    natureRes: 0, iceRes: 0, darkRes: 0, holyRes: 0
+    natureRes: 0, iceRes: 0, darkRes: 0, holyRes: 0,
+    // Store active set info for display
+    activeSets: equippedSetIds
   };
   
   // Apply level bonus (+2% per level)
