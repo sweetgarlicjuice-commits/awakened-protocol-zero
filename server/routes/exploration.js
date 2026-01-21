@@ -648,6 +648,14 @@ router.post('/move', authenticate, async (req, res) => {
     if (!floorMap) return res.status(404).json({ error: 'No active map' });
     
     const currentNode = floorMap.nodes.find(n => n.id === floorMap.currentNodeId);
+    
+    // ============================================================
+    // PHASE 9.9.7 FIX: Current node must be cleared before moving
+    // ============================================================
+    if (!currentNode.cleared) {
+      return res.status(400).json({ error: 'Clear the current node before moving' });
+    }
+    
     if (!currentNode.connections.includes(nodeId)) {
       return res.status(400).json({ error: 'Cannot move to that node' });
     }
