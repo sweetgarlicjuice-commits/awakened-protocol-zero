@@ -2,8 +2,10 @@
 // EXPLORATION ROUTES - Tower Combat & Exploration
 // ============================================================
 // Phase 9.9.5: Fixed mDef scaling for enemies
+// Phase 9.9.6: Added debug logging and fallback for enemy generation
 // - generateEnemies() now properly scales baseMDef -> mDef
-// - Ensures magical skills deal correct damage
+// - Added fallback skeleton enemy if no enemies are generated
+// - Added debug logging to diagnose ENEMIES import issues
 // 
 // ARCHITECTURE:
 // - Skill data: ../data/skillDatabase.js (edit skills here)
@@ -16,6 +18,22 @@ import Character from '../models/Character.js';
 import FloorMap from '../models/FloorMap.js';
 import { authenticate } from '../middleware/auth.js';
 import { TOWERS, ENEMIES } from '../data/towerData.js';
+
+// ============================================================
+// PHASE 9.9.6: DEBUG - Log ENEMIES structure on startup
+// ============================================================
+console.log('[exploration.js] ENEMIES imported. Keys:', Object.keys(ENEMIES || {}));
+if (ENEMIES?.tower1) {
+  console.log('[exploration.js] ENEMIES.tower1 exists. Structure:', {
+    hasNormal: Array.isArray(ENEMIES.tower1.normal),
+    normalCount: ENEMIES.tower1.normal?.length || 0,
+    hasElite: Array.isArray(ENEMIES.tower1.elite),
+    eliteCount: ENEMIES.tower1.elite?.length || 0,
+    hasBoss: !!ENEMIES.tower1.boss
+  });
+} else {
+  console.log('[exploration.js] WARNING: ENEMIES.tower1 is undefined!');
+}
 
 // Equipment Database v2
 import { 
@@ -350,22 +368,53 @@ function generateFloorMap(characterId, towerId, floor) {
 }
 
 // ============================================================
-// PHASE 9.9.5: FIXED - generateEnemies now properly scales mDef
+// PHASE 9.9.6: FIXED - generateEnemies with debug logging and fallback
 // ============================================================
 function generateEnemies(type, towerId, floor) {
-  const enemies = [], towerEnemies = ENEMIES[`tower${towerId}`] || ENEMIES.tower1;
-  if (!towerEnemies) return [{ 
-    id: 'skeleton', 
-    name: 'Skeleton', 
-    icon: '💀', 
-    hp: 80, 
-    maxHp: 80, 
-    atk: 15, 
-    def: 6, 
-    mDef: 3,  // Added default mDef
-    expReward: BALANCE.expBase.normal, 
-    goldReward: BALANCE.goldBase.normal 
-  }];
+  // ============================================================
+  // DEBUG: Log enemy generation details
+  // ============================================================
+  console.log(`[generateEnemies] Called with type=${type}, towerId=${towerId}, floor=${floor}`);
+  console.log(`[generateEnemies] ENEMIES object exists:`, !!ENEMIES);
+  console.log(`[generateEnemies] ENEMIES keys:`, Object.keys(ENEMIES || {}));
+  
+  const enemies = [];
+  const towerKey = `tower${towerId}`;
+  const towerEnemies = ENEMIES?.[towerKey] || ENEMIES?.tower1;
+  
+  console.log(`[generateEnemies] Looking for ENEMIES['${towerKey}']:`, !!ENEMIES?.[towerKey]);
+  console.log(`[generateEnemies] towerEnemies found:`, !!towerEnemies);
+  
+  if (towerEnemies) {
+    console.log(`[generateEnemies] towerEnemies structure:`, {
+      hasNormal: !!towerEnemies.normal,
+      normalLength: towerEnemies.normal?.length,
+      hasElite: !!towerEnemies.elite,
+      eliteLength: towerEnemies.elite?.length,
+      hasBoss: !!towerEnemies.boss
+    });
+  }
+  
+  // ============================================================
+  // FALLBACK: If no tower enemies data, return default skeleton
+  // ============================================================
+  if (!towerEnemies) {
+    console.log('[generateEnemies] WARNING: No towerEnemies found, using fallback skeleton');
+    const floorScale = 1 + (floor - 1) * 0.15;
+    return [{ 
+      id: 'skeleton', 
+      name: 'Skeleton', 
+      icon: '💀', 
+      hp: Math.floor(80 * floorScale), 
+      maxHp: Math.floor(80 * floorScale), 
+      atk: Math.floor(15 * floorScale), 
+      def: Math.floor(6 * floorScale), 
+      mDef: Math.floor(3 * floorScale),
+      expReward: BALANCE.expBase.normal, 
+      goldReward: BALANCE.goldBase.normal,
+      instanceId: 'skeleton_0'
+    }];
+  }
   
   const floorScale = 1 + (floor - 1) * 0.15;
   
@@ -422,6 +471,29 @@ function generateEnemies(type, towerId, floor) {
       enemies.push(e);
     }
   }
+  
+  // ============================================================
+  // PHASE 9.9.6: FALLBACK - Return skeleton if no enemies generated
+  // This prevents "Cannot read properties of undefined (reading 'name')" error
+  // ============================================================
+  if (enemies.length === 0) {
+    console.log('[generateEnemies] WARNING: No enemies generated, using fallback skeleton');
+    return [{ 
+      id: 'skeleton', 
+      name: 'Skeleton', 
+      icon: '💀', 
+      hp: Math.floor(80 * floorScale), 
+      maxHp: Math.floor(80 * floorScale), 
+      atk: Math.floor(15 * floorScale), 
+      def: Math.floor(6 * floorScale), 
+      mDef: Math.floor(3 * floorScale),
+      expReward: BALANCE.expBase.normal, 
+      goldReward: BALANCE.goldBase.normal,
+      instanceId: 'skeleton_0'
+    }];
+  }
+  
+  console.log(`[generateEnemies] Returning ${enemies.length} enemies`);
   return enemies;
 }
 
@@ -560,12 +632,11 @@ router.post('/combat/start', authenticate, async (req, res) => {
     }
     
     // ============================================================
-    // PHASE 9.9.5: Regenerate enemies if they don't have mDef
-    // This handles existing floor maps that were generated before the fix
+    // PHASE 9.9.6: Regenerate enemies if they're empty or don't have mDef
     // ============================================================
     let enemies = currentNode.enemies;
-    if (enemies.length > 0 && enemies[0].mDef === undefined) {
-      console.log('[combat/start] Regenerating enemies with mDef...');
+    if (!enemies || enemies.length === 0 || (enemies.length > 0 && enemies[0].mDef === undefined)) {
+      console.log('[combat/start] Regenerating enemies (empty or missing mDef)...');
       enemies = generateEnemies(currentNode.type, floorMap.towerId, floorMap.floor);
       currentNode.enemies = enemies;
       floorMap.markModified('nodes');
@@ -608,7 +679,7 @@ router.post('/combat/start', authenticate, async (req, res) => {
       playerBuffs: [],
       shrineBuffs: floorMap.shrineBuffs || [],
       usablePotions,
-      character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp }
+      character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp, skills: character.skills }
     });
   } catch (error) {
     console.error('Combat start error:', error);
@@ -701,18 +772,143 @@ router.post('/combat/action', authenticate, async (req, res) => {
         return res.status(400).json({ error: 'Cannot use this item in combat' });
       }
       
-      // Consume the item
+      // Deduct item
       inventoryItem.quantity -= 1;
       if (inventoryItem.quantity <= 0) {
         character.inventory = character.inventory.filter(i => i.itemId !== itemId);
       }
       character.markModified('inventory');
       
-      newLogs.push(effectMessage);
+      newLogs.push({ type: 'buff', message: effectMessage });
       
-      // Item use doesn't trigger enemy turn - return early
+      // Enemy turn after using item
+      for (const enemy of aliveEnemies) {
+        if (enemy.hp <= 0) continue;
+        
+        // Check evasion
+        if (Math.random() * 100 < (fullCombatStats.evasion || 0)) {
+          newLogs.push({ type: 'miss', message: `Dodged ${enemy.name}'s attack!` });
+          continue;
+        }
+        
+        const enemyDamage = Math.max(1, enemy.atk - Math.floor(fullCombatStats.pDef * 0.5));
+        character.stats.hp = Math.max(0, character.stats.hp - enemyDamage);
+        newLogs.push({ type: 'enemy', message: `${enemy.name} dealt ${enemyDamage} damage!` });
+        
+        if (character.stats.hp <= 0) {
+          newLogs.push({ type: 'defeat', message: 'You have been defeated!' });
+          floorMap.activeCombat = null;
+          character.isInTower = false;
+          floorMap.markModified('activeCombat');
+          await character.save();
+          await floorMap.save();
+          return res.json({ 
+            status: 'defeat', 
+            combatLog: [...(combat.combatLog || []), ...newLogs],
+            character: { 
+              hp: character.stats.hp, 
+              maxHp: character.stats.maxHp,
+              mp: character.stats.mp,
+              maxMp: character.stats.maxMp
+            } 
+          });
+        }
+      }
+      
+      combat.turnCount++;
       combat.combatLog = [...(combat.combatLog || []), ...newLogs];
       floorMap.markModified('activeCombat');
+      
+      character.markModified('stats');
+      await character.save();
+      await floorMap.save();
+      
+      // Get updated usable potions
+      const updatedUsablePotions = character.inventory.filter(item => {
+        if (item.type !== 'consumable' || item.quantity <= 0) return false;
+        if (item.subType === 'potion') return true;
+        if (item.subtype === 'health_potion' || item.subtype === 'mana_potion') return true;
+        if (item.effect?.type === 'heal_hp' || item.effect?.type === 'heal_mp') return true;
+        if (item.effect?.type === 'heal' || item.effect?.type === 'health') return true;
+        if (item.effect?.type === 'mana' || item.effect?.type === 'mp') return true;
+        if (item.name?.toLowerCase().includes('health potion')) return true;
+        if (item.name?.toLowerCase().includes('mana potion')) return true;
+        return false;
+      });
+      
+      return res.json({ 
+        status: 'ongoing', 
+        combat: floorMap.activeCombat, 
+        playerBuffs: combat.playerBuffs || [], 
+        shrineBuffs: floorMap.shrineBuffs || [],
+        usablePotions: updatedUsablePotions,
+        character: { hp: character.stats.hp, maxHp: character.stats.maxHp, mp: character.stats.mp, maxMp: character.stats.maxMp } 
+      });
+    }
+    
+    // ============================================================
+    // DEFEND ACTION
+    // ============================================================
+    if (action === 'defend') {
+      // Add or refresh defend buff
+      const existingDefend = combat.playerBuffs?.find(b => b.type === 'defend');
+      if (existingDefend) {
+        existingDefend.duration = 2;
+        existingDefend.value = 50;
+      } else {
+        if (!combat.playerBuffs) combat.playerBuffs = [];
+        combat.playerBuffs.push({ type: 'defend', value: 50, duration: 2 });
+      }
+      newLogs.push({ type: 'buff', message: 'You take a defensive stance! (+50% DEF for 2 turns)' });
+      
+      // Enemy turn
+      for (const enemy of aliveEnemies) {
+        if (enemy.hp <= 0) continue;
+        
+        // Check evasion
+        if (Math.random() * 100 < (fullCombatStats.evasion || 0)) {
+          newLogs.push({ type: 'miss', message: `Dodged ${enemy.name}'s attack!` });
+          continue;
+        }
+        
+        // Apply defend buff to defense
+        const defendBuff = combat.playerBuffs?.find(b => b.type === 'defend');
+        const effectiveDef = defendBuff ? fullCombatStats.pDef * (1 + defendBuff.value / 100) : fullCombatStats.pDef;
+        
+        const enemyDamage = Math.max(1, enemy.atk - Math.floor(effectiveDef * 0.5));
+        character.stats.hp = Math.max(0, character.stats.hp - enemyDamage);
+        newLogs.push({ type: 'enemy', message: `${enemy.name} dealt ${enemyDamage} damage!` });
+        
+        if (character.stats.hp <= 0) {
+          newLogs.push({ type: 'defeat', message: 'You have been defeated!' });
+          floorMap.activeCombat = null;
+          character.isInTower = false;
+          floorMap.markModified('activeCombat');
+          await character.save();
+          await floorMap.save();
+          return res.json({ 
+            status: 'defeat', 
+            combatLog: [...(combat.combatLog || []), ...newLogs],
+            character: { 
+              hp: character.stats.hp, 
+              maxHp: character.stats.maxHp,
+              mp: character.stats.mp,
+              maxMp: character.stats.maxMp
+            } 
+          });
+        }
+      }
+      
+      // Tick down buff durations
+      if (combat.playerBuffs) {
+        combat.playerBuffs = combat.playerBuffs.map(b => ({ ...b, duration: b.duration - 1 })).filter(b => b.duration > 0);
+      }
+      
+      combat.turnCount++;
+      combat.combatLog = [...(combat.combatLog || []), ...newLogs];
+      floorMap.markModified('activeCombat');
+      
+      character.markModified('stats');
       await character.save();
       await floorMap.save();
       
@@ -739,204 +935,233 @@ router.post('/combat/action', authenticate, async (req, res) => {
     }
     
     // ============================================================
-    // SKILL USE ACTION
+    // ATTACK / SKILL ACTION
     // ============================================================
-    const skill = getSkill(skillId || 'basicAttack');
+    let playerDamage = 0;
+    let damageType = 'physical';
+    let isCrit = false;
+    let skillUsed = null;
     
-    // Check MP cost
-    if (skill.mpCost > 0 && character.stats.mp < skill.mpCost) {
-      return res.status(400).json({ error: `Not enough MP. Need ${skill.mpCost}, have ${character.stats.mp}` });
+    if (action === 'skill' && skillId) {
+      // Get skill from database
+      skillUsed = getSkill(skillId);
+      if (!skillUsed) {
+        return res.status(400).json({ error: 'Skill not found' });
+      }
+      
+      // Check MP cost
+      if (character.stats.mp < skillUsed.mpCost) {
+        return res.status(400).json({ error: 'Not enough MP' });
+      }
+      
+      // Deduct MP
+      character.stats.mp -= skillUsed.mpCost;
+      
+      // Calculate skill damage using combat engine
+      const skillResult = calculateSkillDamage(skillUsed, fullCombatStats, target, combat.playerBuffs || []);
+      playerDamage = skillResult.damage;
+      isCrit = skillResult.isCrit;
+      damageType = skillUsed.damageType || 'physical';
+      
+      // Process skill effects (buffs, debuffs, heals, etc.)
+      const effectResult = processSkillEffects(skillUsed, character, combat, fullCombatStats);
+      if (effectResult.logs) {
+        newLogs.push(...effectResult.logs);
+      }
+      if (effectResult.healAmount) {
+        character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + effectResult.healAmount);
+      }
+      
+      // Format skill message
+      const skillMsg = formatSkillMessage(skillUsed, playerDamage, isCrit, target.name);
+      newLogs.push({ type: isCrit ? 'crit' : 'skill', message: skillMsg });
+      
+    } else {
+      // Basic attack
+      const baseDamage = fullCombatStats.pDmg;
+      const defense = target.def || 0;
+      
+      // Crit check
+      if (Math.random() * 100 < fullCombatStats.critRate) {
+        isCrit = true;
+        playerDamage = Math.floor((baseDamage - defense * 0.5) * (fullCombatStats.critDmg / 100));
+      } else {
+        playerDamage = Math.max(1, baseDamage - Math.floor(defense * 0.5));
+      }
+      
+      newLogs.push({ 
+        type: isCrit ? 'crit' : 'player', 
+        message: isCrit ? `CRITICAL HIT! You dealt ${playerDamage} damage to ${target.name}!` : `You dealt ${playerDamage} damage to ${target.name}.` 
+      });
     }
-    
-    // Deduct MP
-    if (skill.mpCost > 0) {
-      character.stats.mp -= skill.mpCost;
-    }
-    
-    // Process player buffs/dots tick at start of turn
-    combat.playerBuffs = tickBuffs(combat.playerBuffs || []);
-    combat.playerDots = tickDots(combat.playerDots || []);
-    combat.enemyDebuffs = tickBuffs(combat.enemyDebuffs || []);
-    
-    // Calculate damage
-    const damageResult = calculateSkillDamage(skill, fullCombatStats, target, combat.playerBuffs, combat.enemyDebuffs);
     
     // Apply damage to target
-    if (damageResult.finalDamage > 0) {
-      target.hp = Math.max(0, target.hp - damageResult.finalDamage);
-      const dmgMsg = formatSkillMessage(skill, damageResult, target);
-      newLogs.push(dmgMsg);
-    }
-    
-    // Process skill effects
-    const effectResults = processSkillEffects(skill, damageResult, fullCombatStats, target, character);
-    for (const effect of effectResults) {
-      if (effect.type === 'dot') {
-        combat.playerDots.push({ ...effect, target: 'enemy', targetId: target.instanceId || target.id });
-      } else if (effect.type === 'buff') {
-        combat.playerBuffs.push(effect);
-      } else if (effect.type === 'debuff') {
-        combat.enemyDebuffs.push(effect);
-      } else if (effect.type === 'heal') {
-        character.stats.hp = Math.min(character.stats.maxHp, character.stats.hp + effect.value);
-      } else if (effect.type === 'shield') {
-        combat.playerShield = (combat.playerShield || 0) + effect.value;
-      }
-      if (effect.message) newLogs.push(effect.message);
-    }
-    
-    // Process DOTs on enemies
-    const enemyDots = combat.playerDots.filter(d => d.target === 'enemy');
-    for (const dot of enemyDots) {
-      const dotTarget = combat.enemies.find(e => (e.instanceId || e.id) === dot.targetId && e.hp > 0);
-      if (dotTarget && dot.duration > 0) {
-        dotTarget.hp = Math.max(0, dotTarget.hp - dot.damage);
-        const dotInfo = DOT_TYPES[dot.dotType];
-        newLogs.push(dotInfo?.message(dotTarget.name, dot.damage) || `${dotTarget.name} takes ${dot.damage} damage!`);
+    const targetInCombat = combat.enemies.find(e => (e.instanceId || e.id) === (target.instanceId || target.id));
+    if (targetInCombat) {
+      targetInCombat.hp = Math.max(0, targetInCombat.hp - playerDamage);
+      
+      if (targetInCombat.hp <= 0) {
+        newLogs.push({ type: 'victory', message: `${targetInCombat.name} defeated!` });
       }
     }
     
-    // Check if all enemies dead
+    // Check if all enemies defeated
     const remainingEnemies = combat.enemies.filter(e => e.hp > 0);
     if (remainingEnemies.length === 0) {
-      // Wave cleared
-      if (combat.currentWave < combat.totalWaves) {
-        // Next wave
-        combat.currentWave++;
-        const newEnemies = generateEnemies(currentNode.type, floorMap.towerId, floorMap.floor);
-        combat.enemies = newEnemies;
-        newLogs.push(`Wave ${combat.currentWave}/${combat.totalWaves} begins!`);
-      } else {
-        // Combat victory!
-        const nodeType = currentNode.type;
-        const { drops, goldAmount } = generateLootDrops(nodeType, floorMap.towerId, floorMap.floor, character.level, character.class);
-        
-        // Calculate EXP with bonuses
-        let baseExp = 0;
-        combat.enemies.forEach(e => { baseExp += e.expReward || BALANCE.expBase.normal; });
-        const floorBonus = 1 + (floorMap.floor - 1) * BALANCE.floorExpBonus;
-        const towerBonus = 1 + (floorMap.towerId - 1) * BALANCE.towerExpBonus;
-        
-        // Apply VIP EXP bonus
-        const expBonusMultiplier = 1 + (fullCombatStats.expBonus || 0) / 100;
-        const goldBonusMultiplier = 1 + (fullCombatStats.goldBonus || 0) / 100;
-        
-        const totalExp = Math.floor(baseExp * floorBonus * towerBonus * expBonusMultiplier);
-        const totalGold = Math.floor(goldAmount * goldBonusMultiplier);
-        
-        character.experience += totalExp;
-        character.gold += totalGold;
-        character.statistics = character.statistics || {};
-        character.statistics.enemiesKilled = (character.statistics.enemiesKilled || 0) + combat.enemies.length;
-        
-        // Add drops to inventory
-        const addedItems = addItemsToInventory(character, drops);
-        
-        // Check level up
-        let leveledUp = false;
-        const expForNextLevel = () => Math.floor(BALANCE.expCurveBase * Math.pow(BALANCE.expCurveMultiplier, character.level - 1));
-        while (character.experience >= expForNextLevel()) {
-          character.experience -= expForNextLevel();
-          character.level++;
-          character.statPoints = (character.statPoints || 0) + 5;
-          character.stats.maxHp += 10;
-          character.stats.maxMp += 5;
-          character.stats.hp = character.stats.maxHp;
-          character.stats.mp = character.stats.maxMp;
-          leveledUp = true;
-        }
-        
-        // Clear node
-        const nodeIndex = floorMap.nodes.findIndex(n => n.id === currentNode.id);
-        if (nodeIndex >= 0) {
-          floorMap.nodes[nodeIndex].cleared = true;
-          floorMap.markModified('nodes');
-        }
-        floorMap.activeCombat = null;
-        
-        await character.save();
-        await floorMap.save();
-        
-        return res.json({ 
-          status: 'victory', 
-          rewards: { exp: totalExp, gold: totalGold, drops: addedItems, leveledUp },
-          expBonus: fullCombatStats.expBonus,
-          goldBonus: fullCombatStats.goldBonus,
-          shrineBuffs: floorMap.shrineBuffs || [],
-          combatLog: [...(combat.combatLog || []), ...newLogs, `Victory! +${totalExp} EXP, +${totalGold} Gold`],
-          character: { 
-            level: character.level, 
-            experience: character.experience, 
-            gold: character.gold,
-            hp: character.stats.hp,
-            maxHp: character.stats.maxHp,
-            mp: character.stats.mp,
-            maxMp: character.stats.maxMp
-          }
-        });
+      // Victory!
+      newLogs.push({ type: 'victory', message: '🎉 Victory!' });
+      
+      // Calculate rewards with VIP bonuses
+      let totalExp = 0;
+      let totalGold = 0;
+      
+      combat.enemies.forEach(enemy => {
+        totalExp += enemy.expReward || BALANCE.expBase.normal;
+        const goldReward = enemy.goldReward || BALANCE.goldBase.normal;
+        totalGold += typeof goldReward === 'object' 
+          ? Math.floor(goldReward.min + Math.random() * (goldReward.max - goldReward.min))
+          : goldReward;
+      });
+      
+      // Apply VIP bonuses
+      if (fullCombatStats.expBonus) {
+        const bonusExp = Math.floor(totalExp * fullCombatStats.expBonus / 100);
+        totalExp += bonusExp;
+        if (bonusExp > 0) newLogs.push({ type: 'buff', message: `+${bonusExp} bonus EXP from VIP!` });
       }
+      if (fullCombatStats.goldBonus) {
+        const bonusGold = Math.floor(totalGold * fullCombatStats.goldBonus / 100);
+        totalGold += bonusGold;
+        if (bonusGold > 0) newLogs.push({ type: 'buff', message: `+${bonusGold} bonus Gold from VIP!` });
+      }
+      
+      // Apply floor/tower scaling
+      totalExp = Math.floor(totalExp * (1 + floorMap.floor * BALANCE.floorExpBonus) * (1 + (floorMap.towerId - 1) * BALANCE.towerExpBonus));
+      
+      // Award rewards
+      character.experience += totalExp;
+      character.gold += totalGold;
+      
+      // Check level up
+      let leveledUp = false;
+      while (character.experience >= character.experienceToNextLevel) {
+        character.experience -= character.experienceToNextLevel;
+        character.level += 1;
+        character.experienceToNextLevel = Math.floor(BALANCE.expCurveBase * Math.pow(BALANCE.expCurveMultiplier, character.level - 1));
+        
+        // Stat gains on level up
+        character.stats.maxHp += 10;
+        character.stats.maxMp += 5;
+        character.stats.hp = character.stats.maxHp;
+        character.stats.mp = character.stats.maxMp;
+        
+        leveledUp = true;
+        newLogs.push({ type: 'victory', message: `⬆️ Level Up! Now level ${character.level}!` });
+      }
+      
+      // Generate loot
+      const { drops, goldAmount } = generateLootDrops(currentNode.type, floorMap.towerId, floorMap.floor, character.level, character.class);
+      const addedItems = addItemsToInventory(character, drops);
+      
+      // Mark node as cleared
+      const nodeIdx = floorMap.nodes.findIndex(n => n.id === floorMap.currentNodeId);
+      if (nodeIdx >= 0) {
+        floorMap.nodes[nodeIdx].cleared = true;
+        floorMap.markModified('nodes');
+      }
+      
+      // Check if floor complete (exit node cleared)
+      let floorComplete = false;
+      if (currentNode.isExit) {
+        character.currentFloor += 1;
+        character.statistics = character.statistics || {};
+        character.statistics.floorsCleared = (character.statistics.floorsCleared || 0) + 1;
+        
+        // Update tower progress
+        if (!character.towerProgress) character.towerProgress = {};
+        const towerKey = `tower_${floorMap.towerId}`;
+        if (!character.towerProgress[towerKey] || character.currentFloor > character.towerProgress[towerKey]) {
+          character.towerProgress[towerKey] = character.currentFloor;
+          character.markModified('towerProgress');
+        }
+        
+        floorMap.completed = true;
+        character.isInTower = false;
+        floorComplete = true;
+        
+        // Clear shrine buffs
+        floorMap.shrineBuffs = [];
+        floorMap.markModified('shrineBuffs');
+      }
+      
+      floorMap.activeCombat = null;
+      floorMap.markModified('activeCombat');
+      
+      character.markModified('stats');
+      character.markModified('inventory');
+      await character.save();
+      await floorMap.save();
+      
+      return res.json({
+        status: 'victory',
+        combatLog: [...(combat.combatLog || []), ...newLogs],
+        rewards: { exp: totalExp, gold: totalGold, items: addedItems },
+        floorComplete,
+        leveledUp,
+        character: {
+          hp: character.stats.hp,
+          maxHp: character.stats.maxHp,
+          mp: character.stats.mp,
+          maxMp: character.stats.maxMp,
+          gold: character.gold,
+          level: character.level,
+          experience: character.experience,
+          experienceToNextLevel: character.experienceToNextLevel
+        }
+      });
     }
     
-    // ============================================================
-    // ENEMY TURN
-    // ============================================================
-    for (const enemy of combat.enemies.filter(e => e.hp > 0)) {
-      // Simple enemy attack
-      const enemyAtk = enemy.atk || 15;
-      const playerDef = fullCombatStats.pDef || 0;
+    // Enemy turn
+    for (const enemy of remainingEnemies) {
+      if (enemy.hp <= 0) continue;
       
       // Check evasion
-      const evasionRoll = Math.random() * 100;
-      if (evasionRoll < (fullCombatStats.evasion || 0)) {
-        newLogs.push(`${enemy.name} attacks but you dodged!`);
+      if (Math.random() * 100 < (fullCombatStats.evasion || 0)) {
+        newLogs.push({ type: 'miss', message: `Dodged ${enemy.name}'s attack!` });
         continue;
       }
       
-      // Calculate enemy damage
-      let enemyDamage = Math.max(1, Math.floor(enemyAtk * (1 - playerDef / (playerDef + 150))));
+      // Apply defend buff to defense
+      const defendBuff = combat.playerBuffs?.find(b => b.type === 'defend');
+      const effectiveDef = defendBuff ? fullCombatStats.pDef * (1 + defendBuff.value / 100) : fullCombatStats.pDef;
       
-      // Apply shield first
-      if (combat.playerShield > 0) {
-        const shieldAbsorb = Math.min(combat.playerShield, enemyDamage);
-        combat.playerShield -= shieldAbsorb;
-        enemyDamage -= shieldAbsorb;
-        if (shieldAbsorb > 0) newLogs.push(`Shield absorbed ${shieldAbsorb} damage!`);
-      }
+      const enemyDamage = Math.max(1, enemy.atk - Math.floor(effectiveDef * 0.5));
+      character.stats.hp = Math.max(0, character.stats.hp - enemyDamage);
+      newLogs.push({ type: 'enemy', message: `${enemy.name} dealt ${enemyDamage} damage!` });
       
-      if (enemyDamage > 0) {
-        character.stats.hp = Math.max(0, character.stats.hp - enemyDamage);
-        newLogs.push(`${enemy.name} attacks for ${enemyDamage} damage!`);
-      }
-      
-      // Check player death
       if (character.stats.hp <= 0) {
-        // Defeat - save HP as 1, restore some MP
-        character.stats.hp = 1;
-        character.stats.mp = Math.floor(character.stats.maxMp * 0.5);
-        character.isInTower = false;
-        
-        // Clear the floor map
+        newLogs.push({ type: 'defeat', message: 'You have been defeated!' });
         floorMap.activeCombat = null;
-        floorMap.completed = true;
-        
-        // Mark stats as modified
-        character.markModified('stats');
+        character.isInTower = false;
+        floorMap.markModified('activeCombat');
         await character.save();
         await floorMap.save();
-        
         return res.json({ 
           status: 'defeat', 
-          message: 'You have been defeated!',
-          combatLog: [...(combat.combatLog || []), ...newLogs, 'Defeated!'],
-          shrineBuffs: [],
+          combatLog: [...(combat.combatLog || []), ...newLogs],
           character: { 
-            hp: character.stats.hp,
+            hp: character.stats.hp, 
             maxHp: character.stats.maxHp,
             mp: character.stats.mp,
             maxMp: character.stats.maxMp
           } 
         });
       }
+    }
+    
+    // Tick down buff durations
+    if (combat.playerBuffs) {
+      combat.playerBuffs = combat.playerBuffs.map(b => ({ ...b, duration: b.duration - 1 })).filter(b => b.duration > 0);
     }
     
     combat.turnCount++;
