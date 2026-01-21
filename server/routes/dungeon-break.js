@@ -29,6 +29,13 @@ import DungeonBreak, { DUNGEON_BREAK_BOSSES, DUNGEON_BREAK_TIERS, COIN_TO_SET_MA
 import Character from '../models/Character.js';
 import { DUNGEON_BREAK_SETS } from '../data/equipment/dungeonBreakSets.js';
 
+// Phase 9.9.7: Import combat engine for skill support
+import {
+  getSkill,
+  calculateSkillDamage,
+  processSkillEffects
+} from '../data/combat/index.js';
+
 const router = express.Router();
 
 // ============================================================
@@ -48,6 +55,7 @@ const COIN_NAMES = {
 
 // ============================================================
 // GET /api/dungeon-break/active - Get active event
+// Phase 9.9.7: Added character skills to response
 // ============================================================
 router.get('/active', authenticate, async (req, res) => {
   try {
@@ -110,7 +118,9 @@ router.get('/active', authenticate, async (req, res) => {
         mp: character.stats.mp,
         maxMp: character.stats.maxMp,
         isDead: character.stats.hp <= 0
-      } : null
+      } : null,
+      // Phase 9.9.7: Include character skills
+      mySkills: character?.skills || []
     });
   } catch (error) {
     console.error('Get active event error:', error);
@@ -120,9 +130,12 @@ router.get('/active', authenticate, async (req, res) => {
 
 // ============================================================
 // POST /api/dungeon-break/attack - Record attack damage
+// Phase 9.9.7: Added skill support
 // ============================================================
 router.post('/attack', authenticate, async (req, res) => {
   try {
+    const { skillId } = req.body; // Phase 9.9.7: Optional skillId
+    
     const event = await DungeonBreak.getActiveEvent();
     
     if (!event) {
@@ -171,17 +184,75 @@ router.post('/attack', authenticate, async (req, res) => {
     // Calculate player damage
     const derivedStats = Character.calculateDerivedStats(character);
     
-    let playerBaseDamage = derivedStats.pDmg + derivedStats.mDmg;
-    const variance = 0.9 + (Math.random() * 0.2);
-    playerBaseDamage = Math.floor(playerBaseDamage * variance);
+    let playerFinalDamage = 0;
+    let playerIsCrit = false;
+    let skillUsed = null;
+    let skillName = null;
     
-    const playerCritRoll = Math.random() * 100;
-    let playerIsCrit = playerCritRoll < derivedStats.critRate;
-    if (playerIsCrit) {
-      playerBaseDamage = Math.floor(playerBaseDamage * (derivedStats.critDmg / 100));
+    // ============================================================
+    // Phase 9.9.7: Skill-based attack
+    // ============================================================
+    if (skillId) {
+      skillUsed = getSkill(skillId);
+      
+      if (!skillUsed) {
+        return res.status(400).json({ error: 'Skill not found' });
+      }
+      
+      // Check MP cost
+      if (character.stats.mp < skillUsed.mpCost) {
+        return res.status(400).json({ error: `Not enough MP! Need ${skillUsed.mpCost}, have ${character.stats.mp}` });
+      }
+      
+      // Deduct MP
+      character.stats.mp -= skillUsed.mpCost;
+      
+      // Create a mock target for damage calculation
+      const bossAsTarget = {
+        name: event.bossData.name,
+        def: event.bossData.stats?.def || 50,
+        mDef: event.bossData.stats?.mDef || 50,
+        element: event.bossData.element || 'none'
+      };
+      
+      // Calculate skill damage
+      const skillResult = calculateSkillDamage(skillUsed, derivedStats, bossAsTarget, []);
+      
+      if (skillResult && skillResult.finalDamage) {
+        playerFinalDamage = skillResult.finalDamage;
+        playerIsCrit = skillResult.isCrit || false;
+      } else {
+        // Fallback calculation
+        const baseDmg = skillUsed.scaling?.stat === 'mDmg' ? derivedStats.mDmg : derivedStats.pDmg;
+        const multiplier = skillUsed.scaling?.multiplier || 1.0;
+        playerFinalDamage = Math.floor(baseDmg * multiplier);
+        playerIsCrit = Math.random() * 100 < derivedStats.critRate;
+        if (playerIsCrit) {
+          playerFinalDamage = Math.floor(playerFinalDamage * (derivedStats.critDmg / 100));
+        }
+      }
+      
+      skillName = skillUsed.name;
+      
+    } else {
+      // ============================================================
+      // Normal attack (original logic)
+      // ============================================================
+      let playerBaseDamage = derivedStats.pDmg + derivedStats.mDmg;
+      const variance = 0.9 + (Math.random() * 0.2);
+      playerBaseDamage = Math.floor(playerBaseDamage * variance);
+      
+      const playerCritRoll = Math.random() * 100;
+      playerIsCrit = playerCritRoll < derivedStats.critRate;
+      if (playerIsCrit) {
+        playerBaseDamage = Math.floor(playerBaseDamage * (derivedStats.critDmg / 100));
+      }
+      
+      playerFinalDamage = Math.max(1, playerBaseDamage);
     }
     
-    const playerFinalDamage = Math.max(1, playerBaseDamage);
+    // Ensure minimum damage
+    playerFinalDamage = Math.max(1, playerFinalDamage);
     
     // Record damage
     const result = await DungeonBreak.recordDamage(
@@ -210,12 +281,15 @@ router.post('/attack', authenticate, async (req, res) => {
     // Update character
     character.currentActivity = 'in_dungeon_break';
     character.lastOnline = new Date();
+    character.markModified('stats');
     await character.save();
     
     res.json({
       playerAttack: {
         damage: playerFinalDamage,
-        isCrit: playerIsCrit
+        isCrit: playerIsCrit,
+        usedSkill: !!skillUsed,
+        skillName: skillName
       },
       bossAttack: bossAttack ? {
         damage: bossAttack.damage,
