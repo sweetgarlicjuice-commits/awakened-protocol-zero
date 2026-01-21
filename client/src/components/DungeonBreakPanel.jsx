@@ -82,7 +82,12 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
   };
 
   const handleAttack = async (skillId = null) => {
-    if (!activeEvent || isAttacking || cooldown > 0) return;
+    console.log('[DungeonBreak] handleAttack called with skillId:', skillId);
+    
+    if (!activeEvent || isAttacking || cooldown > 0) {
+      console.log('[DungeonBreak] Attack blocked:', { activeEvent: !!activeEvent, isAttacking, cooldown });
+      return;
+    }
     if (character.level < activeEvent.boss?.levelReq) {
       showMessage('error', `You need to be level ${activeEvent.boss.levelReq} to participate!`);
       return;
@@ -94,8 +99,9 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
     
     // Phase 9.9.7: Check MP for skills
     if (skillId) {
-      const skill = mySkills.find(s => s.skillId === skillId);
-      if (skill && myStatus?.mp < skill.mpCost) {
+      const skill = mySkills.find(s => (s.skillId || s.id) === skillId);
+      console.log('[DungeonBreak] Found skill:', skill);
+      if (skill && myStatus?.mp < (skill.mpCost || 0)) {
         showMessage('error', `Not enough MP! Need ${skill.mpCost}, have ${myStatus.mp}`);
         return;
       }
@@ -103,7 +109,10 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
     
     setIsAttacking(true);
     try {
+      console.log('[DungeonBreak] Calling API with skillId:', skillId);
       const { data } = await dungeonBreakAPI.attack(skillId);
+      console.log('[DungeonBreak] API response:', data);
+      
       if (data.cooldownMs) setCooldown(data.cooldownMs);
       setLastCombat({ playerAttack: data.playerAttack, bossAttack: data.bossAttack, timestamp: Date.now() });
       setMyStatus({ hp: data.player.hp, maxHp: data.player.maxHp, mp: data.player.mp, maxMp: data.player.maxMp, isDead: data.player.died });
@@ -132,6 +141,7 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
       
       if (refreshCharacter) refreshCharacter();
     } catch (err) {
+      console.error('[DungeonBreak] Attack error:', err);
       showMessage('error', err.response?.data?.error || 'Attack failed!');
       if (err.response?.data?.cooldownRemaining) setCooldown(err.response.data.cooldownRemaining);
     }
@@ -317,17 +327,23 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
                 {/* Phase 9.9.7: Skills Section */}
                 {mySkills.length > 0 && canParticipate && !isDead && (
                   <div className="bg-void-800/50 rounded-lg p-3">
-                    <p className="text-xs text-gray-400 mb-2">⚡ SKILLS</p>
+                    <p className="text-xs text-gray-400 mb-2">⚡ SKILLS (MP: {myStatus?.mp || 0}/{myStatus?.maxMp || 0})</p>
                     <div className="grid grid-cols-2 gap-2">
                       {mySkills.map((skill, idx) => {
-                        const hasEnoughMp = (myStatus?.mp || 0) >= skill.mpCost;
+                        const hasEnoughMp = (myStatus?.mp || 0) >= (skill.mpCost || 0);
                         const canUseSkill = canParticipate && !isAttacking && !isOnCooldown && !isDead && hasEnoughMp;
+                        // Use skillId or id, whichever exists
+                        const skillIdentifier = skill.skillId || skill.id;
                         
                         return (
                           <button
                             key={idx}
-                            onClick={() => canUseSkill && handleAttack(skill.skillId)}
-                            disabled={!canUseSkill}
+                            onClick={() => {
+                              if (canUseSkill && skillIdentifier) {
+                                handleAttack(skillIdentifier);
+                              }
+                            }}
+                            disabled={!canUseSkill || !skillIdentifier}
                             className={`p-2 rounded-lg text-left text-xs transition-all border ${
                               canUseSkill 
                                 ? 'bg-purple-900/50 hover:bg-purple-800/50 border-purple-500/30 cursor-pointer' 
@@ -337,16 +353,17 @@ const DungeonBreakPanel = ({ character, onClose, refreshCharacter }) => {
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-white font-medium truncate">{skill.name}</span>
                               <span className={`text-xs ${hasEnoughMp ? 'text-blue-400' : 'text-red-400'}`}>
-                                {skill.mpCost}MP
+                                {skill.mpCost || 0}MP
                               </span>
                             </div>
                             <p className="text-gray-500 text-[10px] truncate">
-                              {skill.damageType === 'magical' ? 'M.DMG' : 'P.DMG'} • {Math.round((skill.scaling?.multiplier || 1) * 100)}%
+                              {skill.damageType === 'magical' || skill.scaling?.stat === 'mDmg' ? 'M.DMG' : 'P.DMG'} • {Math.round((skill.scaling?.multiplier || 1) * 100)}%
                             </p>
                           </button>
                         );
                       })}
                     </div>
+                    {isOnCooldown && <p className="text-xs text-yellow-400 mt-2 text-center">⏳ Cooldown: {(cooldown/1000).toFixed(1)}s</p>}
                   </div>
                 )}
 
