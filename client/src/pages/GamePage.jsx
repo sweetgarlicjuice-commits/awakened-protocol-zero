@@ -275,13 +275,19 @@ const ExpBar = ({ exp, expToLevel, level }) => {
 
 // ============================================================
 // PHASE 9.3 FIX: Get equipment stats from character.equipment
+// PHASE 9.9.4 FIX: Now includes percentage stats!
 // ============================================================
 const getEquipmentStatsFromCharacter = (equipment) => {
   const stats = {
+    // Flat stats
     pAtk: 0, mAtk: 0, pDef: 0, mDef: 0,
     hp: 0, mp: 0,
     str: 0, agi: 0, dex: 0, int: 0, vit: 0,
-    critRate: 0, critDmg: 0
+    critRate: 0, critDmg: 0,
+    // Percentage stats (PHASE 9.9.4)
+    pAtkPercent: 0, mAtkPercent: 0, pDefPercent: 0, mDefPercent: 0,
+    hpPercent: 0, mpPercent: 0, critRatePercent: 0, critDmgPercent: 0,
+    expBonus: 0, goldBonus: 0
   };
   
   if (!equipment) return stats;
@@ -341,11 +347,12 @@ const calculateSetBonusesFromEquipment = (equipment) => {
 
 // ============================================================
 // PHASE 9.3 FIX: Derived Stats Calculator WITH EQUIPMENT
+// PHASE 9.9.4 FIX: Now applies percentage bonuses!
 // ============================================================
 const calculateDerivedStats = (stats, level = 1, equipment = null) => {
   if (!stats) return null;
   
-  // Get equipment bonuses
+  // Get equipment bonuses (now includes percentage stats)
   const equipBonus = getEquipmentStatsFromCharacter(equipment);
   
   // Total stats = base + equipment stat bonuses (str, agi, etc.)
@@ -355,27 +362,44 @@ const calculateDerivedStats = (stats, level = 1, equipment = null) => {
   const totalInt = (stats.int || 0) + (equipBonus.int || 0);
   const totalVit = (stats.vit || 0) + (equipBonus.vit || 0);
   
+  // Base calculations (before percentage multipliers)
+  let basePDmg = 5 + totalStr * 3 + (equipBonus.pAtk || 0);
+  let baseMDmg = 5 + totalInt * 4 + (equipBonus.mAtk || 0);
+  let basePDef = totalStr * 1 + totalVit * 2 + (equipBonus.pDef || 0);
+  let baseMDef = totalVit * 1 + totalInt * 1 + (equipBonus.mDef || 0);
+  let baseCritRate = 5 + totalAgi * 0.5 + (equipBonus.critRate || 0);
+  let baseCritDmg = 150 + totalDex * 1 + (equipBonus.critDmg || 0);
+  
+  // PHASE 9.9.4: Apply percentage bonuses
+  // Formula: final = base * (1 + percent/100)
+  const pAtkPercent = equipBonus.pAtkPercent || 0;
+  const mAtkPercent = equipBonus.mAtkPercent || 0;
+  const pDefPercent = equipBonus.pDefPercent || 0;
+  const mDefPercent = equipBonus.mDefPercent || 0;
+  const hpPercent = equipBonus.hpPercent || 0;
+  const mpPercent = equipBonus.mpPercent || 0;
+  const critRatePercent = equipBonus.critRatePercent || 0;
+  const critDmgPercent = equipBonus.critDmgPercent || 0;
+  
   const derived = {
-    // Physical damage: base formula + equipment pAtk
-    pDmg: 5 + totalStr * 3 + (equipBonus.pAtk || 0),
-    // Magical damage: base formula + equipment mAtk
-    mDmg: 5 + totalInt * 4 + (equipBonus.mAtk || 0),
-    // Physical defense: base formula + equipment pDef
-    pDef: totalStr * 1 + totalVit * 2 + (equipBonus.pDef || 0),
-    // Magical defense: base formula + equipment mDef
-    mDef: totalVit * 1 + totalInt * 1 + (equipBonus.mDef || 0),
-    // Crit rate: base + equipment critRate
-    critRate: 5 + totalAgi * 0.5 + (equipBonus.critRate || 0),
-    // Crit damage: base + equipment critDmg
-    critDmg: 150 + totalDex * 1 + (equipBonus.critDmg || 0),
+    // Apply percentage multipliers
+    pDmg: Math.floor(basePDmg * (1 + pAtkPercent / 100)),
+    mDmg: Math.floor(baseMDmg * (1 + mAtkPercent / 100)),
+    pDef: Math.floor(basePDef * (1 + pDefPercent / 100)),
+    mDef: Math.floor(baseMDef * (1 + mDefPercent / 100)),
+    critRate: baseCritRate * (1 + critRatePercent / 100),
+    critDmg: baseCritDmg * (1 + critDmgPercent / 100),
     accuracy: 90 + totalDex * 0.5,
     evasion: totalAgi * 0.3,
     hpRegen: Math.floor(totalVit * 1),
     mpRegen: Math.floor(totalInt * 0.5),
-    // Bonus HP/MP from equipment
-    bonusHp: equipBonus.hp || 0,
-    bonusMp: equipBonus.mp || 0,
-    // Equipment totals for display
+    // Bonus HP/MP from equipment (flat + percentage of max)
+    bonusHp: Math.floor((equipBonus.hp || 0) + ((stats.maxHp || 100) * hpPercent / 100)),
+    bonusMp: Math.floor((equipBonus.mp || 0) + ((stats.maxMp || 50) * mpPercent / 100)),
+    // Special bonuses for display
+    expBonus: equipBonus.expBonus || 0,
+    goldBonus: equipBonus.goldBonus || 0,
+    // Equipment totals for display (includes percentage stats now)
     equipmentBonus: equipBonus
   };
   
@@ -822,15 +846,45 @@ const GamePage = () => {
                         <div>
                           <h4 className="text-sm text-gray-500 mb-2 font-semibold">EQUIPMENT BONUSES</h4>
                           <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                            {Object.entries(derivedStats.equipmentBonus).map(([stat, value]) => (
-                              value > 0 && (
-                                <div key={stat} className="p-2 bg-green-500/10 rounded border border-green-500/20 text-center">
-                                  <div className="text-sm font-bold text-green-400">+{value}</div>
-                                  <div className="text-[10px] text-gray-500 uppercase">{stat}</div>
+                            {Object.entries(derivedStats.equipmentBonus).map(([stat, value]) => {
+                              if (value <= 0) return null;
+                              const isPercent = stat.includes('Percent') || stat === 'expBonus' || stat === 'goldBonus';
+                              const statNames = {
+                                pAtk: 'P.ATK', mAtk: 'M.ATK', pDef: 'P.DEF', mDef: 'M.DEF',
+                                hp: 'HP', mp: 'MP', str: 'STR', agi: 'AGI', dex: 'DEX', int: 'INT', vit: 'VIT',
+                                critRate: 'CRIT', critDmg: 'CRIT DMG',
+                                pAtkPercent: 'P.ATK%', mAtkPercent: 'M.ATK%', 
+                                pDefPercent: 'P.DEF%', mDefPercent: 'M.DEF%',
+                                hpPercent: 'HP%', mpPercent: 'MP%',
+                                critRatePercent: 'CRIT%', critDmgPercent: 'CRIT DMG%',
+                                expBonus: 'EXP%', goldBonus: 'GOLD%'
+                              };
+                              const displayName = statNames[stat] || stat.toUpperCase();
+                              return (
+                                <div key={stat} className={`p-2 rounded border text-center ${isPercent ? 'bg-amber-500/10 border-amber-500/20' : 'bg-green-500/10 border-green-500/20'}`}>
+                                  <div className={`text-sm font-bold ${isPercent ? 'text-amber-400' : 'text-green-400'}`}>
+                                    +{value}{isPercent ? '%' : ''}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500">{displayName}</div>
                                 </div>
-                              )
-                            ))}
+                              );
+                            })}
                           </div>
+                          {/* Show special bonuses if present */}
+                          {(derivedStats.expBonus > 0 || derivedStats.goldBonus > 0) && (
+                            <div className="mt-2 flex gap-2">
+                              {derivedStats.expBonus > 0 && (
+                                <span className="px-2 py-1 bg-purple-500/20 rounded text-purple-400 text-xs">
+                                  ⭐ +{derivedStats.expBonus}% EXP
+                                </span>
+                              )}
+                              {derivedStats.goldBonus > 0 && (
+                                <span className="px-2 py-1 bg-amber-500/20 rounded text-amber-400 text-xs">
+                                  💰 +{derivedStats.goldBonus}% Gold
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                       
