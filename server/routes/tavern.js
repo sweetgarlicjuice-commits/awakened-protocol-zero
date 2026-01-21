@@ -17,6 +17,10 @@ import {
 } from '../data/equipment/special_items.js';
 import { HIDDEN_CLASS_INFO } from '../data/storyData.js';
 import { HIDDEN_CLASS_SKILLS } from '../models/Character.js';
+// ============================================================
+// PHASE 9.9.4 FIX: Import VIP Equipment for getItemById lookups
+// ============================================================
+import { VIP_EQUIPMENT } from '../data/equipment/vipEquipment.js';
 
 const router = express.Router();
 
@@ -31,10 +35,18 @@ if (Array.isArray(CONSUMABLES)) {
 
 // ============ ITEM DATABASE HELPERS ============
 // Get item by ID from equipment database or consumables
+// PHASE 9.9.4 FIX: Also check VIP_EQUIPMENT!
 function getItemById(itemId) {
   // Check equipment first
   const equipment = getEquipmentById ? getEquipmentById(itemId) : (EQUIPMENT ? EQUIPMENT[itemId] : null);
   if (equipment) return equipment;
+  
+  // ============================================================
+  // PHASE 9.9.4 FIX: Check VIP Equipment!
+  // ============================================================
+  if (VIP_EQUIPMENT && VIP_EQUIPMENT[itemId]) {
+    return VIP_EQUIPMENT[itemId];
+  }
   
   // Check consumables
   if (CONSUMABLES_BY_ID[itemId]) return CONSUMABLES_BY_ID[itemId];
@@ -169,7 +181,8 @@ function getSlotFromItemName(itemName) {
   
   // Hands/Gloves (maps to leg slot in character schema)
   if (lowerName.includes('gauntlet') || lowerName.includes('glove') || lowerName.includes('bracer') ||
-      lowerName.includes('vambrace') || lowerName.includes('grip') || lowerName.includes('wrap')) {
+      lowerName.includes('vambrace') || lowerName.includes('grip') || lowerName.includes('wrap') ||
+      lowerName.includes('pants')) {
     return { slot: 'leg', subtype: 'hands' };
   }
   
@@ -236,6 +249,7 @@ function determineCharacterSlot(itemData, invItem) {
 // ============ INVENTORY HELPERS ============
 
 // Add item to inventory with stacking
+// PHASE 9.9.4 FIX: Include VIP expiration fields
 function addItemToInventory(character, itemId, quantity, itemData) {
   var item = itemData || getItemById(itemId);
   if (!item) return { success: false, error: 'Item not found' };
@@ -261,6 +275,9 @@ function addItemToInventory(character, itemId, quantity, itemData) {
   // This ensures equipment can be re-equipped after unequip
   var subtype = item.subtype || item.slot || null;
 
+  // ============================================================
+  // PHASE 9.9.4 FIX: Include VIP expiration fields when adding to inventory
+  // ============================================================
   character.inventory.push({
     itemId: item.id || itemId,
     name: item.name,
@@ -274,7 +291,15 @@ function addItemToInventory(character, itemId, quantity, itemData) {
     stats: item.stats || {},
     setId: item.setId || null,
     levelReq: item.levelReq || null,
-    classReq: item.classReq || item.class || null
+    classReq: item.classReq || item.class || null,
+    // ============================================================
+    // VIP Expiration Fields - preserve timer state!
+    // ============================================================
+    vipOnly: item.vipOnly || false,
+    expirationType: item.expirationType || null,
+    expirationDays: item.expirationDays || null,
+    firstEquippedAt: item.firstEquippedAt || null,
+    expiresAt: item.expiresAt || null
   });
 
   return { success: true, stacked: false };
@@ -449,91 +474,89 @@ router.get('/shop', authenticate, async function(req, res) {
       shop = await TavernShop.initializeShop();
     }
     
-    // Enrich shop items with full data from equipment database
-    var enrichedItems = shop.items
-      .filter(function(i) { return i.isActive; })
-      .map(function(shopItem) {
-        // Get full item data from database
-        var fullItemData = getItemById(shopItem.itemId);
-        
-        if (fullItemData) {
-          // Merge shop item with full database data
-          return {
-            itemId: shopItem.itemId,
-            name: fullItemData.name || shopItem.name,
-            icon: fullItemData.icon || shopItem.icon || '📦',
-            type: fullItemData.type || shopItem.type,
-            subtype: fullItemData.subtype || fullItemData.slot || null,
-            slot: fullItemData.slot || null,
-            rarity: fullItemData.rarity || 'common',
-            stats: fullItemData.stats || {},
-            levelReq: fullItemData.levelReq || null,
-            classReq: fullItemData.classReq || fullItemData.class || null,
-            setId: fullItemData.setId || null,
-            effect: fullItemData.effect || null,
-            price: shopItem.price,
-            stock: shopItem.stock,
-            isActive: shopItem.isActive
-          };
-        }
-        
-        // Fallback: return shop item as-is if not found in database
-        return shopItem;
-      });
+    // Enrich each shop item with full data from equipment database
+    var enrichedItems = shop.items.map(function(shopItem) {
+      var itemObj = shopItem.toObject ? shopItem.toObject() : { ...shopItem };
+      var fullItemData = getItemById(shopItem.itemId);
+      
+      // Merge with database data if available
+      if (fullItemData) {
+        itemObj.stats = fullItemData.stats || {};
+        itemObj.slot = fullItemData.slot || null;
+        itemObj.levelReq = fullItemData.levelReq || null;
+        itemObj.classReq = fullItemData.classReq || fullItemData.class || null;
+        itemObj.rarity = fullItemData.rarity || itemObj.rarity || 'common';
+        itemObj.type = fullItemData.type || itemObj.type;
+        itemObj.subtype = fullItemData.subtype || fullItemData.slot || itemObj.subtype || null;
+        itemObj.name = fullItemData.name || itemObj.name;
+        itemObj.icon = fullItemData.icon || itemObj.icon || '📦';
+        itemObj.effect = fullItemData.effect || null;
+        itemObj.description = fullItemData.description || null;
+      }
+      
+      return itemObj;
+    });
     
-    res.json({ items: enrichedItems });
+    res.json({ 
+      shop: {
+        ...shop.toObject(),
+        items: enrichedItems
+      }
+    });
   } catch (error) {
-    console.error('Get shop error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/tavern/shop/buy - Buy from shop
+// POST /api/tavern/shop/buy - Buy item from shop
 router.post('/shop/buy', authenticate, async function(req, res) {
   try {
     var itemId = req.body.itemId;
-    var quantity = req.body.quantity;
-    if (!itemId || !quantity || quantity < 1) {
-      return res.status(400).json({ error: 'Invalid request' });
-    }
-
+    var quantity = req.body.quantity || 1;
+    
     var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
     var shop = await TavernShop.findOne();
-    var shopItem = shop.items.find(function(i) { return i.itemId === itemId && i.isActive; });
-    if (!shopItem) return res.status(404).json({ error: 'Item not in shop' });
+    if (!shop) return res.status(404).json({ error: 'Shop not found' });
 
-    var totalCost = shopItem.price * quantity;
-    if (character.gold < totalCost) {
-      return res.status(400).json({ error: 'Not enough gold. Need ' + totalCost + ', have ' + character.gold });
-    }
+    var shopItem = shop.items.find(function(i) { return i.itemId === itemId && i.isActive; });
+    if (!shopItem) return res.status(400).json({ error: 'Item not available' });
 
     // Check stock
     if (shopItem.stock !== -1 && shopItem.stock < quantity) {
-      return res.status(400).json({ error: 'Not enough stock' });
+      return res.status(400).json({ error: 'Not enough stock. Available: ' + shopItem.stock });
     }
 
-    // Add item with stacking
+    // Check gold
+    var totalCost = shopItem.price * quantity;
+    if (character.gold < totalCost) {
+      return res.status(400).json({ error: 'Not enough gold. Need: ' + totalCost + ', Have: ' + character.gold });
+    }
+
+    // Get full item data from database
     var itemData = getItemById(itemId);
+    if (!itemData) {
+      return res.status(400).json({ error: 'Item data not found' });
+    }
+
+    // Add to inventory
     var result = addItemToInventory(character, itemId, quantity, itemData);
     if (!result.success) {
       return res.status(400).json({ error: result.error });
     }
 
-    // Deduct gold
+    // Deduct gold and update stock
     character.gold -= totalCost;
-
-    // Update stock if limited
     if (shopItem.stock !== -1) {
       shopItem.stock -= quantity;
-      await shop.save();
     }
 
     await character.save();
+    await shop.save();
 
     res.json({
-      message: 'Purchased ' + quantity + 'x ' + shopItem.name + ' for ' + totalCost + ' gold',
+      message: 'Purchased ' + quantity + 'x ' + itemData.name + ' for ' + totalCost + ' gold',
       gold: character.gold,
       inventory: character.inventory
     });
@@ -543,7 +566,7 @@ router.post('/shop/buy', authenticate, async function(req, res) {
   }
 });
 
-// POST /api/tavern/shop/sell - Sell to shop
+// POST /api/tavern/shop/sell - Sell item to shop
 router.post('/shop/sell', authenticate, async function(req, res) {
   try {
     var itemId = req.body.itemId;
@@ -751,142 +774,129 @@ router.post('/trading/list', authenticate, async function(req, res) {
   }
 });
 
-// POST /api/tavern/trading/buy/:listingId - Buy from player
-router.post('/trading/buy/:listingId', authenticate, async function(req, res) {
+// POST /api/tavern/trading/buy - Buy from trading stall
+router.post('/trading/buy', authenticate, async function(req, res) {
   try {
-    var quantity = req.body.quantity;
-    var listing = await TradingListing.findById(req.params.listingId);
-
+    var listingId = req.body.listingId;
+    var quantity = req.body.quantity || 1;
+    
+    var listing = await TradingListing.findById(listingId);
     if (!listing || !listing.isActive) {
-      return res.status(404).json({ error: 'Listing not found' });
+      return res.status(404).json({ error: 'Listing not found or no longer active' });
     }
 
-    if (listing.sellerId.equals(req.userId)) {
+    // Cannot buy own items
+    if (listing.sellerId === req.userId) {
       return res.status(400).json({ error: 'Cannot buy your own listing' });
     }
 
-    var buyQty = quantity || listing.quantity;
-    if (buyQty > listing.quantity) {
+    // Check quantity
+    if (quantity > listing.quantity) {
       return res.status(400).json({ error: 'Not enough quantity available' });
     }
 
     var buyer = await Character.findOne({ userId: req.userId });
-    if (!buyer) return res.status(404).json({ error: 'Character not found' });
+    if (!buyer) return res.status(404).json({ error: 'Buyer character not found' });
 
-    var totalCost = listing.pricePerUnit * buyQty;
+    // Check gold
+    var totalCost = listing.pricePerUnit * quantity;
     if (buyer.gold < totalCost) {
-      return res.status(400).json({ error: 'Not enough gold' });
+      return res.status(400).json({ error: 'Not enough gold. Need: ' + totalCost + ', Have: ' + buyer.gold });
     }
 
-    // Get seller
-    var seller = await Character.findOne({ userId: listing.sellerId });
+    // Get full item data for adding to inventory
+    var fullItemData = getItemById(listing.itemId);
+    var itemForInventory = fullItemData || {
+      id: listing.itemId,
+      name: listing.itemName,
+      icon: listing.itemIcon || '📦',
+      type: listing.itemType,
+      subtype: listing.itemSubtype,
+      slot: listing.itemSlot,
+      rarity: listing.itemRarity,
+      stats: listing.itemStats,
+      setId: listing.itemSetId || null,
+      stackable: false
+    };
 
-    // Transfer gold
+    // Add item to buyer inventory
+    var result = addItemToInventory(buyer, listing.itemId, quantity, itemForInventory);
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    // Deduct gold from buyer
     buyer.gold -= totalCost;
+    await buyer.save();
+
+    // Add gold to seller
+    var seller = await Character.findOne({ userId: listing.sellerId });
     if (seller) {
       seller.gold += totalCost;
       await seller.save();
     }
 
-    // Build item data from listing (includes dynamically generated items)
-    // PHASE 9.3.9 FIX: Include all item fields for proper inventory storage
-    // Also fallback to equipment database for old listings missing data
-    var dbItem = getItemById(listing.itemId);
-    var itemData = {
-      id: listing.itemId,
-      name: listing.itemName || (dbItem && dbItem.name) || 'Unknown Item',
-      icon: listing.itemIcon || (dbItem && dbItem.icon) || '📦',
-      type: listing.itemType || (dbItem && dbItem.type) || 'equipment',
-      subtype: listing.itemSubtype || (dbItem && (dbItem.subtype || dbItem.slot)) || '',
-      slot: listing.itemSlot || (dbItem && dbItem.slot) || listing.itemSubtype || null,
-      rarity: listing.itemRarity || (dbItem && dbItem.rarity) || 'common',
-      stackable: listing.itemType === 'material' || listing.itemType === 'consumable',
-      stats: listing.itemStats || (dbItem && dbItem.stats) || {},
-      levelReq: listing.itemLevelReq || (dbItem && dbItem.levelReq) || null,
-      classReq: listing.itemClassReq || (dbItem && (dbItem.classReq || dbItem.class)) || null,
-      setId: (dbItem && dbItem.setId) || null
-    };
-
-    var result = addItemToInventory(buyer, listing.itemId, buyQty, itemData);
-    if (!result.success) {
-      // Refund
-      buyer.gold += totalCost;
-      if (seller) {
-        seller.gold -= totalCost;
-        await seller.save();
-      }
-      return res.status(400).json({ error: result.error });
-    }
-
     // Update listing
-    if (buyQty >= listing.quantity) {
-      // Mark as inactive and delete instead of setting quantity to 0
-      // This avoids Mongoose validation error (min: 1 on quantity)
-      await TradingListing.findByIdAndDelete(listing._id);
-    } else {
-      listing.quantity -= buyQty;
-      listing.totalPrice = listing.quantity * listing.pricePerUnit;
-      await listing.save();
+    listing.quantity -= quantity;
+    if (listing.quantity <= 0) {
+      listing.isActive = false;
+      listing.soldAt = new Date();
     }
-    await buyer.save();
+    await listing.save();
 
     res.json({
-      message: 'Purchased ' + buyQty + 'x ' + listing.itemName + ' for ' + totalCost + ' gold',
+      message: 'Purchased ' + quantity + 'x ' + listing.itemName + ' for ' + totalCost + ' gold',
       gold: buyer.gold,
       inventory: buyer.inventory
     });
   } catch (error) {
     console.error('Trading buy error:', error);
-    console.error('Error stack:', error.stack);
-    res.status(500).json({ error: 'Server error: ' + error.message });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
-// DELETE /api/tavern/trading/:listingId - Cancel listing
+// DELETE /api/tavern/trading/:listingId - Cancel own listing
 router.delete('/trading/:listingId', authenticate, async function(req, res) {
   try {
     var listing = await TradingListing.findById(req.params.listingId);
+    if (!listing) return res.status(404).json({ error: 'Listing not found' });
 
-    if (!listing || !listing.isActive) {
-      return res.status(404).json({ error: 'Listing not found' });
-    }
-
-    if (!listing.sellerId.equals(req.userId)) {
+    if (listing.sellerId !== req.userId) {
       return res.status(403).json({ error: 'Not your listing' });
     }
 
     var character = await Character.findOne({ userId: req.userId });
+    if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    // Build item data from listing
-    // PHASE 9.3.9 FIX: Include all item fields for proper inventory storage
-    // Also fallback to equipment database for old listings missing data
-    var dbItem = getItemById(listing.itemId);
-    var itemData = {
+    // Return item to inventory
+    var fullItemData = getItemById(listing.itemId);
+    var itemForInventory = fullItemData || {
       id: listing.itemId,
-      name: listing.itemName || (dbItem && dbItem.name) || 'Unknown Item',
-      icon: listing.itemIcon || (dbItem && dbItem.icon) || '📦',
-      type: listing.itemType || (dbItem && dbItem.type) || 'equipment',
-      subtype: listing.itemSubtype || (dbItem && (dbItem.subtype || dbItem.slot)) || '',
-      slot: listing.itemSlot || (dbItem && dbItem.slot) || listing.itemSubtype || null,
-      rarity: listing.itemRarity || (dbItem && dbItem.rarity) || 'common',
-      stackable: listing.itemType === 'material' || listing.itemType === 'consumable',
-      stats: listing.itemStats || (dbItem && dbItem.stats) || {},
-      levelReq: listing.itemLevelReq || (dbItem && dbItem.levelReq) || null,
-      classReq: listing.itemClassReq || (dbItem && (dbItem.classReq || dbItem.class)) || null,
-      setId: (dbItem && dbItem.setId) || null
+      name: listing.itemName,
+      icon: listing.itemIcon || '📦',
+      type: listing.itemType,
+      subtype: listing.itemSubtype,
+      slot: listing.itemSlot,
+      rarity: listing.itemRarity,
+      stats: listing.itemStats,
+      setId: listing.itemSetId || null,
+      stackable: false
     };
 
-    var result = addItemToInventory(character, listing.itemId, listing.quantity, itemData);
+    var result = addItemToInventory(character, listing.itemId, listing.quantity, itemForInventory);
     if (!result.success) {
-      return res.status(400).json({ error: 'Cannot return items: ' + result.error });
+      return res.status(400).json({ error: result.error });
     }
 
-    listing.isActive = false;
-    await listing.save();
     await character.save();
 
+    // Remove listing
+    listing.isActive = false;
+    listing.cancelledAt = new Date();
+    await listing.save();
+
     res.json({
-      message: 'Listing cancelled. Items returned to inventory.',
+      message: 'Cancelled listing for ' + listing.itemName,
       inventory: character.inventory
     });
   } catch (error) {
@@ -894,9 +904,26 @@ router.delete('/trading/:listingId', authenticate, async function(req, res) {
   }
 });
 
-// ============ INVENTORY MANAGEMENT ============
+// ============ INVENTORY ROUTES ============
 
-// POST /api/tavern/inventory/use - Use consumable item
+// GET /api/tavern/inventory - Get player inventory
+router.get('/inventory', authenticate, async function(req, res) {
+  try {
+    var character = await Character.findOne({ userId: req.userId });
+    if (!character) return res.status(404).json({ error: 'Character not found' });
+
+    res.json({
+      inventory: character.inventory,
+      inventorySize: character.inventorySize,
+      equipment: character.equipment,
+      gold: character.gold
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/tavern/inventory/use - Use consumable
 router.post('/inventory/use', authenticate, async function(req, res) {
   try {
     var itemId = req.body.itemId;
@@ -1147,6 +1174,7 @@ router.post('/equip', authenticate, async function(req, res) {
     }
 
     // Get item data from DB (has slot field) or inventory
+    // PHASE 9.9.4 FIX: getItemById now also checks VIP_EQUIPMENT
     var itemData = getItemById(itemId);
     
     // Check if item can be equipped
@@ -1158,7 +1186,7 @@ router.post('/equip', authenticate, async function(req, res) {
     }
 
     // Check class requirement
-    var classReq = (itemData && itemData.class) || invItem.classReq;
+    var classReq = (itemData && itemData.classReq) || (itemData && itemData.class) || invItem.classReq;
     if (classReq && classReq !== 'any' && classReq !== character.baseClass) {
       return res.status(400).json({ error: 'Wrong class for this item. Requires: ' + classReq });
     }
@@ -1201,11 +1229,13 @@ router.post('/equip', authenticate, async function(req, res) {
     
     // ============================================================
     // PHASE 9.9.4: Start expiration countdown on FIRST equip for VIP items
+    // BUT preserve existing timer if item was already equipped before!
     // ============================================================
     var firstEquippedAt = invItem.firstEquippedAt || null;
     var expiresAt = invItem.expiresAt || null;
     
-    if (invItem.expirationType === 'on_first_equip' && !invItem.firstEquippedAt) {
+    // Only start timer if this is truly the first time AND no timer exists
+    if (invItem.expirationType === 'on_first_equip' && !firstEquippedAt && !expiresAt) {
       // This is the FIRST time equipping - start the countdown!
       var now = new Date();
       var expirationDays = invItem.expirationDays || 7;
@@ -1218,6 +1248,9 @@ router.post('/equip', authenticate, async function(req, res) {
     }
 
     // Equip new item
+    // PHASE 9.9.4 FIX: Get setId from itemData (VIP items now in getItemById) OR invItem
+    var setIdToUse = (itemData && itemData.setId) || invItem.setId || null;
+    
     character.equipment[slot] = {
       itemId: (itemData && itemData.id) || itemId,
       name: (itemData && itemData.name) || invItem.name,
@@ -1226,11 +1259,11 @@ router.post('/equip', authenticate, async function(req, res) {
       subtype: subtype,
       rarity: (itemData && itemData.rarity) || invItem.rarity,
       stats: (itemData && itemData.stats) || invItem.stats || {},
-      setId: (itemData && itemData.setId) || invItem.setId || null,
+      setId: setIdToUse,
       // PHASE 9.9.4: Store VIP expiration info on equipped item
-      vipOnly: invItem.vipOnly || false,
-      expirationType: invItem.expirationType || null,
-      expirationDays: invItem.expirationDays || null,
+      vipOnly: invItem.vipOnly || (itemData && itemData.vipOnly) || false,
+      expirationType: invItem.expirationType || (itemData && itemData.expirationType) || null,
+      expirationDays: invItem.expirationDays || (itemData && itemData.expirationDays) || null,
       firstEquippedAt: firstEquippedAt,
       expiresAt: expiresAt
     };
@@ -1252,6 +1285,17 @@ router.post('/equip', authenticate, async function(req, res) {
       message += ' (Expires in ' + daysRemaining + ' days)';
     }
 
+    // ============================================================
+    // PHASE 9.9.4 DEBUG: Log set bonus info
+    // ============================================================
+    console.log('[EQUIP DEBUG] Equipped item:', {
+      itemId: itemId,
+      setId: setIdToUse,
+      slot: slot,
+      invItemSetId: invItem.setId,
+      itemDataSetId: itemData ? itemData.setId : null
+    });
+
     res.json({
       message: message,
       equipment: character.equipment,
@@ -1271,6 +1315,7 @@ router.post('/equip', authenticate, async function(req, res) {
 
 // POST /api/tavern/unequip - Unequip item
 // PHASE 9.3.3 FIX: Always include subtype for re-equipping
+// PHASE 9.9.4 FIX: Preserve VIP expiration fields when unequipping
 router.post('/unequip', authenticate, async function(req, res) {
   try {
     var slot = req.body.slot;
@@ -1290,6 +1335,10 @@ router.post('/unequip', authenticate, async function(req, res) {
     var dbItem = getItemById(currentEquip.itemId);
     
     // Build item data - ALWAYS use our determined subtype, not DB's
+    // ============================================================
+    // PHASE 9.9.4 FIX: Preserve VIP expiration fields when unequipping!
+    // The timer should persist once activated, regardless of equip/unequip
+    // ============================================================
     var itemData = {
       id: currentEquip.itemId,
       name: dbItem ? dbItem.name : currentEquip.name,
@@ -1300,7 +1349,15 @@ router.post('/unequip', authenticate, async function(req, res) {
       rarity: dbItem ? dbItem.rarity : currentEquip.rarity,
       stats: dbItem ? dbItem.stats : currentEquip.stats,
       setId: dbItem ? dbItem.setId : (currentEquip.setId || null),
-      stackable: false
+      stackable: false,
+      // ============================================================
+      // PHASE 9.9.4 FIX: Preserve VIP expiration fields!
+      // ============================================================
+      vipOnly: currentEquip.vipOnly || false,
+      expirationType: currentEquip.expirationType || null,
+      expirationDays: currentEquip.expirationDays || null,
+      firstEquippedAt: currentEquip.firstEquippedAt || null,
+      expiresAt: currentEquip.expiresAt || null
     };
     
     var result = addItemToInventory(character, currentEquip.itemId, 1, itemData);
@@ -1351,163 +1408,66 @@ router.post('/craft/memory-crystal', authenticate, async function(req, res) {
     }
 
     // Remove fragments
-    character.inventory[fragIndex].quantity -= 15;
-    if (character.inventory[fragIndex].quantity === 0) {
-      character.inventory.splice(fragIndex, 1);
+    var removeResult = removeItemFromInventory(character, 'memory_crystal_fragment', 15);
+    if (!removeResult.success) {
+      return res.status(400).json({ error: removeResult.error });
     }
 
     // Add Memory Crystal
-    var itemData = getItemById('memory_crystal');
-    addItemToInventory(character, 'memory_crystal', 1, itemData);
+    if (!MEMORY_CRYSTAL) {
+      return res.status(500).json({ error: 'Memory Crystal not defined in database' });
+    }
+    
+    var addResult = addItemToInventory(character, 'memory_crystal', 1, MEMORY_CRYSTAL);
+    if (!addResult.success) {
+      // Refund fragments
+      addItemToInventory(character, 'memory_crystal_fragment', 15, MEMORY_CRYSTAL_FRAGMENT);
+      return res.status(400).json({ error: addResult.error });
+    }
 
     await character.save();
 
     res.json({
-      message: 'Crafted Memory Crystal!',
+      message: 'Crafted Memory Crystal from 15 fragments!',
       inventory: character.inventory
     });
   } catch (error) {
+    console.error('Craft memory crystal error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/tavern/use-memory-crystal - Remove hidden class, return scroll
-router.post('/use-memory-crystal', authenticate, async function(req, res) {
-  try {
-    var character = await Character.findOne({ userId: req.userId });
-    if (!character) return res.status(404).json({ error: 'Character not found' });
+// ============ HIDDEN CLASS SCROLL ============
 
-    if (character.hiddenClass === 'none') {
-      return res.status(400).json({ error: 'You have no hidden class to remove' });
-    }
-
-    // Check Memory Crystal
-    var crystalIndex = character.inventory.findIndex(function(i) { return i.itemId === 'memory_crystal'; });
-    if (crystalIndex === -1) {
-      return res.status(400).json({ error: 'You need a Memory Crystal!' });
-    }
-
-    // Remove Memory Crystal
-    if (character.inventory[crystalIndex].quantity > 1) {
-      character.inventory[crystalIndex].quantity -= 1;
-    } else {
-      character.inventory.splice(crystalIndex, 1);
-    }
-
-    // Release class ownership - makes scroll available for others to find
-    await HiddenClassOwnership.releaseClass(character.hiddenClass, character._id);
-
-    // PHASE 9.6.2 FIX: Get scroll data from HIDDEN_CLASS_SCROLLS
-    // Scroll IDs are formatted as: {hiddenClass}_scroll (e.g., flameblade_scroll)
-    var scrollData = null;
-    var scrollId = character.hiddenClass + '_scroll';  // FIXED: correct format
-    
-    if (HIDDEN_CLASS_SCROLLS) {
-      // Find scroll by matching hiddenClass field
-      scrollData = Object.values(HIDDEN_CLASS_SCROLLS).find(function(s) {
-        return s.hiddenClass === character.hiddenClass;
-      });
-    }
-    
-    // Use scroll ID from database if found
-    if (scrollData) {
-      scrollId = scrollData.id;
-    } else {
-      // Fallback scroll data (should never happen if special_items.js is complete)
-      console.warn('[Memory Crystal] Scroll not found in database for class:', character.hiddenClass);
-      
-      // Determine base class for fallback
-      var hiddenToBase = {
-        flameblade: 'swordsman', berserker: 'swordsman', paladin: 'swordsman',
-        earthshaker: 'swordsman', frostguard: 'swordsman',
-        shadowDancer: 'thief', venomancer: 'thief', assassin: 'thief',
-        phantom: 'thief', bloodreaper: 'thief',
-        stormRanger: 'archer', pyroArcher: 'archer', frostSniper: 'archer',
-        natureWarden: 'archer', voidHunter: 'archer',
-        frostWeaver: 'mage', pyromancer: 'mage', stormcaller: 'mage',
-        necromancer: 'mage', arcanist: 'mage'
-      };
-      
-      scrollData = {
-        id: scrollId,
-        name: 'Scroll of the ' + character.hiddenClass.charAt(0).toUpperCase() + character.hiddenClass.slice(1),
-        icon: '📜',
-        type: 'hidden_class_scroll',
-        rarity: 'legendary',
-        hiddenClass: character.hiddenClass,
-        baseClass: hiddenToBase[character.hiddenClass] || null,
-        stackable: false,
-        isUnique: true
-      };
-    }
-
-    // Add scroll back to inventory
-    addItemToInventory(character, scrollId, 1, scrollData);
-
-    var oldClass = character.hiddenClass;
-
-    // Remove hidden class and skills
-    character.hiddenClass = 'none';
-    character.hiddenClassUnlocked = false;
-    character.element = 'none';
-
-    var baseSkillIds = [
-      'slash', 'heavyStrike', 'shieldBash', 'warCry',
-      'backstab', 'poisonBlade', 'smokeScreen', 'steal',
-      'preciseShot', 'multiShot', 'eagleEye', 'arrowRain',
-      'fireball', 'iceSpear', 'manaShield', 'thunderbolt'
-    ];
-    character.skills = character.skills.filter(function(s) { return baseSkillIds.indexOf(s.skillId) >= 0; });
-
-    await character.save();
-
-    res.json({
-      message: 'Removed ' + oldClass + ' class. Scroll returned to inventory!',
-      hiddenClass: 'none',
-      inventory: character.inventory
-    });
-  } catch (error) {
-    console.error('Use memory crystal error:', error);
-    res.status(500).json({ error: error.message || 'Server error' });
-  }
-});
-
-// POST /api/tavern/use-scroll - Use hidden class scroll to awaken
+// POST /api/tavern/use-scroll - Use hidden class scroll
 router.post('/use-scroll', authenticate, async function(req, res) {
   try {
     var scrollItemId = req.body.itemId;
-    if (!scrollItemId) {
-      return res.status(400).json({ error: 'No scroll specified' });
-    }
-
     var character = await Character.findOne({ userId: req.userId });
     if (!character) return res.status(404).json({ error: 'Character not found' });
 
-    // Check if player already has a hidden class
-    if (character.hiddenClass !== 'none') {
-      return res.status(400).json({ error: 'You already have a hidden class! Use Memory Crystal to remove it first.' });
-    }
-
-    // Find scroll in inventory - check multiple possible type values
-    var scrollIndex = character.inventory.findIndex(function(i) { 
-      return i.itemId === scrollItemId && 
-        (i.type === 'hidden_class_scroll' || i.type === 'special' || i.type === 'scroll' || 
-         i.subtype === 'scroll' || (i.name && i.name.toLowerCase().includes('scroll')));
-    });
+    // Find scroll in inventory
+    var scrollIndex = character.inventory.findIndex(function(i) { return i.itemId === scrollItemId; });
     if (scrollIndex === -1) {
       return res.status(400).json({ error: 'Scroll not found in inventory' });
     }
-
     var scrollItem = character.inventory[scrollIndex];
     
-    // Get scroll data from HIDDEN_CLASS_SCROLLS
-    var scrollData = null;
+    // Check if player already has a hidden class
+    if (character.hiddenClass && character.hiddenClass !== 'none') {
+      return res.status(400).json({ 
+        error: 'You already have a hidden class: ' + character.hiddenClass + '. Each character can only have one hidden class!' 
+      });
+    }
+
+    // Determine which hidden class the scroll gives
     var hiddenClassName = null;
     var baseClassName = null;
     var element = 'none';
     
+    // Try to get from HIDDEN_CLASS_SCROLLS
     if (HIDDEN_CLASS_SCROLLS) {
-      scrollData = Object.values(HIDDEN_CLASS_SCROLLS).find(s => s.id === scrollItemId);
+      var scrollData = Object.values(HIDDEN_CLASS_SCROLLS).find(function(s) { return s.id === scrollItemId; });
       if (scrollData) {
         hiddenClassName = scrollData.hiddenClass;
         baseClassName = scrollData.baseClass;
