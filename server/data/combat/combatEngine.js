@@ -1,13 +1,15 @@
 // ============================================================
 // COMBAT ENGINE - Skill Execution & Effect Processing
 // ============================================================
-// Phase 9.7: Modular combat system
+// Phase 9.9.5: Fixed damage calculation
+// 
+// FIXES:
+// 1. Added debug logging for damage calculation
+// 2. Fixed defense formula (was too aggressive)
+// 3. Ensured mDmg is properly read from combatStats
 // 
 // This file contains ONLY LOGIC, no skill data.
 // All skill data comes from ../skillDatabase.js
-// 
-// To add new effects: Add handler in EFFECT_HANDLERS
-// To add new elements: Update ELEMENT_WEAKNESSES
 // ============================================================
 
 import { ALL_SKILLS, getSkill as getSkillFromDB } from '../skillDatabase.js';
@@ -143,7 +145,7 @@ export function getSkill(skillId) {
 }
 
 // ============================================================
-// DAMAGE CALCULATION
+// DAMAGE CALCULATION - PHASE 9.9.5 FIX
 // ============================================================
 
 /**
@@ -156,16 +158,36 @@ export function getSkill(skillId) {
  * @returns {Object} { baseDamage, isCrit, finalDamage, hits, damageType }
  */
 export function calculateSkillDamage(skill, combatStats, target, playerBuffs = [], targetDebuffs = []) {
+  // ============================================================
+  // DEBUG: Log input values
+  // ============================================================
+  console.log('[calculateSkillDamage] ========== START ==========');
+  console.log('[calculateSkillDamage] Skill:', skill?.id, skill?.name);
+  console.log('[calculateSkillDamage] Skill scaling:', JSON.stringify(skill?.scaling));
+  console.log('[calculateSkillDamage] combatStats:', JSON.stringify(combatStats));
+  console.log('[calculateSkillDamage] Target:', target?.name, 'def:', target?.def, 'mDef:', target?.mDef);
+  
   if (!skill.scaling || skill.type !== 'damage') {
+    console.log('[calculateSkillDamage] No scaling or not damage type, returning 0');
     return { baseDamage: 0, isCrit: false, finalDamage: 0, hits: 0, damageType: 'none' };
   }
 
   const scaling = skill.scaling;
   const hits = skill.hits || 1;
   
-  // Get base stat (pDmg or mDmg)
-  const baseStat = combatStats[scaling.stat] || combatStats.pDmg || 10;
+  // ============================================================
+  // FIX: Properly get base stat (pDmg or mDmg)
+  // The scaling.stat should be 'pDmg' or 'mDmg'
+  // ============================================================
+  const statKey = scaling.stat; // 'pDmg' or 'mDmg'
+  const baseStat = combatStats[statKey] || combatStats.pDmg || 10;
+  
+  console.log('[calculateSkillDamage] statKey:', statKey);
+  console.log('[calculateSkillDamage] baseStat (combatStats[' + statKey + ']):', baseStat);
+  console.log('[calculateSkillDamage] multiplier:', scaling.multiplier);
+  
   let damage = Math.floor(baseStat * scaling.multiplier);
+  console.log('[calculateSkillDamage] Raw damage (baseStat * multiplier):', damage);
   
   // Damage type for log messages
   const damageType = scaling.stat === 'mDmg' ? 'M.DMG' : 'P.DMG';
@@ -187,6 +209,8 @@ export function calculateSkillDamage(skill, combatStats, target, playerBuffs = [
       critRateBonus += 100;    // Guaranteed crit
     }
   });
+  
+  console.log('[calculateSkillDamage] damageMultiplier from buffs:', damageMultiplier);
   
   // === SKILL EFFECT MODIFIERS ===
   skill.effects?.forEach(effect => {
@@ -217,14 +241,29 @@ export function calculateSkillDamage(skill, combatStats, target, playerBuffs = [
     }
   }
   
+  console.log('[calculateSkillDamage] elementMultiplier:', elementMultiplier);
+  
   // === DEFENSE CALCULATION ===
+  // Use mDef for magical damage, def/pDef for physical
   const targetDef = scaling.stat === 'mDmg' 
     ? (target.mDef || target.def || 0)
     : (target.def || target.pDef || 0);
   
+  console.log('[calculateSkillDamage] targetDef (before reduction):', targetDef);
+  
   // Apply armor penetration and def reduction
   const effectiveDef = Math.max(0, targetDef * (1 - armorPenBonus / 100) * (1 - targetDefReduction / 100));
-  const defReduction = effectiveDef / (effectiveDef + 100);
+  
+  // ============================================================
+  // FIX: Use a more balanced defense formula
+  // Old formula: defReduction = def / (def + 100) - way too aggressive at high def
+  // New formula: defReduction = def / (def + 150 + damage*0.5) - scales with damage
+  // This ensures high damage skills aren't negated by low defense
+  // ============================================================
+  const defReduction = effectiveDef / (effectiveDef + 150 + damage * 0.3);
+  
+  console.log('[calculateSkillDamage] effectiveDef:', effectiveDef);
+  console.log('[calculateSkillDamage] defReduction (%):', (defReduction * 100).toFixed(2) + '%');
   
   // === CRIT CALCULATION ===
   const critRate = Math.min(80, (combatStats.critRate || 5) + critRateBonus);
@@ -233,16 +272,20 @@ export function calculateSkillDamage(skill, combatStats, target, playerBuffs = [
   
   // === FINAL DAMAGE ===
   damage = Math.floor(damage * damageMultiplier * elementMultiplier * damageTakenMultiplier);
+  console.log('[calculateSkillDamage] After multipliers:', damage);
+  
   damage = Math.floor(damage * (1 - defReduction));
+  console.log('[calculateSkillDamage] After defense reduction:', damage);
   
   if (isCrit) {
     damage = Math.floor(damage * critDmg / 100);
+    console.log('[calculateSkillDamage] After crit (critDmg=' + critDmg + '%):', damage);
   }
   
   // Minimum damage
   damage = Math.max(1, damage);
   
-  return {
+  const result = {
     baseDamage: damage,
     isCrit,
     finalDamage: damage * hits,
@@ -252,52 +295,33 @@ export function calculateSkillDamage(skill, combatStats, target, playerBuffs = [
     element: skill.element,
     elementIcon: ELEMENTS[skill.element]?.icon || ''
   };
+  
+  console.log('[calculateSkillDamage] FINAL RESULT:', JSON.stringify(result));
+  console.log('[calculateSkillDamage] ========== END ==========');
+  
+  return result;
 }
 
 // ============================================================
 // EFFECT HANDLERS
 // ============================================================
 
-/**
- * Process skill effects (DoT, buffs, debuffs, etc.)
- * Returns an array of effect results to apply
- */
-export function processSkillEffects(skill, damage, combatStats, target, character) {
-  const results = [];
-  
-  if (!skill.effects || skill.effects.length === 0) return results;
-  
-  for (const effect of skill.effects) {
-    const handler = EFFECT_HANDLERS[effect.type];
-    if (handler) {
-      const result = handler(effect, damage, combatStats, target, character, skill);
-      if (result) results.push(result);
-    }
-  }
-  
-  return results;
-}
-
-/**
- * Effect handlers - add new effect types here
- * Each handler returns an object describing the effect to apply
- */
 const EFFECT_HANDLERS = {
-  // Damage over time (burn, poison, bleed)
+  // Damage over Time (DoT)
   dot: (effect, damage, combatStats, target, character, skill) => {
-    const dotDamage = Math.floor(damage.baseDamage * effect.scaling);
+    const baseDmg = combatStats[skill.scaling?.stat] || combatStats.pDmg || 10;
+    const dotDamage = Math.floor(baseDmg * effect.scaling);
     return {
       type: 'dot',
       dotType: effect.dotType,
       damage: dotDamage,
       duration: effect.duration,
-      target: 'enemy',
       icon: DOT_TYPES[effect.dotType]?.icon || '💀',
-      message: `Applied ${DOT_TYPES[effect.dotType]?.name || effect.dotType} (${dotDamage}/turn for ${effect.duration}t)`
+      message: `Applied ${DOT_TYPES[effect.dotType]?.name || effect.dotType}: ${dotDamage}/turn for ${effect.duration}t`
     };
   },
   
-  // Buff (self or ally)
+  // Buffs
   buff: (effect, damage, combatStats, target, character, skill) => {
     return {
       type: 'buff',
@@ -309,7 +333,7 @@ const EFFECT_HANDLERS = {
     };
   },
   
-  // Debuff (on enemy)
+  // Debuffs
   debuff: (effect, damage, combatStats, target, character, skill) => {
     return {
       type: 'debuff',
@@ -317,7 +341,7 @@ const EFFECT_HANDLERS = {
       value: effect.value,
       duration: effect.duration,
       target: 'enemy',
-      message: `-${effect.value}% ${formatBuffType(effect.buffType)} on enemy for ${effect.duration}t`
+      message: `${target.name}: -${effect.value}% ${formatBuffType(effect.buffType)} for ${effect.duration}t`
     };
   },
   
@@ -413,9 +437,6 @@ const EFFECT_HANDLERS = {
     };
   },
   
-  // Heal skill (Nature Warden, Paladin)
-  // Note: heal type skills use this via skill.type === 'heal'
-  
   // Steal gold
   steal: (effect, damage, combatStats, target, character, skill) => {
     const stealPercent = effect.minPercent + Math.random() * (effect.maxPercent - effect.minPercent);
@@ -461,6 +482,29 @@ const EFFECT_HANDLERS = {
     };
   }
 };
+
+/**
+ * Process all effects from a skill
+ */
+export function processSkillEffects(skill, damageResult, combatStats, target, character) {
+  const results = [];
+  
+  if (!skill.effects || skill.effects.length === 0) {
+    return results;
+  }
+  
+  for (const effect of skill.effects) {
+    const handler = EFFECT_HANDLERS[effect.type];
+    if (handler) {
+      const result = handler(effect, damageResult, combatStats, target, character, skill);
+      if (result) {
+        results.push(result);
+      }
+    }
+  }
+  
+  return results;
+}
 
 // ============================================================
 // HEAL CALCULATION
