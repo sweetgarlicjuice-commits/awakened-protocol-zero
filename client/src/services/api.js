@@ -297,7 +297,7 @@ export const friendsAPI = {
 };
 
 // ============================================
-// DUNGEON BREAK API (Phase 9.8 + 9.9.1 + 9.9.2)
+// DUNGEON BREAK API (Phase 9.8 + 9.9.1 + 9.9.2 + 9.9.7)
 // ============================================
 export const dungeonBreakAPI = {
   // === Player Endpoints ===
@@ -306,7 +306,8 @@ export const dungeonBreakAPI = {
   getActive: () => api.get('/dungeon-break/active'),
   
   // Attack the boss (records damage, boss counter-attacks)
-  attack: () => api.post('/dungeon-break/attack'),
+  // Phase 9.9.7: Added optional skillId parameter for skill attacks
+  attack: (skillId = null) => api.post('/dungeon-break/attack', skillId ? { skillId } : {}),
   
   // Get damage leaderboard
   getLeaderboard: (eventId = null) => 
