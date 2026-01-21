@@ -46,8 +46,9 @@ function extractStats(bonus) {
 // ============================================================
 const TOWERS = [TOWER1, TOWER2, TOWER3, TOWER4, TOWER5];
 
-TOWERS.forEach(tower => {
-  if (tower.sets) {
+let towerSetCount = 0;
+TOWERS.forEach((tower, towerIndex) => {
+  if (tower && tower.sets) {
     // Tower sets are organized by class
     Object.values(tower.sets).forEach(set => {
       if (set.id && set.bonuses) {
@@ -55,6 +56,7 @@ TOWERS.forEach(tower => {
         Object.entries(set.bonuses).forEach(([threshold, bonus]) => {
           SET_BONUS_DEFINITIONS[set.id][threshold] = extractStats(bonus);
         });
+        towerSetCount++;
       }
     });
   }
@@ -63,26 +65,52 @@ TOWERS.forEach(tower => {
 // ============================================================
 // IMPORT VIP SETS
 // ============================================================
-Object.values(VIP_SETS).forEach(set => {
-  if (set.id && set.setBonus) {
-    SET_BONUS_DEFINITIONS[set.id] = {};
-    Object.entries(set.setBonus).forEach(([threshold, bonus]) => {
-      SET_BONUS_DEFINITIONS[set.id][threshold] = extractStats(bonus);
-    });
-  }
-});
+let vipSetCount = 0;
+if (VIP_SETS) {
+  Object.values(VIP_SETS).forEach(set => {
+    if (set.id && set.setBonus) {
+      SET_BONUS_DEFINITIONS[set.id] = {};
+      Object.entries(set.setBonus).forEach(([threshold, bonus]) => {
+        SET_BONUS_DEFINITIONS[set.id][threshold] = extractStats(bonus);
+      });
+      vipSetCount++;
+      // Debug log
+      console.log(`[SetBonuses] Loaded VIP set: ${set.id}`, SET_BONUS_DEFINITIONS[set.id]);
+    }
+  });
+}
 
 // ============================================================
 // IMPORT DUNGEON BREAK SETS
 // ============================================================
-Object.values(DUNGEON_BREAK_SETS).forEach(set => {
-  if (set.id && set.setBonuses) {
-    SET_BONUS_DEFINITIONS[set.id] = {};
-    Object.entries(set.setBonuses).forEach(([threshold, bonus]) => {
-      SET_BONUS_DEFINITIONS[set.id][threshold] = extractStats(bonus);
-    });
-  }
-});
+let dungeonSetCount = 0;
+if (DUNGEON_BREAK_SETS) {
+  Object.values(DUNGEON_BREAK_SETS).forEach(set => {
+    if (set.id && set.setBonuses) {
+      SET_BONUS_DEFINITIONS[set.id] = {};
+      Object.entries(set.setBonuses).forEach(([threshold, bonus]) => {
+        SET_BONUS_DEFINITIONS[set.id][threshold] = extractStats(bonus);
+      });
+      dungeonSetCount++;
+    }
+  });
+}
+
+// ============================================================
+// STARTUP LOG
+// ============================================================
+console.log(`[SetBonuses] Loaded ${Object.keys(SET_BONUS_DEFINITIONS).length} total sets:`);
+console.log(`  - Tower sets: ${towerSetCount}`);
+console.log(`  - VIP sets: ${vipSetCount}`);
+console.log(`  - Dungeon Break sets: ${dungeonSetCount}`);
+
+// Log VIP set definitions specifically for debugging
+if (SET_BONUS_DEFINITIONS['vip_premium_set']) {
+  console.log('[SetBonuses] vip_premium_set bonuses:', JSON.stringify(SET_BONUS_DEFINITIONS['vip_premium_set'], null, 2));
+}
+if (SET_BONUS_DEFINITIONS['vip_starter_set']) {
+  console.log('[SetBonuses] vip_starter_set bonuses:', JSON.stringify(SET_BONUS_DEFINITIONS['vip_starter_set'], null, 2));
+}
 
 // ============================================================
 // EXPORT
